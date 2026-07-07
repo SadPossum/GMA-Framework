@@ -1,0 +1,71 @@
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="docs/README.md" />
+  </Folder>
+  <Folder Name="/eng/">
+    <File Path="eng/new-module.ps1" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Gma.Framework.AccessControl/Gma.Framework.AccessControl.csproj" />
+    <Project Path="src/Gma.Framework.Administration.Api/Gma.Framework.Administration.Api.csproj" />
+    <Project Path="src/Gma.Framework.Administration.Cli/Gma.Framework.Administration.Cli.csproj" />
+    <Project Path="src/Gma.Framework.Administration/Gma.Framework.Administration.csproj" />
+    <Project Path="src/Gma.Framework.Api.OpenApi/Gma.Framework.Api.OpenApi.csproj" />
+    <Project Path="src/Gma.Framework.Api.Serilog/Gma.Framework.Api.Serilog.csproj" />
+    <Project Path="src/Gma.Framework.Api/Gma.Framework.Api.csproj" />
+    <Project Path="src/Gma.Framework.Application.Composition/Gma.Framework.Application.Composition.csproj" />
+    <Project Path="src/Gma.Framework.Application.Events.Infrastructure/Gma.Framework.Application.Events.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Application.Events/Gma.Framework.Application.Events.csproj" />
+    <Project Path="src/Gma.Framework.Authorization/Gma.Framework.Authorization.csproj" />
+    <Project Path="src/Gma.Framework.Caching.Cqrs/Gma.Framework.Caching.Cqrs.csproj" />
+    <Project Path="src/Gma.Framework.Caching.Infrastructure/Gma.Framework.Caching.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Caching.Redis/Gma.Framework.Caching.Redis.csproj" />
+    <Project Path="src/Gma.Framework.Caching/Gma.Framework.Caching.csproj" />
+    <Project Path="src/Gma.Framework.Cqrs.Infrastructure/Gma.Framework.Cqrs.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Cqrs/Gma.Framework.Cqrs.csproj" />
+    <Project Path="src/Gma.Framework.Domain/Gma.Framework.Domain.csproj" />
+    <Project Path="src/Gma.Framework.FileManagement.LocalStorage/Gma.Framework.FileManagement.LocalStorage.csproj" />
+    <Project Path="src/Gma.Framework.FileManagement.Minio/Gma.Framework.FileManagement.Minio.csproj" />
+    <Project Path="src/Gma.Framework.FileManagement/Gma.Framework.FileManagement.csproj" />
+    <Project Path="src/Gma.Framework.Infrastructure/Gma.Framework.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Logging.Serilog/Gma.Framework.Logging.Serilog.csproj" />
+    <Project Path="src/Gma.Framework.Messaging.Infrastructure/Gma.Framework.Messaging.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Messaging.Nats.Aspire/Gma.Framework.Messaging.Nats.Aspire.csproj" />
+    <Project Path="src/Gma.Framework.Messaging.Nats/Gma.Framework.Messaging.Nats.csproj" />
+    <Project Path="src/Gma.Framework.Messaging/Gma.Framework.Messaging.csproj" />
+    <Project Path="src/Gma.Framework.ModuleComposition/Gma.Framework.ModuleComposition.csproj" />
+    <Project Path="src/Gma.Framework.Modules/Gma.Framework.Modules.csproj" />
+    <Project Path="src/Gma.Framework.Naming/Gma.Framework.Naming.csproj" />
+    <Project Path="src/Gma.Framework.Notifications.Api/Gma.Framework.Notifications.Api.csproj" />
+    <Project Path="src/Gma.Framework.Notifications.Cqrs/Gma.Framework.Notifications.Cqrs.csproj" />
+    <Project Path="src/Gma.Framework.Notifications.Infrastructure/Gma.Framework.Notifications.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Notifications.SignalR/Gma.Framework.Notifications.SignalR.csproj" />
+    <Project Path="src/Gma.Framework.Notifications/Gma.Framework.Notifications.csproj" />
+    <Project Path="src/Gma.Framework.Numerics/Gma.Framework.Numerics.csproj" />
+    <Project Path="src/Gma.Framework.Observability.Infrastructure/Gma.Framework.Observability.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Observability/Gma.Framework.Observability.csproj" />
+    <Project Path="src/Gma.Framework.Pagination/Gma.Framework.Pagination.csproj" />
+    <Project Path="src/Gma.Framework.Persistence.EntityFrameworkCore/Gma.Framework.Persistence.EntityFrameworkCore.csproj" />
+    <Project Path="src/Gma.Framework.ProjectionRebuild.EntityFrameworkCore/Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
+    <Project Path="src/Gma.Framework.ProjectionRebuild.Tasks/Gma.Framework.ProjectionRebuild.Tasks.csproj" />
+    <Project Path="src/Gma.Framework.ProjectionRebuild/Gma.Framework.ProjectionRebuild.csproj" />
+    <Project Path="src/Gma.Framework.Results/Gma.Framework.Results.csproj" />
+    <Project Path="src/Gma.Framework.Runtime.Infrastructure/Gma.Framework.Runtime.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Runtime/Gma.Framework.Runtime.csproj" />
+    <Project Path="src/Gma.Framework.Security/Gma.Framework.Security.csproj" />
+    <Project Path="src/Gma.Framework.Tasks.Cqrs/Gma.Framework.Tasks.Cqrs.csproj" />
+    <Project Path="src/Gma.Framework.Tasks.Infrastructure/Gma.Framework.Tasks.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Tasks/Gma.Framework.Tasks.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Api.Serilog/Gma.Framework.Tenancy.Api.Serilog.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Caching/Gma.Framework.Tenancy.Caching.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Cqrs/Gma.Framework.Tenancy.Cqrs.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Infrastructure/Gma.Framework.Tenancy.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Messaging.Infrastructure/Gma.Framework.Tenancy.Messaging.Infrastructure.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Messaging/Gma.Framework.Tenancy.Messaging.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy.Tasks/Gma.Framework.Tenancy.Tasks.csproj" />
+    <Project Path="src/Gma.Framework.Tenancy/Gma.Framework.Tenancy.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Gma.Framework.Tests/Gma.Framework.Tests.csproj" />
+  </Folder>
+</Solution>

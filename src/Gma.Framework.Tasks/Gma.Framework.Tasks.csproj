@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\Gma.Framework.Modules\Gma.Framework.Modules.csproj" />
+    <ProjectReference Include="..\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
+  </ItemGroup>
+</Project>
