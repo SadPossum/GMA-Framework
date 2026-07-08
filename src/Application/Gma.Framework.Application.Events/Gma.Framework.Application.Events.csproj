@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Domain\Gma.Framework.Domain\Gma.Framework.Domain.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 # Architecture Overview
 
-GenericModularApi is a modular monolith skeleton. It keeps deployment simple while preserving module boundaries that can survive growth.
+GMA Framework is a set of reusable capability packages for modular monolith applications. It keeps deployment simple while preserving module boundaries that can survive growth.
 
 ## Goals
 
@@ -17,168 +17,128 @@ GenericModularApi is a modular monolith skeleton. It keeps deployment simple whi
 ## Current Shape
 
 ```text
-src/
-  Host.Api/
-  Host.AdminCli/
-  Host.AdminApi/
-  Host.Worker/
-  AppHost/
-  ServiceDefaults/
-  Framework/
-    Gma.Framework.Administration/
-    Gma.Framework.Administration.Api/
-    Gma.Framework.Administration.Cli/
-    Gma.Framework.Api/
-    Gma.Framework.AccessControl/
-    Gma.Framework.Api.OpenApi/
-    Gma.Framework.Api.Serilog/
-    Gma.Framework.Application.Composition/
-    Gma.Framework.Application.Events/
-    Gma.Framework.Application.Events.Infrastructure/
-    Gma.Framework.Authorization/
-    Gma.Framework.Caching/
-    Gma.Framework.Caching.Cqrs/
-    Gma.Framework.Caching.Infrastructure/
-    Gma.Framework.Caching.Redis/
-    Gma.Framework.Cqrs/
-    Gma.Framework.Cqrs.Infrastructure/
-    Gma.Framework.Domain/
-    Gma.Framework.FileManagement/
-    Gma.Framework.FileManagement.LocalStorage/
-    Gma.Framework.FileManagement.Minio/
-    Gma.Framework.Results/
-    Gma.Framework.Infrastructure/
-    Gma.Framework.Logging.Serilog/
-    Gma.Framework.Messaging/
-    Gma.Framework.Messaging.Infrastructure/
-    Gma.Framework.Messaging.Nats/
-    Gma.Framework.Messaging.Nats.Aspire/
-    Gma.Framework.ModuleComposition/
-    Gma.Framework.Modules/
-    Gma.Framework.Naming/
-    Gma.Framework.Numerics/
-    Gma.Framework.Notifications/
-    Gma.Framework.Notifications.Cqrs/
-    Gma.Framework.Notifications.Infrastructure/
-    Gma.Framework.Notifications.Api/
-    Gma.Framework.Notifications.SignalR/
-    Gma.Framework.Observability/
-    Gma.Framework.Observability.Infrastructure/
-    Gma.Framework.Pagination/
-    Gma.Framework.Persistence.EntityFrameworkCore/
-    Gma.Framework.ProjectionRebuild/
-    Gma.Framework.ProjectionRebuild.EntityFrameworkCore/
-    Gma.Framework.ProjectionRebuild.Tasks/
-    Gma.Framework.Runtime/
-    Gma.Framework.Runtime.Infrastructure/
-    Gma.Framework.Security/
-    Gma.Framework.Tasks/
-    Gma.Framework.Tasks.Cqrs/
-    Gma.Framework.Tasks.Infrastructure/
-    Gma.Framework.Tenancy/
-    Gma.Framework.Tenancy.Api.Serilog/
-    Gma.Framework.Tenancy.Caching/
-    Gma.Framework.Tenancy.Cqrs/
-    Gma.Framework.Tenancy.Infrastructure/
-    Gma.Framework.Tenancy.Messaging/
-    Gma.Framework.Tenancy.Messaging.Infrastructure/
-    Gma.Framework.Tenancy.Tasks/
-    tests/
-      Gma.Framework.Tests/
-  Modules/
-    Auth/
-      Gma.Modules.Auth.Contracts/
-        Api/
-        Admin/
-        Events/
-        Metadata/
-        Types/
-      Gma.Modules.Auth.Domain/
-      Gma.Modules.Auth.Application/
-      Gma.Modules.Auth.Infrastructure/
-      Gma.Modules.Auth.Persistence/
-      Gma.Modules.Auth.Persistence.SqlServerMigrations/
-      Gma.Modules.Auth.Persistence.PostgreSqlMigrations/
-      Gma.Modules.Auth.Api/
-      Gma.Modules.Auth.Admin.Contracts/
-        Operations/
-        Permissions/
-      Gma.Modules.Auth.AdminCli/
-      Gma.Modules.Auth.AdminApi/
+GMA-Framework/
+  docs/
+  eng/
+  src/
     Administration/
-      Gma.Modules.Administration.Application/
-      Gma.Modules.Administration.Persistence/
-      Gma.Modules.Administration.Persistence.SqlServerMigrations/
-      Gma.Modules.Administration.Persistence.PostgreSqlMigrations/
-      Gma.Modules.Administration.AdminCli/
-      Gma.Modules.Administration.AdminApi/
-    Catalog/
-      Catalog.Contracts/
-      Catalog.Domain/
-      Catalog.Application/
-      Catalog.Persistence/
-      Catalog.Persistence.SqlServerMigrations/
-      Catalog.Persistence.PostgreSqlMigrations/
-      Catalog.Api/
-      Catalog.Admin.Contracts/
-      Catalog.AdminCli/
-      Catalog.AdminApi/
-      docs/
-      tests/
-        Catalog.Tests/
-    Files/
-      Gma.Modules.Files.Contracts/
-      Gma.Modules.Files.Application/
-      Gma.Modules.Files.Api/
+      Gma.Framework.Administration/
+      Gma.Framework.Administration.Api/
+      Gma.Framework.Administration.Cli/
+    Api/
+      Gma.Framework.Api/
+      Gma.Framework.Api.OpenApi/
+      Gma.Framework.Api.Serilog/
+    Application/
+      Gma.Framework.Application.Composition/
+      Gma.Framework.Application.Events/
+      Gma.Framework.Application.Events.Infrastructure/
+    Caching/
+      Gma.Framework.Caching/
+      Gma.Framework.Caching.Cqrs/
+      Gma.Framework.Caching.Infrastructure/
+      Gma.Framework.Caching.Redis/
+    Cqrs/
+      Gma.Framework.Cqrs/
+      Gma.Framework.Cqrs.Infrastructure/
+    Domain/
+      Gma.Framework.Domain/
+    FileManagement/
+      Gma.Framework.FileManagement/
+      Gma.Framework.FileManagement.LocalStorage/
+      Gma.Framework.FileManagement.Minio/
+    Infrastructure/
+      Gma.Framework.Infrastructure/
+    Logging/
+      Gma.Framework.Logging.Serilog/
+    Messaging/
+      Gma.Framework.Messaging/
+      Gma.Framework.Messaging.Infrastructure/
+      Gma.Framework.Messaging.Nats/
+      Gma.Framework.Messaging.Nats.Aspire/
+    Modules/
+      Gma.Framework.ModuleComposition/
+      Gma.Framework.Modules/
+    Naming/
+      Gma.Framework.Naming/
     Notifications/
-      Gma.Modules.Notifications.Contracts/
-      Gma.Modules.Notifications.Domain/
-      Gma.Modules.Notifications.Application/
-      Gma.Modules.Notifications.Persistence/
-      Gma.Modules.Notifications.Persistence.SqlServerMigrations/
-      Gma.Modules.Notifications.Persistence.PostgreSqlMigrations/
-      Gma.Modules.Notifications.Api/
-      Gma.Modules.Notifications.Admin.Contracts/
-      Gma.Modules.Notifications.AdminApi/
-    Ordering/
-      Ordering.Contracts/
-      Ordering.Domain/
-      Ordering.Application/
-      Ordering.Persistence/
-      Ordering.Persistence.SqlServerMigrations/
-      Ordering.Persistence.PostgreSqlMigrations/
-      docs/
-      tests/
-        Ordering.Tests/
-    TaskRuntime/
-      Gma.Modules.TaskRuntime.Contracts/
-      Gma.Modules.TaskRuntime.Application/
-      Gma.Modules.TaskRuntime.Persistence/
-      Gma.Modules.TaskRuntime.Persistence.SqlServerMigrations/
-      Gma.Modules.TaskRuntime.Persistence.PostgreSqlMigrations/
-      Gma.Modules.TaskRuntime.Admin.Contracts/
-      Gma.Modules.TaskRuntime.AdminCli/
-      Gma.Modules.TaskRuntime.AdminApi/
-    TaskSamples/
-      TaskSamples.Contracts/
-      TaskSamples.Application/
-      docs/
+      Gma.Framework.Notifications/
+      Gma.Framework.Notifications.Api/
+      Gma.Framework.Notifications.Cqrs/
+      Gma.Framework.Notifications.Infrastructure/
+      Gma.Framework.Notifications.SignalR/
+    Numerics/
+      Gma.Framework.Numerics/
+    Observability/
+      Gma.Framework.Observability/
+      Gma.Framework.Observability.Infrastructure/
+    Pagination/
+      Gma.Framework.Pagination/
+    Persistence/
+      Gma.Framework.Persistence.EntityFrameworkCore/
+    ProjectionRebuild/
+      Gma.Framework.ProjectionRebuild/
+      Gma.Framework.ProjectionRebuild.EntityFrameworkCore/
+      Gma.Framework.ProjectionRebuild.Tasks/
+    Results/
+      Gma.Framework.Results/
+    Runtime/
+      Gma.Framework.Runtime/
+      Gma.Framework.Runtime.Infrastructure/
+    Security/
+      Gma.Framework.AccessControl/
+      Gma.Framework.Authorization/
+      Gma.Framework.Security/
+    Tasks/
+      Gma.Framework.Tasks/
+      Gma.Framework.Tasks.Cqrs/
+      Gma.Framework.Tasks.Infrastructure/
     Tenancy/
-      Gma.Modules.Tenancy.Contracts/
-      Gma.Modules.Tenancy.Api/
-    Auth/tests/
-      Gma.Modules.Auth.Tests/
-    Administration/tests/
-      Gma.Modules.Administration.Tests/
-    Notifications/tests/
-      Gma.Modules.Notifications.Tests/
-tests/
-  Architecture.Tests/
-  Integration.Tests/
-  ServiceDefaults.Tests/
+      Gma.Framework.Tenancy/
+      Gma.Framework.Tenancy.Api.Serilog/
+      Gma.Framework.Tenancy.Caching/
+      Gma.Framework.Tenancy.Cqrs/
+      Gma.Framework.Tenancy.Infrastructure/
+      Gma.Framework.Tenancy.Messaging/
+      Gma.Framework.Tenancy.Messaging.Infrastructure/
+      Gma.Framework.Tenancy.Tasks/
+  tests/
+    Gma.Framework.Tests/
 ```
 
-## Runtime Composition
+In the `GMA-Skeleton` composition repository, this framework repository is mounted at `gma/framework`. Reusable modules are mounted beside it under `gma/modules/<alias>`, while skeleton-owned example modules remain under `src/Modules/<Example>`.
+
+Current logical module roots in the skeleton are `Administration/`, `Auth/`, `Files/`, `Notifications/`, `TaskRuntime/`, `Tenancy/`, `Catalog/`, `Ordering/`, and `TaskSamples/`. Reusable roots resolve through source-root properties to mounted repositories; example roots resolve to skeleton-owned source folders.
+
+```text
+GMA-Skeleton/
+  gma/
+    framework/
+    modules/
+      administration/
+      auth/
+      files/
+      notifications/
+      task-runtime/
+      tenancy/
+  src/
+    Host.Api/
+    Host.AdminCli/
+    Host.AdminApi/
+    Host.Worker/
+    AppHost/
+    ServiceDefaults/
+    Modules/
+      Catalog/
+      Ordering/
+      TaskSamples/
+  tests/
+    Architecture.Tests/
+    Integration.Tests/
+    ServiceDefaults.Tests/
+```
+
+## Runtime Composition In The Skeleton
 
 `Host.Api` is the composition root:
 

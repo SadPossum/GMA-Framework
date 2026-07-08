@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
+    <ProjectReference Include="..\..\Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />
+    <ProjectReference Include="..\..\Cqrs\Gma.Framework.Cqrs\Gma.Framework.Cqrs.csproj" />
+    <ProjectReference Include="..\..\Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />
+    <ProjectReference Include="..\..\Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
+    <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.Security\Gma.Framework.Security.csproj" />
+  </ItemGroup>
+</Project>

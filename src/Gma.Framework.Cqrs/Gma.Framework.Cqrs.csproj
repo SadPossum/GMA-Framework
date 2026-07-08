@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Gma.Framework.Results\Gma.Framework.Results.csproj" />
-  </ItemGroup>
-</Project>

@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-The skeleton is intended to be reused for different business applications. Earlier versions used `gma` and `GenericModularApi` directly in several physical identifiers: NATS subjects and stream defaults, durable consumer names, cache keys, metric names, CLI display text, JWT defaults, and a few compatibility helper names.
+The skeleton is intended to be reused for different business applications. Earlier versions used `gma` and `GMA` directly in several physical identifiers: NATS subjects and stream defaults, durable consumer names, cache keys, metric names, CLI display text, JWT defaults, and a few compatibility helper names.
 
 That made local development easy, but it also made the skeleton feel branded after a team started building a real product on top of it.
 
@@ -17,7 +17,7 @@ Hosts expose one shared `ApplicationIdentity` configuration section:
 ```json
 {
   "ApplicationIdentity": {
-    "DisplayName": "GenericModularApi",
+    "DisplayName": "GMA",
     "Namespace": "gma"
   }
 }

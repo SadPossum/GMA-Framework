@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
-    <ProjectReference Include="..\Gma.Framework.Numerics\Gma.Framework.Numerics.csproj" />
-  </ItemGroup>
-</Project>

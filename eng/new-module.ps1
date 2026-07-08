@@ -219,13 +219,13 @@ if ($Cache) {
     $metadataUsings = @("using Gma.Framework.Caching;") + $metadataUsings
 }
 $contractsProjectReferences = @(
-    '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Modules\Gma.Framework.Modules.csproj" />'
+    '    <ProjectReference Include="$(GmaFrameworkRoot)Modules\Gma.Framework.Modules\Gma.Framework.Modules.csproj" />'
 )
 if ($AdminCli -or $AdminApi) {
-    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Authorization\Gma.Framework.Authorization.csproj" />'
+    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Authorization\Gma.Framework.Authorization.csproj" />'
 }
 if ($Cache) {
-    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Caching\Gma.Framework.Caching.csproj" />'
+    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching\Gma.Framework.Caching.csproj" />'
 }
 
 Write-GmaFile $contractsProject @"
@@ -265,8 +265,8 @@ public static class ${Name}AdminPermissionCodes
 Write-GmaFile $domainProject @"
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="`$(GmaFrameworkRoot)Gma.Framework.Domain\Gma.Framework.Domain.csproj" />
-    <ProjectReference Include="`$(GmaFrameworkRoot)Gma.Framework.Results\Gma.Framework.Results.csproj" />
+    <ProjectReference Include="`$(GmaFrameworkRoot)Domain\Gma.Framework.Domain\Gma.Framework.Domain.csproj" />
+    <ProjectReference Include="`$(GmaFrameworkRoot)Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />
   </ItemGroup>
 </Project>
 "@
@@ -274,9 +274,9 @@ Write-GmaFile $domainProject @"
 $applicationReferences = @(
     "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
     "    <ProjectReference Include=`"..\$Name.Domain\$Name.Domain.csproj`" />",
-    '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
-    '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Application.Composition\Gma.Framework.Application.Composition.csproj" />',
-    '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Results\Gma.Framework.Results.csproj" />'
+    '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
+    '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Composition\Gma.Framework.Application.Composition.csproj" />',
+    '    <ProjectReference Include="$(GmaFrameworkRoot)Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />'
 )
 $applicationUsings = @(
     'using Microsoft.Extensions.DependencyInjection;',
@@ -284,7 +284,7 @@ $applicationUsings = @(
 )
 
 if ($Cache) {
-    $applicationReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Caching\Gma.Framework.Caching.csproj" />'
+    $applicationReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching\Gma.Framework.Caching.csproj" />'
     $applicationUsings += 'using Gma.Framework.Caching;'
 }
 
@@ -339,7 +339,7 @@ internal static class ${Name}Cache
 $apiReferences = @(
     "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
     "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
-    '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Api\Gma.Framework.Api.csproj" />'
+    '    <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />'
 )
 
 $apiUsings = @(
@@ -418,16 +418,16 @@ if ($Persistence) {
         "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Domain\$Name.Domain.csproj`" />",
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Domain\Gma.Framework.Domain.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Persistence.EntityFrameworkCore\Gma.Framework.Persistence.EntityFrameworkCore.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />'
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Domain\Gma.Framework.Domain\Gma.Framework.Domain.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Persistence\Gma.Framework.Persistence.EntityFrameworkCore\Gma.Framework.Persistence.EntityFrameworkCore.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />'
     )
     if ($Outbox -or $Inbox) {
-        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Naming\Gma.Framework.Naming.csproj" />'
-        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Messaging\Gma.Framework.Messaging.csproj" />'
-        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Messaging.Infrastructure\Gma.Framework.Messaging.Infrastructure.csproj" />'
-        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />'
+        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />'
+        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Messaging\Gma.Framework.Messaging\Gma.Framework.Messaging.csproj" />'
+        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Messaging\Gma.Framework.Messaging.Infrastructure\Gma.Framework.Messaging.Infrastructure.csproj" />'
+        $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />'
     }
 
     Write-GmaFile $persistenceProject @"
@@ -695,7 +695,7 @@ Write-GmaFile $adminContractsProject @"
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\$Name.Contracts\$Name.Contracts.csproj" />
-    <ProjectReference Include="`$(GmaFrameworkRoot)Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
+    <ProjectReference Include="`$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
   </ItemGroup>
 </Project>
 "@
@@ -726,8 +726,8 @@ if ($AdminCli) {
         "    <ProjectReference Include=`"..\$Name.Admin.Contracts\$Name.Admin.Contracts.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Administration.Cli\Gma.Framework.Administration.Cli.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Administration\Gma.Framework.Administration.csproj" />'
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Cli\Gma.Framework.Administration.Cli.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />'
     )
     $adminCliServices = @("        builder.Services.Add${Name}Application();")
 
@@ -786,9 +786,9 @@ if ($AdminApi) {
         "    <ProjectReference Include=`"..\$Name.Admin.Contracts\$Name.Admin.Contracts.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
         "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Administration.Api\Gma.Framework.Administration.Api.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Administration\Gma.Framework.Administration.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Gma.Framework.Api\Gma.Framework.Api.csproj" />'
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Api\Gma.Framework.Administration.Api.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />',
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />'
     )
     $adminApiServices = @("        builder.Services.Add${Name}Application();")
 

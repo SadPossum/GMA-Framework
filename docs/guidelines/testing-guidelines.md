@@ -3,18 +3,18 @@
 ## Test Projects
 
 ```text
-src/Framework/tests/Gma.Framework.Tests
-src/Modules/Administration/tests/Gma.Modules.Administration.Tests
-src/Modules/Auth/tests/Gma.Modules.Auth.Tests
+gma/framework/tests/Gma.Framework.Tests
+gma/modules/administration/tests/Gma.Modules.Administration.Tests
+gma/modules/auth/tests/Gma.Modules.Auth.Tests
+gma/modules/notifications/tests/Gma.Modules.Notifications.Tests
 src/Modules/Catalog/tests/Catalog.Tests
-src/Modules/Notifications/tests/Gma.Modules.Notifications.Tests
 src/Modules/Ordering/tests/Ordering.Tests
 tests/Architecture.Tests
 tests/Integration.Tests
 tests/ServiceDefaults.Tests
 ```
 
-Focused framework, reusable-module, and example-module unit tests live under the source root that owns them. Root-level `tests/` is for skeleton/composition tests, cross-module integration tests, architecture coverage, and host/service-default tests.
+Focused framework, reusable-module, and example-module unit tests live under the source root that owns them. In a package repository the same paths are rooted at that repository, for example `tests/Gma.Framework.Tests` or `tests/Gma.Modules.Auth.Tests`. Root-level `tests/` in the skeleton is for composition tests, cross-module integration tests, architecture coverage, and host/service-default tests.
 
 Test project names:
 
@@ -92,10 +92,16 @@ Docker tests run only `Category=Docker`, set `GMA_REQUIRE_DOCKER_TESTS=true`, an
 
 `eng/verify.ps1` intentionally runs the fast test script only after restore, build, and the provider migration drift check. Run `eng/test-docker.ps1` separately when the current slice touches containers, Redis, SQL Server, PostgreSQL, NATS, or other Docker-backed infrastructure.
 
-Full local test command:
+From the framework package root, validate the framework package through its focused solution:
 
 ```powershell
-dotnet test GenericModularApi.slnx --no-build --logger "console;verbosity=minimal"
+dotnet test Gma.Framework.slnx --no-build --logger "console;verbosity=minimal"
+```
+
+From the skeleton composition root, validate the all-up host, reusable modules, examples, and composition tests through the skeleton solution:
+
+```powershell
+dotnet test GMA-Skeleton.slnx --no-build --logger "console;verbosity=minimal"
 ```
 
 If .NET 10 is installed outside `PATH`, set `GMA_DOTNET` and use the `eng/*.ps1` scripts so local tooling still resolves the pinned SDK intentionally.

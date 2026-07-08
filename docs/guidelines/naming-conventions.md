@@ -1,6 +1,6 @@
 # Naming Conventions
 
-Use concise names that match project names. Do not root-prefix namespaces with `GenericModularApi`.
+Use concise names that match project names. Do not root-prefix namespaces with `GMA`.
 
 ## Namespaces
 
@@ -16,8 +16,8 @@ Gma.Modules.Tenancy.Api
 Do not use:
 
 ```text
-GenericModularApi.Gma.Modules.Auth.Application
-GenericModularApi.Modules.Gma.Modules.Auth.Application
+GMA.Gma.Modules.Auth.Application
+GMA.Modules.Gma.Modules.Auth.Application
 ```
 
 Architecture tests enforce this convention for source files.
@@ -27,8 +27,8 @@ Architecture tests enforce this convention for source files.
 Every `.csproj` under `src/` and `tests/` should live in a folder with the same name as the project file:
 
 ```text
-src/Modules/Auth/Gma.Modules.Auth.Application/Gma.Modules.Auth.Application.csproj
-src/Modules/Auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj
+GMA-Module-Auth/src/Gma.Modules.Auth.Application/Gma.Modules.Auth.Application.csproj
+GMA-Module-Auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj
 ```
 
 This keeps project references, namespaces, solution folders, and file-system navigation aligned.
@@ -55,7 +55,7 @@ Gma.Modules.<Module>.Tests
 Reusable module tests live under the module root so a future source repository can carry its own test suite:
 
 ```text
-src/Modules/Auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj
+GMA-Module-Auth/tests/Gma.Modules.Auth.Tests/Gma.Modules.Auth.Tests.csproj
 ```
 
 Framework project names:
