@@ -21,21 +21,21 @@ Use plain Markdown, with documentation owned by the repository or source package
 In the current source-first layout, reusable package docs live at the owning repository root:
 
 ```text
-gma-skeleton/
+GMA-Skeleton/
   docs/
     README.md
     getting-started/
     architecture/
     examples/
 
-gma-framework/
+GMA-Framework/
   README.md
   docs/
   src/
   tests/
   eng/
 
-gma-module-auth/
+GMA-Module-Auth/
   README.md
   docs/
   src/
