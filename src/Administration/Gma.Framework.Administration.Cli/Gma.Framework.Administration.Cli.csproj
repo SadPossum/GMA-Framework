@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
+    <ProjectReference Include="..\..\Cqrs\Gma.Framework.Cqrs\Gma.Framework.Cqrs.csproj" />
+    <ProjectReference Include="..\..\Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />
+    <ProjectReference Include="..\..\Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
+    <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
+  </ItemGroup>
+</Project>

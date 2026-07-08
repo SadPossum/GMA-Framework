@@ -1,0 +1,25 @@
+namespace Gma.Framework.Tasks;
+
+public sealed record TaskRunSummary(
+    Guid RunId,
+    string ModuleName,
+    string TaskName,
+    string WorkerGroup,
+    int PayloadVersion,
+    TaskRunStatus Status,
+    string? TenantId,
+    Guid? CorrelationId,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset ScheduledAtUtc,
+    DateTimeOffset? StartedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    int Attempts,
+    int MaxAttempts,
+    string? LockedBy,
+    DateTimeOffset? LockedUntilUtc,
+    DateTimeOffset? LastHeartbeatAtUtc,
+    int? ProgressPercent,
+    string? ProgressMessage,
+    string? LastError,
+    string? RequestedBy,
+    string? DeduplicationKey);

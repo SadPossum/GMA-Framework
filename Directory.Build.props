@@ -1,0 +1,38 @@
+<Project>
+  <PropertyGroup>
+    <GmaRepositoryRoot Condition="'$(GmaRepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</GmaRepositoryRoot>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)Gma.SourceRoots.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Gma.SourceRoots.props')" />
+
+  <PropertyGroup>
+    <GmaFrameworkRoot Condition="'$(GmaFrameworkRoot)' == ''">$(GmaRepositoryRoot)src\Framework\</GmaFrameworkRoot>
+    <GmaModulesRoot Condition="'$(GmaModulesRoot)' == ''">$(GmaRepositoryRoot)src\Modules\</GmaModulesRoot>
+    <GmaModuleAdministrationRoot Condition="'$(GmaModuleAdministrationRoot)' == ''">$(GmaModulesRoot)Administration\</GmaModuleAdministrationRoot>
+    <GmaModuleAuthRoot Condition="'$(GmaModuleAuthRoot)' == ''">$(GmaModulesRoot)Auth\</GmaModuleAuthRoot>
+    <GmaModuleCatalogRoot Condition="'$(GmaModuleCatalogRoot)' == ''">$(GmaModulesRoot)Catalog\</GmaModuleCatalogRoot>
+    <GmaModuleFilesRoot Condition="'$(GmaModuleFilesRoot)' == ''">$(GmaModulesRoot)Files\</GmaModuleFilesRoot>
+    <GmaModuleNotificationsRoot Condition="'$(GmaModuleNotificationsRoot)' == ''">$(GmaModulesRoot)Notifications\</GmaModuleNotificationsRoot>
+    <GmaModuleOrderingRoot Condition="'$(GmaModuleOrderingRoot)' == ''">$(GmaModulesRoot)Ordering\</GmaModuleOrderingRoot>
+    <GmaModuleTaskRuntimeRoot Condition="'$(GmaModuleTaskRuntimeRoot)' == ''">$(GmaModulesRoot)TaskRuntime\</GmaModuleTaskRuntimeRoot>
+    <GmaModuleTaskSamplesRoot Condition="'$(GmaModuleTaskSamplesRoot)' == ''">$(GmaModulesRoot)TaskSamples\</GmaModuleTaskSamplesRoot>
+    <GmaModuleTenancyRoot Condition="'$(GmaModuleTenancyRoot)' == ''">$(GmaModulesRoot)Tenancy\</GmaModuleTenancyRoot>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1707;CA1716;CA1873;CS1591;IDE0005;IDE0008;IDE0022;IDE0032;IDE0040;IDE0042;IDE0053;IDE0072;IDE0305;IDE1006</NoWarn>
+  </PropertyGroup>
+</Project>

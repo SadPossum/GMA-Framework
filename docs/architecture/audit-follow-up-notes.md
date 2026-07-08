@@ -1,0 +1,362 @@
+# Architecture Audit Follow-Up Notes
+
+These notes capture architectural and developer-experience findings from the broad audit pass. They are intentionally practical: fix obvious drift now, keep larger questions visible, and preserve the project's core goal of explicit optional modules.
+
+## Implemented In This Pass
+
+- Standardized module application handlers to one handler class per file under `<Module>.Application/Handlers`.
+- Standardized module contracts to one public contract type per file under `<Module>.Contracts`.
+- Split grouped Catalog command/query handlers, Catalog outbox projectors, Ordering projection handlers, Auth admin outbox projectors, and Catalog integration event contracts.
+- Moved generated admin password creation from duplicated CLI/API front-door helpers into `Gma.Modules.Auth.Application.Security.AdminPasswordGenerator`.
+- Added architecture tests for the handler and contract file-shape rules so future example modules and generated modules do not drift quietly.
+- Added shared EF design-time helpers and removed repeated provider/connection parsing from module design-time factories.
+- Expanded `eng/add-migration.ps1` to work with any persisted module instead of only Auth and Administration.
+- Expanded `eng/new-module.ps1` to scaffold module metadata plus optional persistence, provider migrations, inbox/outbox, cache, admin CLI, and admin API shells.
+- Added `ModuleDescriptor` contracts and descriptors for Auth, Catalog, and Ordering.
+- Added public metadata contracts for Administration and Tenancy, including an explicit `AdminSurfaceName` so `admin.*` permission/operation names stay deliberate while the optional module identity remains `administration`.
+- Hardened admin API tenant and validation flow so tenant-required and confirmation failures go through authorization/audit, and unauthorized callers do not receive operation validation details.
+- Made generated password responses an explicit admin API opt-in and documented CLI-only bootstrap as the current policy.
+- Added configurable admin API tenant-claim binding so present token tenant claims must match `X-Tenant-Id`, missing tenant claims remain compatible with external identity providers, and mismatches are audited before RBAC.
+- Tightened architecture tests so command-line and infrastructure backend package references cannot drift into admin API or module projects through unused `.csproj` references.
+- Centralized repeated architecture-test module assembly lists into a test-only `ArchitectureCatalog`, keeping runtime composition explicit while making boundary tests easier to maintain.
+- Split feature-module typed admin permission constants into optional `.Admin.Contracts` projects while keeping plain permission code strings in public contracts for metadata.
+- Added a guard that every non-migration module project under `src/Modules` is represented in `ArchitectureCatalog`.
+- Removed direct system time and random ID generation from feature-module production code, including admin audit/RBAC and Ordering projection persistence paths.
+- Added an architecture guard that feature modules use `ISystemClock` and `IIdGenerator` instead of direct `UtcNow` or `Guid.NewGuid()` calls.
+- Changed module application DI registration from `IHostApplicationBuilder` extensions to `IServiceCollection` extensions, leaving host-builder coupling in front-door/persistence composition.
+- Updated `eng/new-module.ps1` and architecture tests so new application projects do not reintroduce `Microsoft.Extensions.Hosting`.
+- Moved EF design-time factories into provider-specific migration projects and removed `Microsoft.EntityFrameworkCore.Design` from runtime hosts/persistence projects.
+- Updated `eng/add-migration.ps1` to use the selected migration project as the EF startup project, avoiding design-time DLL copying into runtime persistence output.
+- Moved CLI-specific admin module contracts into `Gma.Framework.Administration.Cli` as `IAdminCliModule` and `IAdminCliCommandRegistry`, leaving `Gma.Framework.Administration` backend-agnostic.
+- Added architecture guards that keep `Gma.Framework.Administration` free of CLI/HTTP/host-builder APIs and keep the module scaffolder on the current admin CLI contract names.
+- Documented and tested the physical NATS durable consumer name shape as a hyphenated, NATS-safe key derived from prefix, environment, consumer module, and handler name.
+- Made NuGet audit an explicit build policy (`NuGetAudit=true`, `NuGetAuditMode=all`, low severity and above) and added a guard for the warning/audit settings.
+- Added a package hygiene guard so project files keep using central package management with unique stable versions.
+- Added a module metadata guard that proves declared consumer subscriptions match published producer integration-event descriptors.
+- Moved Auth/Catalog admin CLI password-source and destructive-confirmation validation inside `AdminCliExecutor` actions so RBAC and audit run before validation details are exposed.
+- Hardened `AdminOperationRunner` so unexpected authorization/action exceptions are logged, audited as `Admin.OperationFailed`, and returned as explicit CLI/API failures instead of bypassing the admin operation result path.
+- Disabled the Admin CLI host's default command-line exception handler and added a bounded fallback message for failures outside the shared admin operation runner.
+- Made NATS JetStream publishing opt-in at `Host.Api` and `Host.AdminApi` through `NatsJetStream:Enabled`; Aspire and publishing integration tests enable it explicitly.
+- Made disabled NATS consumers independent from `INatsConnection`, clamped pull fetch expiration above the NATS client minimum, and added a real NATS consumer integration test proving Catalog events flow into Ordering inbox/projection state.
+- Updated EF inbox stores and `eng/new-module.ps1` to use `IIdGenerator` instead of direct GUID creation, then added guards for shared infrastructure and scaffolder drift.
+- Added a DI-level command pipeline guard so cache invalidation remains outside unit-of-work commit behavior.
+- Hardened role permission grants so invalid permission codes return auditable application errors through both Admin CLI and Admin API instead of throwing into the unexpected-failure path.
+- Added explicit admin role-name slug validation so invalid role names return auditable application errors through both Admin CLI and Admin API.
+- Centralized paged-request normalization in `PageRequest` so module list handlers share defaults, page-size bounds, and overflow-safe maximum page handling.
+- Replaced Auth username-type fallback mapping with explicit application validation so invalid enum/string inputs fail through public API, Admin API, and Admin CLI paths.
+- Hardened cache fail-open paths so backend/invalidation failures remain fail-open even if the configured logging provider throws while reporting the failure.
+- Hardened `AdminOperationRunner` so unexpected operation failures and audit-write failures still return shaped admin results even if the configured logging provider throws.
+- Hardened CQRS command logging so logger/scope failures cannot replace command results or original command exceptions.
+- Hardened outbox publishing so logger scope/write failures cannot prevent failed publish attempts from being marked failed for retry.
+- Hardened NATS JetStream publishing so post-ack success logging and already-existing stream debug logging cannot turn successful broker operations into false publish failures.
+- Hardened NATS consumer lifecycle/error logging so disabled/no-subscription startup, polling errors, deserialization failures, handler failures, and stream-exists diagnostics cannot change consumer control flow.
+- Added stable NATS JetStream publish de-duplication by using the outbox message id as `MsgId` and treating duplicate broker acks as successful idempotent publishes.
+- Added `Unknown = 0` to public module contract and domain-state enums, guarded it with an architecture test, and fixed Catalog/Ordering mapping so unknown status no longer becomes active/orderable state.
+- Hardened `eng/new-module.ps1` so `-RegisterInHost` fails loudly when the expected host-registration anchor is missing and prints explicit follow-up steps for `ArchitectureCatalog`, host composition, and enum validation conventions.
+- Replaced Catalog read-model enum casts with explicit switch mapping and added an architecture guard against direct casts to public module enums outside generated migrations.
+- Replaced raw Auth refresh-token SHA256 hashing with a versioned HMAC-SHA256 adapter backed by validated `Auth:RefreshTokens:Pepper` options, plus tests and a source guard so raw token hashing does not return.
+- Added startup validation for Auth JWT issuer, audience, signing key length, and access-token lifetime so invalid token settings fail at composition time instead of during request handling.
+- Added startup validation for `Auth:RefreshTokenLifetimeDays` so refresh-token sessions cannot be configured with zero or negative lifetimes.
+- Added startup validation for outbox, NATS JetStream, and NATS consumer options so impossible runtime settings fail fast instead of being silently clamped by effective-value helpers.
+- Added startup validation for tenancy and admin API claim-binding options so invalid tenant headers, missing default tenants, and blank admin actor or tenant claim settings fail during composition.
+- Added startup validation for `Administration:Bootstrap:OwnerRoleName` and introduced `Gma.Modules.Administration.Tests` as a module-specific unit-test home.
+- Added startup validation for persistence provider connection strings, Redis adapter options, and ServiceDefaults observability options, with focused unit tests and architecture guards.
+- Moved persistence option validation out of `AddGmaInfrastructure()` and into persisted module registration so non-persistence hosts can still use shared infrastructure without database configuration.
+- Normalized CQRS unit-of-work module-name matching and added a guard that real transactional commands resolve to persisted modules with matching lowercase unit-of-work declarations.
+- Hardened integration-event envelope subject creation so module names and event names are normalized and invalid event metadata is rejected before outbox persistence.
+- Added Auth integration subject constants and an architecture guard proving published-event metadata matches the compiled `IIntegrationEvent` contract types in both directions.
+- Updated Ordering subscription metadata to reference Catalog's public integration-subject constants instead of duplicating producer subject strings.
+- Added module `Name`/`Schema` constants to public module metadata and replaced raw module-name strings at outbox, subscription, and persistence identity seams where schema and module name intentionally match.
+- Centralized Catalog cache entry/tag constants in module metadata, wired runtime cache key/tag helpers to them, and added a guard that declared cache tags are referenced by module cache helpers.
+- Centralized admin operation/audit names for Auth, Catalog, and Administration, updated CLI/API front doors and audit assertions to use them, and guarded module admin front doors against raw `AdminOperation.Create("...")` literals.
+- Hardened `AdminOperation` so operation names are factory-created, lowercased, validated as dotted codes, and guarded by tests against invalid `*AdminOperationNames` constants.
+- Hardened persisted admin audit entries so actor, tenant, operation, permission, result, and error-code metadata are normalized or rejected before storage.
+- Hardened `AdminAuditRecord` itself so audit metadata is normalized at the shared contract boundary, and centralized audit result values in `AdminAuditResults`.
+- Hardened persisted RBAC entities and repository actor normalization so principal ids, tenant scopes, and permission codes flow through shared admin/tenant value rules instead of local string trimming.
+- Aligned shared admin value-object maximum lengths with Administration EF mappings, replacing raw mapping lengths with named constants and tests for overlong actor, permission, operation, role, and audit error-code values.
+- Made `AdminOperationContext` validate required actor/operation values and moved `AdminRoleName` length enforcement out of regex quantifiers into the named `MaxLength` rule.
+- Aligned Auth member disable-reason validation with persistence by making the aggregate reject null, blank, and overlong reasons before EF sees them.
+- Aligned Auth username, password-hash, and refresh-token-hash invariants with persistence so null, blank, and overlong values return domain errors before EF mappings are involved.
+- Centralized shared inbox/outbox persistence metadata lengths on the shared message models, bounded generated worker ids, and wired module configs to those constants.
+- Moved Catalog and Ordering example text/price invariants ahead of persistence so SKU, name, currency, and local projection price issues return domain errors before EF provider limits are involved.
+- Added shared decimal precision checks and wired Catalog/Ordering price and order-total rules to their mapped `decimal(18,2)` precision before persistence.
+- Added `eng/check-migrations.ps1` and wired it into `eng/verify.ps1` so provider migration snapshots are checked for pending EF model drift across all module migration projects.
+- Aligned Auth username history with persistence by reserving inactive usernames in repository existence checks and making `Member.AddUsername` validate before mutating existing active usernames.
+- Added Auth and Administration read-path indexes for tenant-scoped member listing and RBAC actor/tenant authorization checks, with SQL Server and PostgreSQL migrations.
+- Fixed `eng/add-migration.ps1` single-DbContext discovery under strict PowerShell mode and guarded it with an architecture test.
+- Mapped admin GET not-found errors to `404 Not Found` in Auth and Catalog admin APIs, and converted Catalog get queries away from nullable `Result<T?>` success contracts.
+- Replaced raw module-name strings in API/admin front-door `Name` properties with module metadata or identity constants, and updated the module scaffolder to generate `Name`/`Schema` plus cache metadata constants.
+- Centralized Administration permission codes, updated admin integration setup to consume Auth's public permission-code constants, and guarded module code against raw `AdminPermission.Create("...")` literals.
+- Added explicit `Unknown = 0` values to shared provider enums, made persistence/cache validators reject unknown providers, and stopped the Redis adapter from silently treating invalid `Caching:Provider` values as `Memory`.
+- Added `Unknown = 0` to non-persisted shared semantic enums, made cache scope formatting reject unsupported scopes explicitly, and later moved `InboxMessageStatus` to `Unknown = 0` with provider-specific compatibility migrations for old inbox rows.
+- Added shared query logging and metrics so the existing query pipeline extension point is operational, while keeping transactions, validation, and cache-aside decisions out of the default query flow.
+- Moved tenant-id normalization into `Gma.Framework.Domain` with the persisted 128-character limit, wired tenant contexts, admin tenant resolution, RBAC assignment normalization, inbox/outbox envelope/message creation, and Auth/Catalog/Ordering aggregates through it.
+- Centralized remaining production module identity usages by replacing Auth's current DbContext schema literal, Administration's UoW module-name literal, and Ordering's duplicated Catalog subscription handler names with module metadata/identity constants.
+- Added an architecture guard that compiled Ordering subscription metadata matches its application-level integration-event registrations.
+- Centralized admin surface prefixes through module metadata, deriving Auth/Catalog/Administration admin permission and operation constants from those surfaces and wiring CLI root commands through the same constants.
+- Added an architecture guard that admin operation and permission-code constants use the owning module's declared admin surface prefix.
+- Hardened inbox processing so handler-side cancellation/timeouts are recorded as failed attempts and get the normal NATS negative-ack retry path, while host shutdown cancellation still propagates.
+- Replaced Catalog's inbox-store module-name literal with the module schema constant and added an architecture guard that module inbox stores use module identity constants.
+- Hardened outbox publishing so one module store claim failure does not stop other stores, publish-side non-host cancellations become normal failed attempts, and failed-attempt bookkeeping is isolated from logging/mark-failed failures.
+- Added domain-level guards so Auth, Catalog, and Ordering reject empty aggregate/entity ids and outbox-bound domain-event ids before creating persisted state or integration-event records.
+- Aligned Auth, Catalog, and Ordering persistence schema constants to their public module metadata, and updated the module scaffolder plus architecture tests so new persisted modules do not duplicate schema/module identity strings.
+- Added opt-in query validation to the shared CQRS pipeline, mirroring command validation, and wired ID validators for Auth admin member details and Catalog item details queries.
+- Added missing Auth admin, Catalog, and Ordering command validators so basic request-shape failures short-circuit before repository/cache/domain access, with an architecture guard for feature-module command and item-query validator coverage.
+- Reordered Auth and Catalog create flows so aggregate/request validation and Auth username-type mapping run before uniqueness repository checks, preserving typed application errors without triggering repository work for invalid enum values.
+- Centralized Auth plaintext password request policy behind `AuthPasswordPolicy` and added a guard so validators do not duplicate raw minimum-length checks/messages.
+- Centralized CQRS validation failure creation behind `RequestValidationErrors` so command and query validation share one named error contract instead of duplicating the raw `Validation.Failed` code in infrastructure behaviors.
+- Hardened cache invalidation command behavior so a flusher failure after a successful command/unit-of-work commit is logged and treated as fail-open instead of turning committed state into a failed command result.
+- Centralized EF domain-event unit-of-work dispatch/save/clear ordering behind `EfDomainEventUnitOfWork<TDbContext>`, updated Auth/Catalog/Ordering and the module scaffolder to inherit it, and guarded module UoWs against reintroducing hand-rolled copies.
+- Hardened NATS consumer handler invocation so direct handler exceptions are preserved for inbox failure metadata and retry diagnostics.
+- Replaced per-event domain dispatcher reflection invocation with cached typed delegates and added tests for handler ordering, no-handler events, null event entries, and exception preservation.
+- Removed file-wide `IDE0028` suppressions from admin CLI modules by converting command composition to collection initializers, then added an architecture guard so production sources do not hide that style rule again.
+- Centralized integration-event metadata validation, made publishing reject empty event ids, and made NATS consumers terminate bad-but-deserializable payloads before tenant/inbox processing so poison metadata does not retry forever.
+- Added opt-in API error status-code maps so public front doors can map domain/application errors to `401`, `403`, `404`, or `409` without leaking HTTP concepts into domain or application layers.
+- Reused the same explicit status-code map pattern in `AdminApiExecutor`, replacing one-off not-found sets and letting admin HTTP modules opt into `404` and `409` while authorization/audit status mapping stays centralized.
+- Hardened inbox/outbox message models so empty ids and non-positive event versions are rejected before persistence, and made the outbox blank-error fallback an explicit named contract.
+- Made integration-event subscriptions factory-created metadata and replaced NATS consumer per-message reflection invocation with a cached typed invoker that still preserves direct handler exceptions.
+- Centralized integration-event naming validation so publishing, consumer subscriptions, and module metadata use the same kebab-case subject/name rules instead of local trim/lowercase behavior.
+- Hardened cache key/tag segment validation with explicit segment count and length limits so invalid cache identities fail at construction, including when caching is disabled.
+- Made module metadata descriptors self-validating for module names, permission codes, event subjects, subscriptions, cache metadata, and duplicate entries so optional module contract drift fails at construction.
+- Made module metadata descriptor properties constructor-only so `with`/init mutation cannot bypass descriptor validation after construction.
+- Hardened NATS consumer durable names so invalid durable prefixes or host environment names fail fast instead of being silently sanitized into different physical consumer names.
+- Split missing tenant headers from malformed/multiple tenant header values so public API errors and Admin API audit records report invalid tenant input distinctly from absent tenant input.
+- Tightened shared tenant id normalization so tenant ids remain case-preserving external identifiers but cannot contain whitespace or control characters that would create ambiguous headers, cache keys, audit entries, or persisted rows.
+- Tightened cache identity segments so logical keys/tags remain case-preserving external identifiers but cannot contain whitespace or control characters before URI encoding.
+- Made `AdminActor` factory-created, rejected whitespace/control characters in admin actor ids and audit error codes, and made Admin API return unauthorized for invalid actor claims instead of throwing inside executor setup.
+- Hardened `Gma.Framework.Results.Error` so only `Error.None` can carry an empty code/message; failure errors now use validated dotted codes and compact messages, with API status maps and admin audit sharing the same code rules.
+- Hardened `Result`/`Result<T>` so failed results reject null or `Error.None`, successful typed results reject null values at construction, and architecture tests guard production code against nullable `Result<T?>` contracts.
+- Made admin authorization and inbox processing outcomes factory-created, so allowed/processed/duplicate outcomes cannot carry failure diagnostics and denied/failed outcomes must carry bounded normalized diagnostics.
+- Hardened Auth GUID identity value objects so explicit `Guid.Empty` construction fails early, while aggregates keep default-struct defensive checks for persistence and accidental defaults.
+- Hardened `PageRequest` so direct construction and `Normalize(...)` share the same page/page-size bounds, with an architecture guard against returning to a positional record that bypasses normalization.
+- Hardened `ApiErrorStatusCode` so API status-map entries validate dotted error codes and `4xx`/`5xx` statuses at construction, while maps still reject duplicate/default entries.
+- Hardened `AdminOperationExecutionResult<T>` so CLI/API admin operation outcomes cannot combine unknown statuses, success statuses with failed results, or failure statuses with successful results.
+- Hardened `AdminOperationRunner` so admin actions that incorrectly return a null `Result<T>` still go through the logged/audited unexpected-failure path.
+- Hardened API module endpoint metadata so `.WithModuleName(...)` stores normalized lowercase module names and rejects invalid observability metadata at construction.
+- Hardened shared integration-event envelope/outbox/inbox records so test fakes, stores, publishers, and consumers all share the same message identity, subject, scope, version, and handler-name validation.
+- Hardened cache read/invalidation entry points so malformed cache identities are rejected before disabled-cache bypass or fail-open backend handling.
+- Hardened Auth access-token claims and JWT generation so default member/session ids and malformed tenant ids cannot become emitted or parsed token claims.
+- Hardened Ordering's local Catalog projection write/read models so cross-module event data is normalized before storage, invalid scalar data fails early, and undefined Catalog statuses become explicit `Unknown` projection state instead of orderable state.
+- Hardened public Auth and Catalog integration-event contracts so event ids, tenant ids, timestamps, entity ids, bounded text, numeric payloads, and undefined enum states are normalized or rejected at the module-contract boundary.
+- Hardened Auth and Catalog domain-event records so outbox-bound facts cannot be directly constructed with empty event ids, default timestamps, empty aggregate ids, malformed tenant ids, invalid text, unsupported prices, or impossible session counts.
+- Hardened persisted Auth and Catalog enum-state behavior so `Unknown = 0` or future/undefined status values are rejected by security-sensitive member operations and Catalog item mutations instead of being treated as active state.
+- Hardened shared outbox/inbox entity state transitions so messages require valid timestamps and contract-shaped subjects, processing completion requires an active claim/processing state, processed messages cannot be reprocessed/failed, and successful outbox processing clears stale publish errors.
+- Hardened message claim/start transitions so active outbox locks cannot be overwritten directly, processed inbox rows cannot be restarted, and failed inbox rows clear stale failure metadata when they enter a retry attempt.
+- Routed EF inbox store module names through the shared integration-event naming contract instead of ad hoc trim/lowercase normalization.
+- Hardened NATS JetStream stream-name validation and runtime normalization so invalid physical stream names fail before publisher/consumer startup reaches the broker.
+- Aligned NATS consumer runtime options so NAK delay uses the same effective-value fallback pattern as batch size, poll interval, ack wait, max deliveries, and handler timeout.
+- Hardened cache invalidation queue flushing so queued entries are forgotten only after their store call completes, preserving unflushed invalidations when cancellation interrupts a flush.
+- Hardened cache identity formatting so missing tenant context and physical key-limit violations fail fast even when caching is disabled, while real backend failures remain fail-open.
+- Aligned cache invalidation identity formatting with read formatting so disabled-cache invalidations still validate tenant scope and physical key limits before returning.
+- Routed cache tenant formatting through shared tenant id normalization so custom tenant contexts cannot produce untrimmed or malformed physical keys/tags.
+- Made `Caching:KeyPrefix` a validated compact storage identifier so bad cache prefix configuration fails at startup instead of producing odd escaped physical keys.
+- Made Redis cache `InstanceName` optional by default so the central `{ApplicationIdentity:Namespace}:{environment}:...` cache key format remains the normal physical identifier, while still allowing an explicit Redis partition prefix.
+- Centralized cache storage identifier normalization so host environment names and cache prefixes are lower-cased, bounded, and rejected before they can create ambiguous physical keys.
+- Centralized shared observability instrument-name constants and updated docs/tests so application, outbox, and cache metric names do not drift across infrastructure and operations guidance.
+- Hardened outbox publisher observability so metric listener/exporter failures cannot stop successful publish marking or failed-publish retry bookkeeping.
+- Aligned outbox runtime option fallbacks with the explicit `Effective*` naming used by NATS consumer options, and added bypass-safety coverage for invalid raw option values.
+- Added bounded inbox consumer metrics under the shared messaging meter so inbound integration-event processing has the same operational visibility as outbox publishing without exposing tenant or event ids as tags; inbox metric result labels are mapped from `InboxProcessStatus` instead of accepting raw strings.
+- Hardened `IEventBus` adapters so null outbox records fail with `ArgumentNullException` before the null adapter reports missing composition or the NATS adapter touches broker connection state, and made NATS event-bus constructor dependencies fail fast after stream-name validation.
+- Hardened the CQRS dispatcher so command/query handlers and pipeline behaviors that return a null result task or null `Result<T>` fail with an explicit contract error at the dispatcher boundary instead of leaking a late `NullReferenceException`.
+- Hardened inbox/outbox worker-id formatting so generated worker identities reject empty GUIDs, normalize machine-name whitespace/control characters, and reject externally supplied lock-owner ids containing whitespace or control characters.
+- Hardened cache observability so throwing metrics listeners/exporters cannot break disabled-cache reads, backend fail-open reads, invalidation fail-open behavior, or the internal HybridCache metrics logger.
+- Hardened command/query observability so throwing application metrics listeners/exporters cannot replace successful CQRS results or mask the original handler exception.
+- Aligned inbox/outbox transition timestamp validation with constructor invariants so claim/start/process/fail transitions reject default timestamps before mutating retry, lock, or completion state.
+- Added shared outbox-store argument guards and wired Auth/Catalog stores through them so invalid batch sizes, worker ids, empty message ids, default timestamps, and non-positive lock durations fail consistently before provider queries while wrong-worker marks remain no-ops.
+- Centralized EF outbox claim/mark/retry behavior in `EfOutboxStore<TDbContext>`, collapsed Auth/Catalog outbox stores into thin module-owned adapters, and updated the module scaffolder plus architecture guards so generated modules do not copy hand-written outbox store logic.
+- Centralized EF outbox enqueue behavior in `EfOutboxWriter<TDbContext>`, collapsed Auth/Catalog outbox writers into thin module-owned adapters, made enqueue cancellation explicit before tracking rows, and updated the module scaffolder plus architecture guards so generated modules do not copy hand-written outbox writer logic.
+- Hardened and expanded `EfInboxStore<TDbContext>` coverage for processed, duplicate, failed, null-handler-task, and handler-cancellation outcomes, and added an architecture guard so module inbox stores remain thin `EfInboxStore` adapters.
+- Hardened `OutboxWriterRegistry` so writer module names are normalized at composition time, malformed writer identities fail fast, and duplicate module writers are rejected before domain-event handling reaches outbox projection code.
+- Hardened `AdminCliCommandRegistry` so root command surfaces have explicit module ownership, cross-module command collisions fail loudly, duplicate subcommands are rejected, and CLI owner/root names cannot rely on hidden normalization.
+- Hardened `IntegrationEventSubscriptionRegistry` so null subscription collections or entries fail with explicit composition errors before consumer startup.
+- Hardened NATS consumer inbox-store lookup so missing, duplicate, or malformed module-owned inbox stores fail with clear composition errors instead of vague LINQ/runtime failures.
+- Aligned generated and runtime module identity resolution on lowercase kebab-case, so future multi-word modules use one identity across metadata, CQRS/UoW matching, CLI roots, API paths, cache keys, subjects, and observability tags.
+- Centralized metric tag-value normalization so application, messaging, and cache metrics validate module names/subjects, normalize providers, and map unexpected result labels to bounded `unknown` values before emitting telemetry.
+- Hardened outbox publisher store registration so duplicate or malformed module-owned outbox stores fail with explicit composition errors, and publisher logs/metrics use normalized module names.
+- Hardened CQRS dispatch so commands and queries require exactly one registered handler, turning missing or duplicate handler registrations into explicit composition errors instead of Microsoft DI's last-registration-wins behavior.
+- Hardened domain-event dispatch so handlers that violate the async contract by returning a null task fail with an explicit handler/event error.
+- Hardened command/query validation behaviors so validators that return a null failure collection fail with explicit validator/request errors instead of a LINQ null-reference surprise.
+- Hardened public API, Admin API, and Admin CLI module composition so module names must already be lowercase kebab-case and duplicate module-name registrations fail before endpoint/command mapping.
+- Made repeated `AddModule<TModule>()`, `AddAdminApiModule<TModule>()`, and `AddAdminModule<TModule>()` calls idempotent for the same module type so duplicate host composition does not rerun module service registration.
+- Hardened aggregate-root domain-event collection so null events are rejected and callers cannot mutate the backing event list through the exposed read-only collection.
+- Aligned `EfDomainEventUnitOfWork<TDbContext>` module names with the shared lowercase kebab-case module naming contract.
+- Made mutable tenant contexts explicitly clearable and reset admin/message execution boundaries before applying tenant state, preventing stale tenant ids from leaking if future runtimes reuse scopes.
+- Hardened admin CLI actor validation so malformed `--actor` values return validation failures instead of escaping the CLI operation pipeline, including the bootstrap command path.
+- Hardened admin CLI bootstrap audit failure reporting so storage/provider exception messages are not printed directly to the operator.
+- Hardened admin CLI output handling so unsupported `--output` values fail validation before command actions run instead of silently falling back to table output.
+- Hardened shared admin CLI output formatting so direct writer calls reject unsupported formats, require table columns, and render null/control-character table cells as safe single-line text.
+- Hardened pagination boundaries so module read repositories accept normalized `PageRequest` values and use shared `SkipCount` instead of local raw page/page-size arithmetic.
+- Hardened `PageRequest` default struct behavior so `default(PageRequest)` now resolves to the logical default page request and uses logical equality/hash-code semantics.
+- Hardened API error status-code map creation so a null entry collection fails with an explicit argument error.
+- Hardened shared HTTP result conversion so null result instances fail with explicit argument errors before API adapters attempt to inspect success/error state.
+- Hardened admin API executor success customization so callbacks must return a non-null `IResult`, and non-generic execution rejects a null action before entering the runner.
+- Hardened required-tenant endpoint filtering so enabled tenant boundaries clear stale tenant context before validating the incoming tenant header.
+- Hardened API, admin API, and admin CLI module composition so duplicate module names across different module types fail before the second module mutates service registration.
+- Made module application-layer registration repeat-safe by using enumerable DI registration for handlers/validators and exact-idempotent integration-event subscription registration, preserving fail-fast behavior for conflicting duplicate subscription metadata.
+- Added an architecture guard so module application dependency-injection files do not regress from repeat-safe handler/validator registration back to direct scoped/transient/singleton registrations.
+- Made Auth infrastructure and module persistence registration repeat-safe across optional public/admin surface composition, including idempotent shared persistence options, module DbContext registration, and enumerable UoW/outbox/inbox stores.
+- Updated the module scaffolder and architecture guards so future persisted modules use repeat-safe persistence registration by default.
+- Made shared infrastructure root composition explicitly repeat-safe and added coverage for idempotent shared infrastructure, outbox publisher, NATS consumer, and NATS event-bus registration.
+- Made Redis cache adapter composition repeat-safe so explicit optional Redis registration can be called from multiple host slices without stacking options or distributed-cache services.
+- Made ServiceDefaults composition repeat-safe so observability, health, OpenTelemetry, and logging setup stays single-registered when hosts share extension calls.
+- Made shared Administration CLI/API service registration repeat-safe, including Admin API options binding, so optional admin front doors can share composition helpers safely.
+- Added explicit null-argument guards to public API/admin API/admin CLI module-composition entry points and shared admin registration helpers.
+- Fixed `eng/new-module.ps1` so generated persisted modules register persistence options like existing modules, and guarded that scaffolder behavior with the persistence-options architecture test.
+- Made Auth and Administration application options binding repeat-safe, preserving multi-surface module composition without duplicating option binders.
+- Added explicit null-argument guards to shared infrastructure, NATS/outbox opt-in, and core shared-administration composition helpers.
+- Added explicit null-argument guards to module infrastructure/application/persistence DI extension helpers and updated `eng/new-module.ps1` plus architecture guards so generated modules keep the same convention.
+- Added explicit null-argument guards to tenant endpoint and ServiceDefaults endpoint-mapping extensions.
+- Updated module template and module-system docs so generated modules document null-guarded, repeat-safe DI registration and persistence-options composition.
+- Updated README and example docs so compiled Catalog/Ordering examples are clearly optional and Ordering subscription examples use module metadata constants instead of raw strings.
+- Aligned observability docs with current HTTP host behavior: HTTP hosts own Serilog appsettings values, while host logging setup and request-log enrichment live in explicit Serilog adapter projects.
+- Removed machine-specific `.NET 10` path fallback from `eng/common.ps1`, documented portable `GMA_DOTNET`/`PATH` SDK resolution, and guarded scripts/docs against personal SDK paths.
+- Hardened `eng/common.ps1` so SDK probing and all `dotnet` invocations run from the repository root, preserving `global.json` and tool-manifest behavior even when scripts are launched from another directory.
+- Made `eng/verify.ps1` source the shared script policy and added a guard that every non-common engineering script imports `eng/common.ps1`.
+- Improved `.NET 10` SDK resolution diagnostics so failed `dotnet` candidates report why they were rejected instead of collapsing into a generic message.
+- Aligned the module-scaffolder persistence-identity guard with the current thin shared EF inbox/outbox/UoW adapter pattern so generated modules keep using module metadata without reintroducing per-module persistence boilerplate.
+- Replaced the `eng/new-module.ps1 -RegisterInHost` dependency on `AuthModule` as an insertion anchor with an explicit `Host.Api` composition marker, and documented the marker in setup/module-system guidance.
+- Updated generated public API routes, admin API routes, and admin CLI command roots to use module metadata names instead of duplicating the derived kebab-case module identity in generated front-door code.
+- Renamed module metadata descriptor constructor parameters from `TenantScoped` to `tenantScoped`, updated named arguments and scaffolder output, and added guards for public descriptor parameter casing plus generated metadata arguments.
+- Generalized the module subscription metadata guard so every application project in `ArchitectureCatalog` is composed into a test-only service collection and checked against every declared module subscription, instead of only checking Ordering by name.
+- Reorganized `GMA-Skeleton.sln` so Administration, Catalog, and ServiceDefaults test projects sit under matching `tests/*` solution folders, and added an architecture guard for future test-project nesting.
+- Added Administration command validators for bootstrap, role creation, permission grants, and role assignment, extended validator coverage guards to Administration, and kept handlers safe for direct invalid actor inputs.
+- Added missing `eng/check-migrations.ps1` plus newer ADR, architecture, and example docs to solution items, then guarded docs, engineering scripts, and request files so IDE discoverability does not drift.
+- Added a module metadata guard that keeps public `*PermissionCodes` constants and `ModuleDescriptor.WithPermissions(...)` metadata in sync, so admin/RBAC documentation cannot silently diverge from declared module metadata.
+- Made refresh-token pepper configuration visible in every Auth-capable host appsettings file and integration test host config, then guarded it, so local defaults stay easy to run while production secret override requirements remain discoverable.
+- Moved generated admin permission code-string containers into generated public `.Contracts` projects while leaving typed `AdminPermission` wrappers in optional `.Admin.Contracts`, preserving metadata ownership without admin-framework references.
+- Updated setup and deployment configuration checklists for newer caching, Redis, NATS consumer, observability, tenancy, and administration option keys so operators do not need to reverse-engineer option classes.
+- Added a cache composition guard at application-cache resolution time as well as hosted startup, so CLI-style hosts that do not start hosted services still fail clearly if Redis caching is enabled without the Redis adapter.
+- Added explicit admin CLI startup-option validation without starting hosted services, so `ValidateOnStart` configuration failures surface before command parsing while preserving the CLI/runtime separation.
+- Composed the Redis caching adapter explicitly in `Host.AdminCli` as a disabled-by-default no-op and guarded all runtime hosts to call `AddRedisCaching()` before shared infrastructure, keeping cache invalidation behavior consistent across API/admin surfaces when Redis is enabled.
+- Fixed `Host.AdminCli` content-root resolution to load copied appsettings from the CLI output/tool directory instead of the caller's current working directory, and simplified the local `run-admin.ps1 --help` docs.
+- Added an explicit `AppHost:AdminApi:Enabled` switch so Aspire can run the optional admin API against the same local infrastructure graph without making admin HTTP part of the default public API stack.
+- Updated long-running host scripts to invoke `dotnet run` from each host project's directory, preserving normal local appsettings/content-root behavior while keeping SDK resolution centralized in `eng/common.ps1`.
+- Aligned admin API launch settings with the public API local-run experience by opening Swagger, printing run messages, and guarding request-file host URLs against launch-setting drift.
+- Documented and guarded the small allowed production reflection surface so future magic stays deliberate and cannot become hidden module or handler auto-registration by accident.
+- Exposed disabled-by-default `NatsConsumers` settings in all runtime host appsettings files and guarded the section so validated optional consumer knobs stay discoverable even when no default host starts consumers.
+- Aligned HTTP host development settings so both public API and admin API expose the local Prometheus `/metrics` endpoint through `ServiceDefaults`, matching setup documentation.
+- Updated the module scaffolder so admin-capable generated modules start with a visible `<module>.manage` permission in public module metadata plus a typed `AdminPermission` wrapper, preserving RBAC discoverability from the first generated shell.
+- Updated generated inbox/outbox EF mappings to use shared message and tenant length constants instead of literal database lengths, keeping new module persistence aligned with the existing thin shared adapter pattern.
+- Added a project/folder naming guard so every project under `src/` and `tests/` keeps its `.csproj` file name aligned with the containing folder and namespace convention.
+- Added a guard against project-level `RootNamespace` and `AssemblyName` overrides so SDK defaults keep project names, namespaces, assemblies, and folders aligned.
+- Aligned `requests/admin-api.http` with the default admin HTTP generated-password policy by using manual password fields and guarding request examples against `generatePassword: true` while generated password responses are disabled.
+- Centralized HTTP Serilog request enrichment in the explicit `Gma.Framework.Api.Serilog` adapter with `UseGmaSerilogRequestLogging()` and a compatibility `UseGmaSerilogRequestLogging()` shim, leaving generic `Gma.Framework.Api` vendor-neutral and guarding hosts against reintroducing copied enrichment lambdas.
+- Removed the stale FluentValidation package reference from `Gma.Modules.Auth.Api` now that request-shape validation is handled by shared CQRS validators, and guarded module API projects against reintroducing a parallel validation stack by accident.
+- Removed the stale central `Microsoft.EntityFrameworkCore.Tools` package version now that EF CLI usage is pinned through the local `dotnet-ef` tool manifest, and extended package hygiene checks to reject unused central package versions.
+- Moved duplicated HTTP-host NATS publish wiring into the explicit `Gma.Framework.Messaging.Nats.Aspire` adapter, keeping `Aspire.NATS.Net` out of host projects while preserving `NatsJetStream:Enabled` as the publishing gate.
+- Moved duplicated HTTP-host Serilog configuration wiring into the explicit `Gma.Framework.Logging.Serilog` adapter, leaving host appsettings in each composition root while keeping Serilog package references out of host projects.
+- Moved duplicated HTTP-host Swagger/OpenAPI wiring into the explicit `Gma.Framework.Api.OpenApi` adapter, keeping Swashbuckle package references out of host projects while preserving development-only Swagger UI behavior.
+- Removed the public API host's inert `AddCors()` registration and added a guard so browser cross-origin support returns later only as an explicit configured policy/adapter.
+- Moved default HTTP health endpoint mapping fully into `ServiceDefaults.MapDefaultEndpoints()`, so hosts get `/health`, `/alive`, and optional `/metrics` from one shared runtime endpoint owner.
+- Added neutral `Gma.Framework.Api` security defaults so HTTP hosts can safely run authentication/authorization middleware without making the Auth module the hidden owner of baseline ASP.NET Core security services; actual schemes remain explicit Auth or external identity adapter choices.
+- Centralized default JWT/admin claim-name strings in `Gma.Framework.Security.ApplicationClaimNames`, with `GmaClaimNames` kept as a compatibility shim, replacing raw `tenant_id`, `sid`, and `sub` literals in production code and guarding the contract against drift.
+- Hardened admin API claim-name option validation so actor and configured tenant claim names reject whitespace, control characters, and overlong values while preserving URI-style external identity claim types.
+- Split Auth core infrastructure from the JWT bearer authentication adapter into separate projects, keeping CLI Auth composition free of HTTP bearer packages/scheme registration while public/admin HTTP Auth surfaces opt into `Gma.Modules.Auth.Infrastructure.JwtBearer` explicitly.
+- Decoupled core Auth infrastructure registration from host-builder APIs: `Gma.Modules.Auth.Infrastructure` now exposes an `IServiceCollection` plus configuration extension, while host-builder coupling stays in HTTP/CLI composition and the explicit JWT bearer adapter.
+- Made the Redis caching adapter preflight its own options through `RedisCachingOptionsValidator` before configuring StackExchange.Redis, so invalid adapter names or connection strings fail with shaped options-validation errors at composition time.
+- Made the configured NATS publishing adapter preflight `NatsJetStream` options and require `ConnectionStrings:nats` when publishing is enabled, keeping enabled-mode transport failures in startup/composition instead of first publish.
+- Made ServiceDefaults preflight observability options before wiring OpenTelemetry and Prometheus, so invalid exporter URIs, Prometheus paths, or empty enabled OTLP signal selections fail during composition.
+- Made shared Admin API composition preflight `Administration:Api` claim-binding options, so malformed actor or tenant claim names fail when the optional admin HTTP surface is composed.
+- Made shared infrastructure preflight `Caching`, `Tenancy`, `Outbox`, `NatsJetStream`, and `NatsConsumers` options before configuring shared services, so invalid runtime settings fail before cache/CQRS/messaging services are wired.
+- Made module persistence composition and direct EF provider configuration preflight `Persistence` options before registering EF contexts, so missing provider connection strings fail before first DbContext resolution or migration-helper use.
+- Wrapped `Host.AdminCli` composition and host build in the existing bounded CLI exception handling path, so composition-time options failures print shaped CLI errors instead of bypassing the handler.
+- Aligned Redis adapter enabled-mode provider failures with the shared options-validation error shape instead of throwing a raw invalid-operation error.
+- Made Auth application and core infrastructure registration preflight refresh-token lifetime, JWT, and refresh-token hashing options before registering handlers or token services.
+- Made Administration application registration preflight bootstrap options before registering RBAC handlers or persisted authorization services.
+- Made low-level messaging runtime registration compose shared infrastructure idempotently, so custom/test hosts using direct outbox, NATS publishing, or NATS consumer hooks get required shared dependencies without hidden module discovery.
+- Added direct Catalog application registration coverage so the compiled example module proves repeat-safe CQRS, validation, and domain-event handler registration like the first-party modules.
+- Guarded `Host.Api` composition so shared infrastructure is wired before the optional Tenancy module enables tenant-scoped endpoint behavior, keeping `Gma.Modules.Tenancy.Api` lightweight while preserving validated tenant options.
+- Added an enum-default architecture guard so public contract/domain/shared boundary enums keep `Unknown = 0`; the former inbox `Pending = 0` persisted-state exception has been removed through compatibility migrations.
+- Added a public contract API boundary guard so a module may consume another module's contracts internally, but its own public `.Contracts`/`.Admin.Contracts` surface does not expose another module's types.
+- Guarded the manual `ArchitectureCatalog.ModuleDescriptors` list against drift by comparing it to every `*ModuleMetadata.Descriptor` exposed from module contract projects.
+- Aligned the module template and scaffolder next-step output with the descriptor-catalog and public contract ownership guards so generated-module follow-up work points at the same invariants the tests enforce.
+- Guarded provider-specific migration projects so they reference only their owning `.Persistence` project, keeping EF design-time/migration edges thin and preventing migration projects from becoming hidden composition roots.
+- Removed a stale `Gma.Modules.Auth.Api` reference to `Gma.Framework.Infrastructure` and guarded module API/admin front-door projects against direct shared-infrastructure references; front doors compose module adapters, while persistence/messaging/cache projects own infrastructure coupling.
+- Guarded persisted modules to keep SQL Server and PostgreSQL migration project parity, preserving the current first-class provider split without running expensive migration drift checks for unrelated slices.
+- Replaced Auth-only clean-architecture checks with module-wide Domain/Application dependency guards so every current and future feature module keeps domain code free of contracts/adapters/frameworks and application code free of persistence/infrastructure/front-door dependencies.
+- Removed the stale `NetArchTest.Rules` dependency after module boundary checks moved to direct assembly-reference guards, keeping architecture tests on the repo's own explicit catalog rather than an unused external package.
+- Added a domain project-shape guard so module `.Domain` projects keep only shared domain/error project references and no package/framework references, catching unused dependency drift before it appears in compiled assembly references.
+- Added an application project-shape guard so module `.Application` projects stay adapter/front-door free at the `.csproj` level, allowing only shared abstractions, own contracts/domain, optional producer contracts, and small Microsoft extension abstraction packages.
+- Tightened application project-shape rules so `Gma.Framework.Administration` is reserved for the owning `Gma.Modules.Administration.Application` module; feature modules keep admin framework dependencies in `.AdminCli` and `.AdminApi` front doors.
+- Added public/admin contract project-shape guards so public `.Contracts` projects stay backend/admin-framework free, while `.Admin.Contracts` projects remain thin typed wrappers over `Gma.Framework.Administration` and the owning public contracts.
+- Added a persistence project-shape guard so module `.Persistence` projects stay EF provider adapters instead of accumulating front-door, admin, framework, or unrelated package dependencies.
+- Added HTTP and admin CLI front-door project-shape guards so module `.Api`, `.AdminApi`, and `.AdminCli` projects can compose their owning module adapters without becoming catch-all dependency sinks.
+- Hardened module boundary source/project scans to ignore `bin` and `obj`, keeping architecture checks stable after local builds generate source files.
+- Added shared-core project-shape guards so dependency-free primitives stay dependency-free, `Gma.Framework.Application.Composition` remains limited to constrained registration, `Gma.Framework.Application.Events` stays event-contract-only, and `Gma.Framework.Pagination` stays dependency-free.
+- Added a shared-project dependency manifest guard so concrete backend packages stay in explicit shared adapter projects and new shared projects require a deliberate dependency-shape update.
+- Added a runtime host dependency manifest guard so public/admin HTTP hosts stay package-free composition roots, `Host.AdminCli` owns only CLI-hosting packages, `ServiceDefaults` owns observability packages, and `AppHost` owns Aspire hosting packages.
+- Added a test-project hygiene guard so every test project remains discoverable, non-packable, centrally versioned, and keeps the xUnit runner dependency private.
+- Added a test-source category guard so unit, architecture, integration, and Docker-backed tests stay selectable by category as the suite grows.
+- Added a script-contract guard so `eng/test-fast.ps1` keeps excluding Docker tests, `eng/test-docker.ps1` keeps enabling enforced Docker execution for `Category=Docker`, and `eng/verify.ps1` remains a fast default validation path unless Docker is invoked explicitly.
+- Added an enum-guidance docs guard so the `Unknown = 0`, smart-enum/code-list, provider enum, and module-template rules stay visible while enum modeling evolves.
+- Centralized admin CLI message/error/prompt output through `AdminCliOutput` and guarded module `.AdminCli` front doors against raw `Console` writes, keeping output formatting replaceable without changing module command maps.
+- Isolated shared unit tests that redirect process-wide console streams with `ConsoleTestIsolation` and added a guard so future non-integration console-redirection tests cannot race under xUnit parallel execution.
+- Guarded the module scaffolder so generated admin CLI shells keep depending on `Gma.Framework.Administration.Cli` and do not introduce raw console output into generated module front doors.
+- Hardened `DockerFact` availability probing so a hung `docker info` check is bounded, hidden-window, and explicitly kills the timed-out child process before falling back to local skip behavior.
+- Removed the stale unused `Add-ProjectReference` helper from `eng/new-module.ps1` and guarded against reintroducing that misleading scaffolder extension point.
+- Added a markdown local-link guard so `README.md` and docs links to repository files, templates, requests, and architecture pages cannot rot silently.
+- Added a documentation-index guard so every markdown page under `docs/` stays reachable from `docs/README.md`.
+- Added root repository hygiene guards so policy files and `.config/dotnet-tools.json` stay visible in the solution while local `.agents/` and `.codex/` workspace state stays ignored.
+- Guarded the local `dotnet-ef` tool manifest so it remains root-scoped, restores through engineering scripts, and stays pinned to the central `Microsoft.EntityFrameworkCore.Design` package version.
+- Guarded SDK policy so `global.json`, `Directory.Build.props`, `eng/common.ps1`, README, and setup docs all keep the skeleton on .NET 10 intentionally.
+- Removed secret-shaped Auth option defaults and moved disposable local connection strings, JWT signing keys, and refresh-token peppers into host `appsettings.Development.json` files. Base host appsettings now carry blank runtime-secret keys so copied projects fail fast until production secrets are supplied.
+- Routed `Host.AdminCli` startup and composition failure output through `AdminCliOutput`, extending the raw-console guard from module admin front doors to the CLI composition root.
+- Guarded checked-in `.http` request samples so access/refresh tokens stay blank-variable driven and generated admin password response flows do not slip into default examples.
+- Started the production-readiness backlog tracker and reorganized module contract files into explicit category folders (`Api`, `Admin`, `Events`, `Metadata`, `Types`, plus admin-contract `Permissions`/`Operations`) while keeping contract namespaces stable for now.
+- Added shared event base records for integration events, domain events, and tenant-scoped domain events; migrated Auth/Catalog events; and guarded module events against re-declaring common metadata by hand.
+- Reorganized test sources under intent folders across unit, architecture, and integration projects, then added a developer-experience guard so new tests do not drift back into project roots.
+- Updated testing guidelines with the current test project list, folder taxonomy, category traits, and the distinction between fast default validation and opt-in Docker coverage.
+- Added constrained application assembly registration for CQRS handlers, validators, and domain-event handlers, then migrated Auth, Catalog, Ordering, Administration, and the module scaffolder to use it.
+- Documented ADR 0006 so this reflection rule stays bounded and does not become implicit host/module discovery or integration-event subscription scanning.
+- Evaluated FluentValidation against the current request-shape validators and documented ADR 0007 to keep shared CQRS validator contracts as the default instead of adding a parallel validation stack.
+- Started the optional tasks/daemons framework with ADR 0008, shared task payload/context/progress/control contracts, and module task metadata without adding a scheduler/runtime dependency to default hosts.
+- Added scheduler-neutral task run store contracts, lease request/value objects, shared status-transition rules, and an explicit `Gma.Framework.Tasks.Cqrs` bridge for `ITaskCommandDispatcher` while keeping EF tables, worker services, and scheduler adapters out of default host composition. The dispatcher contract and implementation live outside `Gma.Framework.Tasks.Infrastructure` so task workers can run without CQRS unless a host composes `AddTaskCqrs()`.
+- Added the optional `TaskRuntime` EF persistence module with SQL Server/PostgreSQL migrations, explicit `AddTaskWorkerRuntime()` hosted-worker composition, explicit task-handler registration metadata, architecture guards that task metadata matches handler registration, and a compiled `TaskSamples` module proving task execution through CQRS dispatch.
+
+## Findings To Keep Watching
+
+- `DeveloperExperienceGuardTests` is intentionally still a broad policy suite after this pass. Split it by concern later if edit conflicts or navigation cost rise, but keep the helpers local enough that the guards remain easy to audit.
+- Treat registration-only unit tests as smoke tests, not proof of behavior. Prefer adding behavior tests where a module boundary, tenant rule, cache invalidation, outbox/inbox transition, or admin authorization decision would otherwise regress silently.
+- If constrained application registration starts to hurt startup, trimming, or AOT scenarios, replace the reflection helper with a source generator or generated explicit descriptors while preserving explicit host/module composition.
+- Revisit FluentValidation only with a concrete module that needs richer nested validation, localization, rule sets, or reusable property validators; any adapter should still report through the shared CQRS validation result shape.
+- Task runtime now has admin CLI/API controls, bounded metrics/logging, richer control-message handling for daemons, stale heartbeat inspection, and hosted queue-depth/active-run gauges. External scheduler adapters remain a separate optional follow-up.
+- Added `ITaskControlLoop`, standard task control command names, cooperative `TaskRunCanceledException` handling, task-run stats read models, and admin CLI/API `stats` plus `control` operations.
+- Projection rebuild tasks now have a concrete requirements note in `projection-rebuild-tasks.md`; keep that implementation as its own slice, but reuse the current task descriptor, payload version, stats, control-message, cancellation, and progress primitives.
+- Added lease renewal from worker-created execution contexts: heartbeat/progress now extends the owned claim window so long-running tasks are not reclaimed solely because the original lease expired. Continue testing provider behavior under concurrent claim/heartbeat races before promoting multi-node workers for critical workloads.
+- Added task runtime observable gauges for queue depth and active runs through a hosted sampler over `ITaskRunStore.GetStatsAsync(...)`; keep future metric tags bounded and do not add tenant/run/payload identifiers to task gauges.
+- Hardened task worker, scheduler, and timeout scanner hosted loops so transient store/provider failures are logged and retried instead of permanently stopping the background runtime.
+- Reduced TaskRuntime admin front-door drift by moving optional status-filter parsing into `TaskRunStatusNames.TryParseOptional(...)`, aligned default admin list page size with `PageRequest.DefaultPageSize`, and updated task docs/templates around stable status names plus version-aware schedule dedupe keys.
+- Architecture tests now use a single explicit catalog for compiled module projects. New non-migration module projects are tested to appear there in the same change that adds the module.
+- Continue the admin API security pass with deeper audit export, audit retention, and external identity-provider mapping requirements.
+- Keep Administration and Tenancy contract metadata aligned with `ArchitectureCatalog`, docs, and scaffolding output as those optional modules evolve.
+- Renamed the legacy result/error primitive package to `Gma.Framework.Results` so the package name matches its actual `Error` / `Result` primitives and the existing `src/Framework/tests/Gma.Framework.Tests/Results` test area.
+- Continue documenting permission codes carefully so consumer modules do not treat permissions as domain model.
+- Keep using `Unknown = 0` for ordinary public contract and domain-state enums. If a future module needs richer compatibility semantics, use a deliberate smart enum or value-object/code-list type with tests and docs rather than silently mapping unknown values to a valid domain value.
+- Follow-up enum design remains open: regular enums with `Unknown = 0` are the default, but modules may introduce a documented custom enum/smart-enum/code-list pattern when versioning, parsing, or provider compatibility needs stronger behavior.
+- Treat external/open-ended enum-like inputs as code-list value objects or smart enums when `Unknown = 0` is too weak; keep parsing explicit, keep invalid inputs out of business decisions, and document any magic/reflection-backed enum registration.
+- For richer state machines, consider a small project-local "custom enum" pattern only when it buys explicit parsing/versioning behavior that regular enums cannot express; keep it documented and covered by architecture tests.
+- Any reflection-backed enum/custom-enum registry should be explicitly called out in module docs and backed by tests proving it does not duplicate or conflict with .NET/source-generator/default package alternatives.
+- If custom enums become worth adding, make them a single documented project-wide pattern with explicit parsing, display name, persistence value, compatibility behavior, and tests; avoid per-module enum magic that new contributors have to rediscover.
+- Do not renumber persisted enum values after migrations exist unless a compatibility migration and data backfill are part of the same change; the inbox status migration is the reference pattern for retiring an old persisted enum layout.
+- If tenant ids need richer semantics later, evolve `TenantIds` into a `Gma.Framework.Domain` value object or code-list type with migrations, docs, and compatibility tests.
+- Auth identity structs intentionally leave `default(<Id>)` as `Guid.Empty` so aggregate, event, and token guards can reject missing identities explicitly. Do not normalize empty ids into fallback ids.
+- Catalog and Ordering examples are compiled but intentionally not registered in default hosts. Keep architecture tests for that, because accidental registration would turn examples into runtime dependencies.
+- HTTP Serilog composition is split between `Gma.Framework.Logging.Serilog` for host configuration loading and `Gma.Framework.Api.Serilog` for request-log enrichment; keep hosts responsible for appsettings values, and keep generic `Gma.Framework.Api` free of logging backend packages.
+
+## Security And Responsibility Notes
+
+- Generated admin passwords use `RandomNumberGenerator` and are printed only by the caller that requested generation. Do not log or audit generated values.
+- Refresh-token hashes are versioned keyed hashes. Production deployments must provide their own `Auth:RefreshTokens:Pepper`; do not reuse checked-in local development placeholders.
+- Admin audit data must remain operation metadata only: actor, tenant, permission, result, timestamps, and error code. Never include passwords, tokens, token hashes, refresh tokens, or raw secrets.
+- Admin audit IDs and timestamps should come from shared infrastructure primitives so audit behavior stays deterministic and replaceable.
+- NATS subjects and integration event names are public contracts. Changing them is a versioned compatibility decision, not a local refactor.
+- `IntegrationEvent` centralizes event id, occurrence time, event name, and version validation. Tenant-owned events use `TenantIntegrationEvent` from `Gma.Framework.Tenancy.Messaging`; keep payload-specific fields in the module event type, and introduce richer envelope compatibility only through a documented messaging ADR.
+- Cross-module decisions should continue to use local projections or duplicated read data. Do not add cross-module EF relationships or direct domain/application references.
+
+## Small Local Notes
+
+- Catalog had grouped event contracts and outbox projectors after the example-module pass. The split makes events, projectors, and tests easier to navigate by type name.
+- Ordering grouped all Catalog projection handlers in one file. The split better matches the stable handler-name/durable-consumer mental model.
+- Auth had duplicated generated password code in `.AdminCli` and `.AdminApi`. Moving it into application keeps security-sensitive policy in one place while front doors stay thin.
+- Module metadata is deliberately contract data only. Do not turn it into assembly scanning or implicit host composition without a separate ADR and architecture tests.
+- `ArchitectureCatalog` is also deliberately test/tooling data only. Do not use it for runtime host composition.

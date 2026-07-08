@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\..\Tasks\Gma.Framework.Tasks\Gma.Framework.Tasks.csproj" />
+    <ProjectReference Include="..\..\Tasks\Gma.Framework.Tasks.Infrastructure\Gma.Framework.Tasks.Infrastructure.csproj" />
+    <ProjectReference Include="..\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
+  </ItemGroup>
+</Project>
