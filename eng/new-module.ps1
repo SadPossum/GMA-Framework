@@ -635,15 +635,13 @@ using Gma.Framework.Persistence.EntityFrameworkCore;
 public sealed class ${Name}SqlServerDesignTimeDbContextFactory : IDesignTimeDbContextFactory<${Name}DbContext>
 {
     public ${Name}DbContext CreateDbContext(string[] args)
-    {
-        return new ${Name}DbContext(
+        => new(
             DesignTimeDbContextOptionsFactory.CreateSqlServerOptions<${Name}DbContext>(
                 args,
                 ${Name}Migrations.SqlServerAssembly,
                 ${Name}Migrations.Schema,
                 ${Name}Migrations.HistoryTable),
             new DesignTimeTenantContext());
-    }
 }
 "@
 }
@@ -677,15 +675,13 @@ using Gma.Framework.Persistence.EntityFrameworkCore;
 public sealed class ${Name}PostgreSqlDesignTimeDbContextFactory : IDesignTimeDbContextFactory<${Name}DbContext>
 {
     public ${Name}DbContext CreateDbContext(string[] args)
-    {
-        return new ${Name}DbContext(
+        => new(
             DesignTimeDbContextOptionsFactory.CreatePostgreSqlOptions<${Name}DbContext>(
                 args,
                 ${Name}Migrations.PostgreSqlAssembly,
                 ${Name}Migrations.Schema,
                 ${Name}Migrations.HistoryTable),
             new DesignTimeTenantContext());
-    }
 }
 "@
 }
@@ -836,12 +832,10 @@ $($adminApiServices -join "`r`n")
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        _ = endpoints.MapGroup("/api/admin/" + ${Name}ModuleMetadata.Name)
+        => endpoints.MapGroup("/api/admin/" + ${Name}ModuleMetadata.Name)
             .WithModuleName(this.Name)
             .WithTags("$Name Admin")
             .RequireAuthorization();
-    }
 }
 "@
 }
