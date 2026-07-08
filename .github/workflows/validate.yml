@@ -30,15 +30,10 @@ jobs:
         run: ./eng/bootstrap-source-roots.ps1 -Force
 
       - name: Restore
-        run: dotnet restore 
-Gma.Framework.slnx
+        run: dotnet restore Gma.Framework.slnx
 
       - name: Build
-        run: dotnet build 
-Gma.Framework.slnx
- --no-restore -m:1
+        run: dotnet build Gma.Framework.slnx --no-restore -m:1
 
       - name: Test
-        run: dotnet test 
-Gma.Framework.slnx
- --no-build --logger "console;verbosity=minimal"
+        run: dotnet test Gma.Framework.slnx --no-build --logger "console;verbosity=minimal"
