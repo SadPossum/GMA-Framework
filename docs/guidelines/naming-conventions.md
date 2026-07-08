@@ -332,4 +332,4 @@ check-source-packages.ps1
 new-module.ps1
 ```
 
-Framework-owned scripts live under `src/Framework/eng/`. The root `eng/new-module.ps1` script is a convenience wrapper around `src/Framework/eng/new-module.ps1`.
+Framework-owned scripts live under the framework repository's root `eng/`. In the skeleton checkout the module scaffolder is mounted at `gma/framework/eng/new-module.ps1`. The skeleton root `eng/new-module.ps1` script is a convenience wrapper around that framework-owned implementation.

@@ -18,29 +18,46 @@ Do not require Obsidian plugins or `.obsidian` settings.
 
 ## Structure
 
-Documentation is source-owned. In the current monorepo staging layout, source-owned docs live under the staged package source roots:
+Documentation is source-owned. In the source-first layout, each repository keeps its docs beside the source it owns:
 
 ```text
-docs/
-  README.md
-  getting-started/
-  architecture/
-  examples/
+gma-skeleton/
+  docs/
+    README.md
+    getting-started/
+    architecture/
+    examples/
 
-src/Framework/docs/
+gma-framework/
+  docs/
+    README.md
+    architecture/
+    guidelines/
+    templates/
+    adr/
+
+gma-module-auth/
+  docs/
+    README.md
+```
+
+In a skeleton checkout, those source repositories are mounted under `gma/`, for example:
+
+```text
+gma/framework/docs/
   README.md
   architecture/
   guidelines/
   templates/
   adr/
 
-src/Modules/<Module>/docs/
+gma/modules/<alias>/docs/
   README.md
 ```
 
 Root `docs/` describes the skeleton/template repository and links out to source-owned framework and module documentation. Framework docs describe reusable framework packages, cross-cutting architecture, templates, guidelines, and ADRs. Module docs describe that module only.
 
-When a framework or reusable module is extracted into its own repository, move its docs to that repository's root-level `docs/` folder. Do not preserve monorepo parent folders such as `src/Framework/docs/` or `src/Modules/Auth/docs/` inside the standalone repository.
+Skeleton docs may mention mounted local paths such as `gma/framework/docs/README.md`, but Markdown links to reusable docs should point at the owning source repository on GitHub. GitHub cannot reliably render deep file links through a skeleton submodule path such as `gma/modules/tenancy/docs/README.md`.
 
 ## What to Document
 
@@ -58,7 +75,7 @@ Document when a change affects:
 
 ## Module Docs
 
-Each reusable module should have `src/Modules/<Module>/docs/README.md` while it is staged in this monorepo. In a standalone module repository, the same content should live at `docs/README.md`.
+Each reusable module should have `docs/README.md` at the module repository root. In a skeleton checkout, that same file appears under `gma/modules/<alias>/docs/README.md`.
 
 Use [../templates/module.md](../templates/module.md).
 
@@ -104,6 +121,6 @@ Use [../templates/adr.md](../templates/adr.md).
 - Are config keys spelled exactly?
 - Are module boundaries clear?
 - Is the page linked from the owning docs index?
-- If the page belongs to a reusable framework or module package in this monorepo, is it outside skeleton root `docs/`?
-- If the page belongs to an extracted framework or module repository, is it under that repository's root `docs/`?
+- If the page belongs to a reusable framework or module package, is it under that package repository's root `docs/`?
+- If a skeleton doc links to reusable docs, does the link target the owning source repository rather than a deep `gma/...` submodule path?
 - Is a template needed for repeating this doc shape?
