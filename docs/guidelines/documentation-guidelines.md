@@ -21,14 +21,14 @@ Do not require Obsidian plugins or `.obsidian` settings.
 Documentation is source-owned. In the source-first layout, each repository keeps its docs beside the source it owns:
 
 ```text
-gma-skeleton/
+GMA-Skeleton/
   docs/
     README.md
     getting-started/
     architecture/
     examples/
 
-gma-framework/
+GMA-Framework/
   docs/
     README.md
     architecture/
@@ -36,7 +36,7 @@ gma-framework/
     templates/
     adr/
 
-gma-module-auth/
+GMA-Module-Auth/
   docs/
     README.md
 ```
