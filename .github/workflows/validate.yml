@@ -1,0 +1,44 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout framework
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Bootstrap source roots
+        shell: pwsh
+        run: ./eng/bootstrap-source-roots.ps1 -Force
+
+      - name: Restore
+        run: dotnet restore 
+Gma.Framework.slnx
+
+      - name: Build
+        run: dotnet build 
+Gma.Framework.slnx
+ --no-restore -m:1
+
+      - name: Test
+        run: dotnet test 
+Gma.Framework.slnx
+ --no-build --logger "console;verbosity=minimal"
