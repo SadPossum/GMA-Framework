@@ -2,7 +2,7 @@
 
 This folder documents reusable GMA framework packages, cross-cutting extension points, source-owned ADRs, and framework-level development conventions.
 
-The skeleton/composition repository links here from [root documentation](../../../docs/README.md). Application-template guidance stays in `docs/`; reusable framework behavior stays here.
+The skeleton/composition repository links here from [root documentation](https://github.com/SadPossum/gma-skeleton/blob/dev/docs/README.md). Application-template guidance stays in the skeleton `docs/`; reusable framework behavior stays here.
 
 ## Architecture
 
