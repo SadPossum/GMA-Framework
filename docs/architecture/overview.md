@@ -126,11 +126,12 @@ GMA-Skeleton/
       task-runtime/
       tenancy/
   src/
-    Host.Api/
-    Host.AdminCli/
-    Host.AdminApi/
-    Host.Worker/
-    AppHost/
+    Hosts/
+      Host.Api/
+      Host.AdminCli/
+      Host.AdminApi/
+      Host.Worker/
+      AppHost/
     ServiceDefaults/
     Modules/
       Catalog/

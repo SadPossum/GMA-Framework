@@ -85,7 +85,7 @@ The worker must keep the same modular rules as every other host:
 Add:
 
 ```text
-src/Host.Worker/
+src/Hosts/Host.Worker/
   Host.Worker.csproj
   Program.cs
   appsettings.json
@@ -254,7 +254,7 @@ Do not add this setting unless it drives real validation or clearer operational 
 
 ## AppHost Requirements
 
-Update `src/AppHost` so local development can optionally run the worker.
+Update `src/Hosts/AppHost` so local development can optionally run the worker.
 
 Requirements:
 

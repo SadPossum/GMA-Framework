@@ -870,10 +870,10 @@ if ($AdminApi) {
 }
 
 if ($RegisterInHost) {
-    $hostProject = Join-GmaPath 'src\Host.Api\Host.Api.csproj'
+    $hostProject = Join-GmaPath 'src\Hosts\Host.Api\Host.Api.csproj'
     Invoke-GmaDotNet -Arguments @('add', $hostProject, 'reference', $apiProject)
 
-    $programPath = Join-GmaPath 'src\Host.Api\Program.cs'
+    $programPath = Join-GmaPath 'src\Hosts\Host.Api\Program.cs'
     $program = Get-Content -LiteralPath $programPath -Raw
     $moduleUsing = "using $Name.Api;"
     $moduleRegistration = "builder.AddModule<${Name}Module>();"

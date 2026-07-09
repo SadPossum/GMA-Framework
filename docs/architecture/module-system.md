@@ -409,7 +409,7 @@ For a richer optional shell:
 ```
 
 Then decide explicitly whether to register it in `Host.Api`.
-When `-RegisterInHost` is used, the script inserts the public API module at the explicit `// module-scaffold:public-api-modules` composition marker in `src/Host.Api/Program.cs`.
+When `-RegisterInHost` is used, the script inserts the public API module at the explicit `// module-scaffold:public-api-modules` composition marker in `src/Hosts/Host.Api/Program.cs`.
 If the module is committed as compiled code, add its projects to `ArchitectureCatalog` so boundary tests cover it.
 
 The root command is a skeleton wrapper. The framework-owned implementation lives at `eng/new-module.ps1` in the framework repository and is mounted at `gma/framework/eng/new-module.ps1` in the skeleton checkout. The wrapper supplies both the composition repository root and the composition solution filename; framework-owned tooling must not discover or assume a skeleton solution name on its own.
