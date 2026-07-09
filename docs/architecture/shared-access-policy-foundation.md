@@ -66,6 +66,10 @@ Tenant isolation remains separate from resource visibility:
 - tenant filters prevent cross-tenant data leaks;
 - module visibility scopes decide which resources are visible inside an allowed tenant or across explicitly global/platform resources.
 
+## Follow-Up Direction
+
+The first slice stopped at `AccessSubject` because generic grants had not yet earned their keep. A later product-management use case did prove repeated need for permissioned actions outside admin-only surfaces. See [Generic Access Control And RBAC Refactor Task](generic-access-control-rbac-task.md) for the planned second-phase refactor.
+
 ## Future Options
 
 Add a persisted `AccessControl` module only when several modules need the same object-sharing model.
