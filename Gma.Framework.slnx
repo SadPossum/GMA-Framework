@@ -82,6 +82,11 @@
     <Project Path="src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.EntityFrameworkCore/Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
     <Project Path="src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.Tasks/Gma.Framework.ProjectionRebuild.Tasks.csproj" />
   </Folder>
+  <Folder Name="/src/Realtime/">
+    <Project Path="src/Realtime/Gma.Framework.Realtime/Gma.Framework.Realtime.csproj" />
+    <Project Path="src/Realtime/Gma.Framework.Realtime.Infrastructure/Gma.Framework.Realtime.Infrastructure.csproj" />
+    <Project Path="src/Realtime/Gma.Framework.Realtime.Notifications/Gma.Framework.Realtime.Notifications.csproj" />
+  </Folder>
   <Folder Name="/src/Results/">
     <Project Path="src/Results/Gma.Framework.Results/Gma.Framework.Results.csproj" />
   </Folder>

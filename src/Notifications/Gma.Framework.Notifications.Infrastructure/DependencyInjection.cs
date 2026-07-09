@@ -37,10 +37,6 @@ public static class DependencyInjection
         builder.Services.AddSingleton<UserNotificationsInfrastructureMarker>();
         builder.ProvideFeature(NotificationsCompositionFeatures.PublisherProvided("Gma.Framework.Notifications.Infrastructure"));
         builder.ProvideFeature(NotificationsCompositionFeatures.RequestQueueProvided("Gma.Framework.Notifications.Infrastructure"));
-        if (notificationOptions.Enabled)
-        {
-            builder.ProvideFeature(NotificationsCompositionFeatures.LiveFeedProvided("Gma.Framework.Notifications.Infrastructure"));
-        }
 
         builder.Services.AddMetrics();
         builder.Services
@@ -50,11 +46,6 @@ public static class DependencyInjection
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<NotificationsOptions>, NotificationsOptionsValidator>());
         builder.Services.TryAddSingleton<NotificationMetrics>();
-        builder.Services.TryAddSingleton<InMemoryUserNotificationBus>();
-        builder.Services.TryAddSingleton<IUserNotificationFeed>(
-            provider => provider.GetRequiredService<InMemoryUserNotificationBus>());
-        builder.Services.AddSingleton<IUserNotificationSink>(
-            provider => provider.GetRequiredService<InMemoryUserNotificationBus>());
         builder.Services.TryAddScoped<IUserNotificationPublisher, UserNotificationPublisher>();
         builder.Services.TryAddScoped<UserNotificationRequestQueue>();
         builder.Services.TryAddScoped<IUserNotificationRequestQueue>(

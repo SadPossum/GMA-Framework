@@ -80,6 +80,10 @@ GMA-Framework/
       Gma.Framework.ProjectionRebuild/
       Gma.Framework.ProjectionRebuild.EntityFrameworkCore/
       Gma.Framework.ProjectionRebuild.Tasks/
+    Realtime/
+      Gma.Framework.Realtime/
+      Gma.Framework.Realtime.Infrastructure/
+      Gma.Framework.Realtime.Notifications/
     Results/
       Gma.Framework.Results/
     Runtime/
@@ -152,6 +156,7 @@ Current host registration:
 
 ```csharp
 builder.AddUserNotificationsCqrs(); // post-commit flush for queued notification requests
+builder.AddUserNotificationsRealtime(); // generic realtime bridge for live notification feed
 builder.AddRedisCaching(); // no-op unless Redis caching is enabled
 builder.AddCachingCqrs();
 builder.AddGmaInfrastructure();
@@ -434,6 +439,18 @@ Gma.Framework.Notifications.Infrastructure
   -> Gma.Framework.Runtime
   -> Gma.Framework.Runtime.Infrastructure
 
+Gma.Framework.Realtime
+  -> Gma.Framework.Naming
+
+Gma.Framework.Realtime.Infrastructure
+  -> Gma.Framework.Realtime
+
+Gma.Framework.Realtime.Notifications
+  -> Gma.Framework.ModuleComposition
+  -> Gma.Framework.Notifications
+  -> Gma.Framework.Realtime
+  -> Gma.Framework.Realtime.Infrastructure
+
 Gma.Framework.Notifications.SignalR
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Naming
@@ -625,7 +642,8 @@ User notifications have two explicit paths. Best-effort live delivery follows a 
 transactional command handler -> IUserNotificationRequestQueue
   -> Gma.Framework.Notifications.Cqrs post-commit flush
   -> IUserNotificationPublisher
-  -> in-process notification feed
+  -> Gma.Framework.Realtime.Notifications bridge
+  -> in-process realtime feed
   -> optional SSE endpoint / optional SignalR hub
 ```
 

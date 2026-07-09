@@ -13,6 +13,7 @@ using Gma.Framework.Notifications;
 using Gma.Framework.Notifications.Api;
 using Gma.Framework.Notifications.Cqrs;
 using Gma.Framework.Notifications.Infrastructure;
+using Gma.Framework.Realtime.Notifications;
 using Gma.Framework.Results;
 using Xunit;
 
@@ -279,6 +280,38 @@ public sealed class UserNotificationsTests
     }
 
     [Fact]
+    public async Task Notification_infrastructure_does_not_register_live_feed_runtime()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Notifications:Enabled"] = "true";
+        builder.Configuration["ApplicationIdentity:Namespace"] = "test-app";
+        builder.AddUserNotificationsInfrastructure();
+        await using ServiceProvider provider = builder.Services.BuildServiceProvider();
+
+        Assert.Null(provider.GetService<IUserNotificationFeed>());
+        Assert.DoesNotContain(
+            provider.GetServices<IUserNotificationSink>(),
+            sink => string.Equals(sink.ProviderName, "memory", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Notification_realtime_bridge_registers_live_feed_without_publisher()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Notifications:Enabled"] = "true";
+        builder.Configuration["Notifications:SubscriberQueueCapacity"] = "1";
+        builder.Configuration["ApplicationIdentity:Namespace"] = "test-app";
+        builder.AddUserNotificationsRealtime();
+        await using ServiceProvider provider = builder.Services.BuildServiceProvider();
+
+        Assert.NotNull(provider.GetService<IUserNotificationFeed>());
+        Assert.Contains(
+            provider.GetServices<IUserNotificationSink>(),
+            sink => string.Equals(sink.ProviderName, "memory", StringComparison.Ordinal));
+        Assert.Null(provider.GetService<IUserNotificationPublisher>());
+    }
+
+    [Fact]
     public void Module_descriptor_reads_notification_metadata_from_payload_attributes()
     {
         ModuleNotificationDescriptor notification = SampleModule.Descriptor.GetUserNotifications().Single();
@@ -366,6 +399,7 @@ public sealed class UserNotificationsTests
         });
         configureServices?.Invoke(builder.Services);
         builder.AddUserNotificationsInfrastructure();
+        builder.AddUserNotificationsRealtime();
 
         return builder.Build();
     }

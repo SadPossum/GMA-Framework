@@ -11,7 +11,7 @@ Current dependencies:
 - ASP.NET Core hosting environment
 - secret/config provider for JWT signing key and connection strings
 - Redis only when `Caching:Enabled=true` and `Caching:Provider=Redis`
-- SignalR/SSE notification streaming only when `Notifications:Enabled=true`
+- realtime-backed SignalR/SSE notification streaming only when `Notifications:Enabled=true`
 - notification history tables only when the optional `Notifications` module is composed
 - `Host.Worker` only when background publishing, consumers, inbox/projection handling, or task workers should run outside HTTP hosts
 
@@ -142,6 +142,7 @@ Notifications are disabled by default and are best-effort front-door delivery. T
 When enabling notifications:
 
 - compose `AddUserNotificationsCqrs()` in hosts whose command handlers enqueue notification requests;
+- compose `AddUserNotificationsRealtime()` in hosts that expose live notification streams;
 - confirm clients use authenticated SSE at `Notifications:Sse:StreamPath` or SignalR at `Notifications:SignalR:HubPath`;
 - keep `Notifications:MaximumPayloadBytes` small enough to prevent accidental large live payloads;
 - size `Notifications:SubscriberQueueCapacity` for the expected number of slow clients;

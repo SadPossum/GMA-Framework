@@ -7,8 +7,11 @@ This slice adds optional, front-door-focused user notifications and live streami
 ## Decisions To Preserve
 
 - Modules depend only on `Gma.Framework.Notifications`.
-- `Gma.Framework.Notifications.Infrastructure` owns in-memory fanout, bounded subscriber queues, payload serialization, fail-open sink delivery, and metrics.
+- `Gma.Framework.Notifications.Infrastructure` owns publisher/runtime coordination, scoped request queues, payload serialization, fail-open history writer and sink delivery, and metrics.
 - `Gma.Framework.Notifications.Cqrs` owns the optional post-commit command pipeline bridge for queued notification requests.
+- `Gma.Framework.Realtime` owns generic realtime feed/sink/subscription contracts and channel naming.
+- `Gma.Framework.Realtime.Infrastructure` owns the generic in-memory fanout and bounded subscriber queues.
+- `Gma.Framework.Realtime.Notifications` owns the bridge from notification targets/messages to generic realtime channels and provides the `notifications.live-feed` composition feature.
 - `Gma.Framework.Notifications.Api` owns the authenticated SSE endpoint.
 - `Gma.Framework.Notifications.SignalR` owns SignalR hubs, groups, and browser query-string bearer-token support for the notification hub path.
 - `Notifications` owns durable user notification history/read state when explicitly composed.
@@ -23,7 +26,7 @@ This slice adds optional, front-door-focused user notifications and live streami
 - Notification contract enums own their JSON converters. Severity values write `info`, `success`, `warning`, or `error`; broadcast audiences write lowercase kebab-case values; recipient kinds write `user` or `admin`; SSE item kinds write `notification` or `heartbeat`. Numeric, unknown, and undefined enum values should fail before reaching application handlers.
 - Broadcast stream cursors are separate from direct history stream cursors. A future unified feed needs a dedicated feed cursor.
 - Durable history and broadcast stream polling uses module-owned `Notifications:DurableStreams` options. Keep the option limits aligned with the query validators so bad configuration fails at startup instead of creating a silent stream loop. Poll-time query failures must log and close the stream rather than continuing forever.
-- `Host.Api` can compose the adapters explicitly, but notifications are disabled by default through `Notifications:Enabled=false`.
+- `Host.Api` can compose the adapters explicitly, but notifications are disabled by default through `Notifications:Enabled=false`. Compose `AddUserNotificationsRealtime()` before notification SSE when live streaming is enabled.
 - Durable business guarantees must use existing module outbox/inbox patterns; live notifications are best-effort, and history rows are guaranteed only when projected from committed integration events.
 - Tenant ids and user ids must never be metric tags. They may appear in structured logs only when useful for troubleshooting.
 - SignalR groups are routing hints, not authorization. The hub must authorize the connection and derive the tenant/user group from claims, not client input.
@@ -31,6 +34,7 @@ This slice adds optional, front-door-focused user notifications and live streami
 ## Audit Checklist
 
 - No module references `Gma.Framework.Notifications.Cqrs`, `Gma.Framework.Notifications.Api`, `Gma.Framework.Notifications.SignalR`, SignalR packages, or ASP.NET notification internals.
+- No module references `Gma.Framework.Realtime.Infrastructure` or `Gma.Framework.Realtime.Notifications` for notification delivery. The notification bridge belongs in host composition.
 - Domain projects do not reference notifications.
 - Application projects may reference `Gma.Framework.Notifications` only when they explicitly enqueue or publish front-door notifications.
 - SSE requires authenticated users and tenant match when tenancy is enabled.
@@ -47,7 +51,7 @@ This slice adds optional, front-door-focused user notifications and live streami
 - Durable notification payload JSON is bounded to 32 KB in the event contract, domain value object, and EF model. Provider migrations must keep that limit visible.
 - Broadcast read receipts must remain idempotent under retries and concurrency. Keep SQL Server/PostgreSQL insert-if-missing behavior behind the repository, include recipient scope in the unique identity, and keep read-all bounded.
 - Integration event handlers normally require local module descriptor subscriptions. Reusable fan-in handlers may use `IntegrationEventHandlerAttribute.RequiresExplicitProducerBinding` only when the producer list truly belongs to host/example composition.
-- Stream queues are bounded so disconnected or slow clients cannot grow memory unbounded.
+- Realtime subscriber queues are bounded so disconnected or slow clients cannot grow memory unbounded.
 
 ## Follow-Up Candidates
 

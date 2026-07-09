@@ -62,6 +62,7 @@ If a hotfix lands directly on `main`, merge `main` back into `dev` before contin
 | Framework messaging contracts | `Gma.Framework.Messaging` |
 | Framework user notification contracts | `Gma.Framework.Notifications` |
 | Framework notification-to-CQRS bridge | `Gma.Framework.Notifications.Cqrs` |
+| Framework realtime contracts | `Gma.Framework.Realtime` |
 | Framework task contracts | `Gma.Framework.Tasks` |
 | Framework task-to-CQRS bridge | `Gma.Framework.Tasks.Cqrs` |
 | Framework projection rebuild contracts/runtime | `Gma.Framework.ProjectionRebuild` |
@@ -84,6 +85,8 @@ If a hotfix lands directly on `main`, merge `main` back into `dev` before contin
 | Framework messaging runtime | `Gma.Framework.Messaging.Infrastructure` |
 | Framework NATS messaging transport | `Gma.Framework.Messaging.Nats` |
 | Framework notification runtime | `Gma.Framework.Notifications.Infrastructure` |
+| Framework realtime runtime | `Gma.Framework.Realtime.Infrastructure` |
+| Framework notification-to-realtime bridge | `Gma.Framework.Realtime.Notifications` |
 | Framework notification SSE adapter | `Gma.Framework.Notifications.Api` |
 | Framework notification SignalR adapter | `Gma.Framework.Notifications.SignalR` |
 | Framework task runtime | `Gma.Framework.Tasks.Infrastructure` |
@@ -150,7 +153,7 @@ Do not:
 - expose EF entities through contracts;
 - make application projects depend on `IHostApplicationBuilder` or `Microsoft.Extensions.Hosting`; expose `IServiceCollection` registration instead;
 - publish directly to NATS from domain or application code;
-- reference SignalR, SSE, or notification front-door adapter packages from modules;
+- reference SignalR, SSE, realtime runtime, or notification front-door adapter packages from modules;
 - reference NATS, Redis, Prometheus, OpenTelemetry exporters, Serilog sinks, or cache-backend packages from module projects;
 - call `Guid.NewGuid()`, `DateTimeOffset.UtcNow`, or `DateTime.UtcNow` from feature-module code; use `IIdGenerator` and `ISystemClock` instead;
 - let endpoints contain business rules.
@@ -303,8 +306,9 @@ Rules:
 - do not rely on notifications for authorization, tenant resolution, or guaranteed delivery;
 - compose the optional `Notifications` module when users need persisted history or read/unread state;
 - treat shared-publisher notification history as durable only after a publish request reaches the shared publisher; use outbox/NATS/inbox and the Notifications request event for guaranteed creation from business facts;
-- do not reference `Gma.Framework.Notifications.Api`, `Gma.Framework.Notifications.SignalR`, SignalR packages, or ASP.NET streaming internals from modules;
+- do not reference `Gma.Framework.Notifications.Api`, `Gma.Framework.Notifications.SignalR`, `Gma.Framework.Realtime.Infrastructure`, `Gma.Framework.Realtime.Notifications`, SignalR packages, or ASP.NET streaming internals from modules;
 - compose `AddUserNotificationsCqrs()` in hosts whose command handlers enqueue notification requests;
+- compose `AddUserNotificationsRealtime()` in hosts that need the in-process live notification feed;
 - compose `AddUserNotificationServerSentEvents()` and `AddUserNotificationSignalR()` only in hosts that need live user delivery.
 
 The CQRS bridge flushes queued notification requests only after a successful command result and unit-of-work commit. It is scoped, in-process, and best-effort; it prevents before-commit live sends, but it is not the authoritative durable business fact. The optional `Notifications` module stores history for publish requests that reach the publisher and can also consume durable `UserNotificationRequestedIntegrationEvent` messages through its inbox.

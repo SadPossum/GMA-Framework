@@ -17,8 +17,11 @@ The implementation should stay optional, adapter-shaped, and easy to remove from
 Add a small notification contract package plus optional delivery adapters:
 
 - `Gma.Framework.Notifications` owns user-notification contracts, payload metadata attributes, logical target/message types, publish options, module descriptor metadata, and options.
-- `Gma.Framework.Notifications.Infrastructure` owns the in-memory feed, bounded subscriber queues, central payload serialization, fail-open sink delivery, and notification metrics.
+- `Gma.Framework.Notifications.Infrastructure` owns publisher/runtime coordination, the scoped request queue, central payload serialization, fail-open history writer and sink delivery, and notification metrics.
 - `Gma.Framework.Notifications.Cqrs` owns the post-commit command pipeline bridge that flushes queued notification requests after a successful unit-of-work commit.
+- `Gma.Framework.Realtime` owns transport-neutral realtime channel/feed/sink/subscription contracts.
+- `Gma.Framework.Realtime.Infrastructure` owns generic in-memory fanout and bounded subscriber queues.
+- `Gma.Framework.Realtime.Notifications` bridges notification targets/messages onto the generic realtime bus and provides the notification live-feed composition feature.
 - `Gma.Framework.Notifications.Api` owns the authenticated Server-Sent Events endpoint.
 - `Gma.Framework.Notifications.SignalR` owns the authenticated SignalR hub, per-user group routing, and hub-scoped bearer-token query-string support.
 - `Host.Api` composes these adapters explicitly, while `Notifications:Enabled=false` keeps delivery disabled by default.
@@ -45,6 +48,7 @@ This keeps live user updates useful without weakening the modular architecture:
 - tenants and users are authorization/routing inputs, not metric tags;
 - slow or disconnected clients cannot grow memory without bounds;
 - alternative future transports can be added as new adapters behind `IUserNotificationSink`;
+- future realtime use cases such as file progress or task status can use `Gma.Framework.Realtime` without depending on notification-specific metadata or history;
 - durable notification history, preferences, delivery receipts, email, SMS, and push providers can be added as module-owned persistence/adapters.
 
 The tradeoff is that the first slice is in-process fanout. Multi-instance deployments need either sticky sessions, an external SignalR backplane, Azure SignalR, or persisted history/replay. That is deliberate: the skeleton should not require a real-time backplane for applications that do not need it.

@@ -105,6 +105,9 @@ Gma.Framework.Persistence.EntityFrameworkCore
 Gma.Framework.ProjectionRebuild
 Gma.Framework.ProjectionRebuild.EntityFrameworkCore
 Gma.Framework.ProjectionRebuild.Tasks
+Gma.Framework.Realtime
+Gma.Framework.Realtime.Infrastructure
+Gma.Framework.Realtime.Notifications
 Gma.Framework.Runtime
 Gma.Framework.Runtime.Infrastructure
 Gma.Framework.Security

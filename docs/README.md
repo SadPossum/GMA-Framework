@@ -17,6 +17,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Background Worker Host Task](architecture/background-worker-host-task.md)
 - [File Management](architecture/file-management.md)
 - [Tasks and Daemons](architecture/tasks-and-daemons.md)
+- [Realtime](architecture/realtime.md)
 - [Notifications and Streaming](architecture/notifications-and-streaming.md)
 - [Observability](architecture/observability.md)
 - [Caching](architecture/caching.md)

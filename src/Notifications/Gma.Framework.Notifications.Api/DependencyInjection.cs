@@ -40,7 +40,7 @@ public static class DependencyInjection
             builder.ProvideFeature(NotificationsCompositionFeatures.ServerSentEventsProvided("Gma.Framework.Notifications.Api"));
             builder.RequireFeature(NotificationsCompositionFeatures.LiveFeedRequired(
                 "Gma.Framework.Notifications.Api",
-                "Register Gma.Framework.Notifications.Infrastructure before enabling notification SSE streaming."));
+                "Register Gma.Framework.Realtime.Notifications before enabling notification SSE streaming."));
         }
 
         builder.Services

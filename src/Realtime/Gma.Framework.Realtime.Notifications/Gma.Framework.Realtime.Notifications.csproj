@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.Realtime\Gma.Framework.Realtime.csproj" />
+    <ProjectReference Include="..\Gma.Framework.Realtime.Infrastructure\Gma.Framework.Realtime.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\..\Notifications\Gma.Framework.Notifications\Gma.Framework.Notifications.csproj" />
+  </ItemGroup>
+</Project>

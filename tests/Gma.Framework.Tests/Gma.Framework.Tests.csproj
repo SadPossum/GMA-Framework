@@ -51,6 +51,9 @@
     <ProjectReference Include="$(GmaFrameworkRoot)ProjectionRebuild\Gma.Framework.ProjectionRebuild.EntityFrameworkCore\Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)ProjectionRebuild\Gma.Framework.ProjectionRebuild.Tasks\Gma.Framework.ProjectionRebuild.Tasks.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)ProjectionRebuild\Gma.Framework.ProjectionRebuild\Gma.Framework.ProjectionRebuild.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Realtime\Gma.Framework.Realtime\Gma.Framework.Realtime.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Realtime\Gma.Framework.Realtime.Infrastructure\Gma.Framework.Realtime.Infrastructure.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Realtime\Gma.Framework.Realtime.Notifications\Gma.Framework.Realtime.Notifications.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tasks\Gma.Framework.Tasks.Cqrs\Gma.Framework.Tasks.Cqrs.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tasks\Gma.Framework.Tasks\Gma.Framework.Tasks.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tasks\Gma.Framework.Tasks.Infrastructure\Gma.Framework.Tasks.Infrastructure.csproj" />

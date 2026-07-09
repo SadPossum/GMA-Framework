@@ -12,6 +12,7 @@ using Gma.Framework.Notifications;
 using Gma.Framework.Notifications.Api;
 using Gma.Framework.Notifications.Cqrs;
 using Gma.Framework.Notifications.SignalR;
+using Gma.Framework.Realtime.Notifications;
 using Gma.Framework.Tasks;
 using Gma.Framework.Tasks.Cqrs;
 using Gma.Framework.Tasks.Infrastructure;
@@ -222,6 +223,7 @@ public sealed class ModuleCompositionFeatureTests
         builder.AddNatsJetStreamMessaging();
         builder.AddNatsJetStreamConsumers();
         builder.AddUserNotificationsCqrs();
+        builder.AddUserNotificationsRealtime();
         builder.AddUserNotificationServerSentEvents();
         builder.AddUserNotificationSignalR();
         builder.ProvideFeature(TasksCompositionFeatures.RunStoreProvided("test/task-store"));
@@ -238,7 +240,7 @@ public sealed class ModuleCompositionFeatureTests
         Assert.Contains("tasks.tenant-scope by Gma.Framework.Tenancy.Tasks", result.Report, StringComparison.Ordinal);
         Assert.Contains("messaging.nats-publishing by Gma.Framework.Messaging.Nats", result.Report, StringComparison.Ordinal);
         Assert.Contains("messaging.nats-consumers by Gma.Framework.Messaging.Nats", result.Report, StringComparison.Ordinal);
-        Assert.Contains("notifications.live-feed by Gma.Framework.Notifications.Infrastructure", result.Report, StringComparison.Ordinal);
+        Assert.Contains("notifications.live-feed by Gma.Framework.Realtime.Notifications", result.Report, StringComparison.Ordinal);
         Assert.Contains("notifications.sse by Gma.Framework.Notifications.Api", result.Report, StringComparison.Ordinal);
         Assert.Contains("notifications.signalr by Gma.Framework.Notifications.SignalR", result.Report, StringComparison.Ordinal);
         Assert.Contains("tasks.worker by Gma.Framework.Tasks.Infrastructure", result.Report, StringComparison.Ordinal);

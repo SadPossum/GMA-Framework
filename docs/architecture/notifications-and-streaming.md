@@ -24,6 +24,8 @@ Modules must not reference:
 - `Gma.Framework.Notifications.Api`
 - `Gma.Framework.Notifications.Cqrs`
 - `Gma.Framework.Notifications.SignalR`
+- `Gma.Framework.Realtime.Infrastructure`
+- `Gma.Framework.Realtime.Notifications`
 - `Gma.Modules.Notifications.Application`
 - `Gma.Modules.Notifications.Domain`
 - `Gma.Modules.Notifications.Persistence`
@@ -38,13 +40,22 @@ The host selects delivery adapters.
 
 ```text
 Gma.Framework.Notifications
-  contracts and metadata
+  notification contracts, notification payload metadata, publisher/request abstractions, and notification options
 
 Gma.Framework.Notifications.Infrastructure
-  in-process feed, bounded queues, serialization, metrics, fail-open history and sink dispatch
+  publisher runtime, scoped request queue, serialization, metrics, fail-open history writer and sink dispatch
 
 Gma.Framework.Notifications.Cqrs
   post-commit command pipeline bridge for queued notification requests
+
+Gma.Framework.Realtime
+  transport-neutral realtime channel/feed/sink contracts
+
+Gma.Framework.Realtime.Infrastructure
+  generic in-memory fanout and bounded subscriber queues
+
+Gma.Framework.Realtime.Notifications
+  bridge from notification feed/sink contracts to the generic realtime bus
 
 Gma.Framework.Notifications.Api
   authenticated SSE endpoint
@@ -60,6 +71,7 @@ Notifications
 
 ```csharp
 builder.AddUserNotificationsCqrs();
+builder.AddUserNotificationsRealtime();
 builder.AddUserNotificationServerSentEvents();
 builder.AddUserNotificationSignalR();
 
@@ -67,7 +79,7 @@ app.MapUserNotificationServerSentEvents();
 app.MapUserNotificationSignalR();
 ```
 
-All shared adapter calls are safe in the default host because `Notifications:Enabled=false` disables live runtime delivery. The persisted `Notifications` module is separate and is registered only when an application wants history/read state.
+All shared adapter calls are safe in the default host because `Notifications:Enabled=false` disables live runtime delivery. `AddUserNotificationsRealtime()` provides only the in-process live feed; it does not enable the publisher, history writer, SSE endpoint, or SignalR hub by itself. The persisted `Notifications` module is separate and is registered only when an application wants history/read state.
 
 ## Payload Metadata
 
@@ -128,6 +140,18 @@ Front doors, workers, and post-commit runtime code may publish through `IUserNot
 Publishing is best-effort. If notifications are disabled and no history writer is registered, the publisher records a bypass metric and returns. If a history writer is registered, the publisher still stores history before bypassing live delivery. History-writer and live-sink failures are logged and fail open; they do not fail an already successful business operation. Caller cancellation and payload serialization errors still propagate.
 
 For durable facts, raise domain events and write integration events through the module outbox. A notification can be emitted as a user-facing side effect, but it should not be the authoritative record.
+
+## Realtime Bridge
+
+The generic realtime package is intentionally smaller than the notification package. It knows only about channels, subscribers, and message delivery:
+
+```text
+RealtimeChannel -> IRealtimeSink<TMessage> -> IRealtimeFeed<TMessage> -> IRealtimeSubscription<TMessage>
+```
+
+`Gma.Framework.Realtime.Notifications` adapts `UserNotificationTarget` and `UserNotificationMessage` to tenant/user realtime channels. This keeps future features such as file-upload progress, task status, or collaboration cursors from depending on notification payload metadata, notification history, or notification severity.
+
+Application and module code should not construct realtime channels for notifications directly. Use `IUserNotificationRequestQueue` or `IUserNotificationPublisher`; let the bridge choose the physical live channel.
 
 ## Persisted History
 
@@ -262,7 +286,7 @@ Tenant ids, user ids, notification ids, and payload fields must not be metric ta
 
 ## Multi-Instance Behavior
 
-The live adapters use in-process fanout. In a single API instance, SSE and SignalR receive messages published by that process. In multiple API instances, delivery reaches connections on the same process unless the deployment adds sticky sessions, a backplane, Azure SignalR, or a replay path from the optional notification history module.
+The default notification realtime bridge uses in-process fanout from `Gma.Framework.Realtime.Infrastructure`. In a single API instance, SSE and SignalR receive messages published by that process. In multiple API instances, delivery reaches connections on the same process unless the deployment adds sticky sessions, a backplane, Azure SignalR, or a replay path from the optional notification history module.
 
 Do not enable notifications for business-critical delivery until the chosen deployment topology can tolerate missed live messages or replay from a durable source.
 
@@ -273,7 +297,8 @@ Add unit tests for:
 - payload metadata validation;
 - `UserNotificationRequestedIntegrationEvent` validation and subject shape;
 - disabled delivery bypass;
-- bounded subscriber queues;
+- generic realtime channel validation and bounded subscriber queues;
+- notification-to-realtime bridge registration;
 - fail-open sink behavior.
 - persisted history writer fail-open behavior.
 - stream cursor behavior through durable `StreamSequence`.
