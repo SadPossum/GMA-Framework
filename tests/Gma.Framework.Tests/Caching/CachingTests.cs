@@ -147,7 +147,7 @@ public sealed class CachingTests
 
         string physicalKey = formatter.Format(CacheKey.Scoped("catalog", "product", "42"));
 
-        Assert.Equal("gma-dev_1:redistests_1:catalog:tenant:alpha:product:42", physicalKey);
+        Assert.Equal("gma-dev_1:redistests_1:catalog:scope:alpha:product:42", physicalKey);
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class CachingTests
 
         string physicalKey = formatter.Format(CacheKey.Scoped("catalog", "product", "42"));
 
-        Assert.Equal("acme-orders:redistests:catalog:tenant:alpha:product:42", physicalKey);
+        Assert.Equal("acme-orders:redistests:catalog:scope:alpha:product:42", physicalKey);
     }
 
     [Theory]

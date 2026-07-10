@@ -71,6 +71,8 @@ Gma.Framework.Application.Composition
 Gma.Framework.Application.Events
 Gma.Framework.Application.Events.Infrastructure
 Gma.Framework.Api.OpenApi
+Gma.Framework.Api.Production
+Gma.Framework.Api.Production.EntityFrameworkCore
 Gma.Framework.Api.Serilog
 Gma.Framework.Permissions
 Gma.Framework.AccessControl.AspNetCore

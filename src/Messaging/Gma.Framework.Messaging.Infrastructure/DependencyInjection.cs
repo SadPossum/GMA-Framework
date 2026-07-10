@@ -54,6 +54,7 @@ public static class DependencyInjection
             "Gma.Framework.Messaging.Infrastructure/OutboxPublisherService",
             "Register a concrete messaging adapter such as Gma.Framework.Messaging.Nats before starting outbox publishing."));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, OutboxPublisherService>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, OutboxBacklogMonitorService>());
         return builder;
     }
 

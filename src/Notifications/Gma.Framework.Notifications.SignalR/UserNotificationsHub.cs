@@ -11,7 +11,7 @@ using Gma.Framework.Scoping;
 public sealed class UserNotificationsHub(
     IOptions<NotificationsOptions> notificationsOptions,
     IOptions<ApplicationIdentityOptions> applicationIdentity,
-    IOptions<ScopeOptions> scopeOptions) : Hub
+    IScopeContext scopeContext) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -43,9 +43,9 @@ public sealed class UserNotificationsHub(
 
     private string? ResolveScopeId()
     {
-        if (!scopeOptions.Value.Enabled)
+        if (!scopeContext.IsEnabled)
         {
-            return scopeOptions.Value.LocalDefaultScopeId;
+            return scopeContext.ScopeId;
         }
 
         return ScopeIds.TryNormalize(this.Context.User?.GetScopeId(), out string? scopeId)

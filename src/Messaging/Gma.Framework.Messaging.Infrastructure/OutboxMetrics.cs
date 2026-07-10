@@ -2,6 +2,7 @@ namespace Gma.Framework.Messaging.Infrastructure;
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Gma.Framework.Messaging;
 using Gma.Framework.Observability;
@@ -14,6 +15,8 @@ public sealed class OutboxMetrics
     private readonly Counter<long> published;
     private readonly Counter<long> failed;
     private readonly Histogram<double> publishDuration;
+    private readonly ConcurrentDictionary<string, OutboxBacklogSnapshot> backlogByModule =
+        new(StringComparer.Ordinal);
 
     public OutboxMetrics(IMeterFactory meterFactory, IOptions<ApplicationIdentityOptions> applicationIdentity)
     {
@@ -32,6 +35,21 @@ public sealed class OutboxMetrics
             ObservabilityInstrumentNames.OutboxPublishDurationFor(applicationNamespace),
             unit: "ms",
             description: "Outbox publish attempt duration in milliseconds.");
+        meter.CreateObservableGauge(
+            ObservabilityInstrumentNames.OutboxBacklogFor(applicationNamespace),
+            this.ObserveBacklog,
+            unit: "{message}",
+            description: "Number of pending outbox messages by module.");
+        meter.CreateObservableGauge(
+            ObservabilityInstrumentNames.OutboxExhaustedFor(applicationNamespace),
+            this.ObserveExhausted,
+            unit: "{message}",
+            description: "Number of outbox messages that exhausted automatic attempts by module.");
+        meter.CreateObservableGauge(
+            ObservabilityInstrumentNames.OutboxOldestPendingAgeFor(applicationNamespace),
+            this.ObserveOldestPendingAge,
+            unit: "s",
+            description: "Age in seconds of the oldest pending outbox message by module.");
     }
 
     public void RecordClaimed(string moduleName, int count)
@@ -51,6 +69,28 @@ public sealed class OutboxMetrics
 
     public void RecordFailed(string moduleName, string subject, TimeSpan elapsed) =>
         this.RecordPublishAttempt(moduleName, subject, isSuccess: false, elapsed);
+
+    public void RecordBacklog(OutboxBacklogSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        string moduleName = IntegrationEventNaming.NormalizeModuleName(snapshot.ModuleName);
+        this.backlogByModule[moduleName] = snapshot;
+    }
+
+    private IEnumerable<Measurement<long>> ObserveBacklog() =>
+        this.backlogByModule.Select(pair => new Measurement<long>(
+            pair.Value.PendingCount,
+            new KeyValuePair<string, object?>(ObservabilityTagNames.Module, pair.Key)));
+
+    private IEnumerable<Measurement<long>> ObserveExhausted() =>
+        this.backlogByModule.Select(pair => new Measurement<long>(
+            pair.Value.ExhaustedCount,
+            new KeyValuePair<string, object?>(ObservabilityTagNames.Module, pair.Key)));
+
+    private IEnumerable<Measurement<double>> ObserveOldestPendingAge() =>
+        this.backlogByModule.Select(pair => new Measurement<double>(
+            Math.Max(0, pair.Value.OldestPendingAge.TotalSeconds),
+            new KeyValuePair<string, object?>(ObservabilityTagNames.Module, pair.Key)));
 
     private void RecordPublishAttempt(string moduleName, string subject, bool isSuccess, TimeSpan elapsed)
     {

@@ -85,7 +85,7 @@ public sealed class TenantMessagingTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
             contributor.Prepare(subscription, new TestPlainIntegrationEvent(Guid.NewGuid(), DateTimeOffset.UtcNow)));
 
-        Assert.Contains(nameof(ITenantIntegrationEvent), exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(IScopedIntegrationEvent), exception.Message, StringComparison.Ordinal);
     }
 
     private static IHost CreateTenantAwareMessagingHost()

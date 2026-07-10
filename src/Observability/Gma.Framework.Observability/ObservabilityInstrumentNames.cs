@@ -13,6 +13,9 @@ public static class ObservabilityInstrumentNames
     public const string OutboxPublished = ApplicationNamespaces.Default + ".outbox.published";
     public const string OutboxFailed = ApplicationNamespaces.Default + ".outbox.failed";
     public const string OutboxPublishDuration = ApplicationNamespaces.Default + ".outbox.publish.duration";
+    public const string OutboxBacklog = ApplicationNamespaces.Default + ".outbox.backlog";
+    public const string OutboxExhausted = ApplicationNamespaces.Default + ".outbox.exhausted";
+    public const string OutboxOldestPendingAge = ApplicationNamespaces.Default + ".outbox.oldest_pending.age";
     public const string InboxMessages = ApplicationNamespaces.Default + ".inbox.messages";
     public const string InboxProcessDuration = ApplicationNamespaces.Default + ".inbox.process.duration";
 
@@ -55,6 +58,15 @@ public static class ObservabilityInstrumentNames
 
     public static string OutboxPublishDurationFor(string applicationNamespace) =>
         Create(applicationNamespace, "outbox.publish.duration");
+
+    public static string OutboxBacklogFor(string applicationNamespace) =>
+        Create(applicationNamespace, "outbox.backlog");
+
+    public static string OutboxExhaustedFor(string applicationNamespace) =>
+        Create(applicationNamespace, "outbox.exhausted");
+
+    public static string OutboxOldestPendingAgeFor(string applicationNamespace) =>
+        Create(applicationNamespace, "outbox.oldest_pending.age");
 
     public static string InboxMessagesFor(string applicationNamespace) =>
         Create(applicationNamespace, "inbox.messages");

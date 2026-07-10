@@ -573,6 +573,7 @@ Gma.Framework.Tenancy
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Modules
   -> Gma.Framework.Results
+  -> Gma.Framework.Scoping
 
 Gma.Framework.Tenancy.Infrastructure
   -> Gma.Framework.ModuleComposition

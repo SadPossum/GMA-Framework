@@ -26,6 +26,12 @@ internal sealed class OutboxOptionsValidator : IValidateOptions<OutboxOptions>
             return ValidateOptionsResult.Fail($"{OutboxOptions.SectionName}:MaxAttempts must be positive.");
         }
 
+        if (options.BacklogPollIntervalSeconds <= 0)
+        {
+            return ValidateOptionsResult.Fail(
+                $"{OutboxOptions.SectionName}:BacklogPollIntervalSeconds must be positive.");
+        }
+
         return ValidateOptionsResult.Success;
     }
 }

@@ -1,7 +1,6 @@
 namespace Gma.Framework.Tenancy.Tasks;
 
 using Gma.Framework.Tasks.Infrastructure;
-using Gma.Framework.Scoping;
 using Gma.Framework.Tenancy;
 
 internal sealed class TenantTaskExecutionContextContributor(ITenantContextAccessor tenantContext)
@@ -14,7 +13,7 @@ internal sealed class TenantTaskExecutionContextContributor(ITenantContextAccess
         ArgumentNullException.ThrowIfNull(context);
 
         tenantContext.ClearTenant();
-        if (!context.Registration.IsScopeAware())
+        if (!context.Registration.IsTenantScoped())
         {
             return ValueTask.FromResult(TaskExecutionContextPreparationResult.Success());
         }

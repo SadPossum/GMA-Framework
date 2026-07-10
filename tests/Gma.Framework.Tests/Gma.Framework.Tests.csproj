@@ -22,6 +22,7 @@
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.AccessControl\Gma.Framework.AccessControl.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.AccessControl.AspNetCore\Gma.Framework.AccessControl.AspNetCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api.Production\Gma.Framework.Api.Production.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api.Serilog\Gma.Framework.Api.Serilog.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Composition\Gma.Framework.Application.Composition.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />

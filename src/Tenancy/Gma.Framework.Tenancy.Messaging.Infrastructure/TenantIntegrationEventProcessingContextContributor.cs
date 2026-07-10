@@ -1,7 +1,6 @@
 namespace Gma.Framework.Tenancy.Messaging.Infrastructure;
 
 using Gma.Framework.Messaging;
-using Gma.Framework.Scoping;
 using Gma.Framework.Tenancy;
 
 internal sealed class TenantIntegrationEventProcessingContextContributor(
@@ -14,7 +13,7 @@ internal sealed class TenantIntegrationEventProcessingContextContributor(
         ArgumentNullException.ThrowIfNull(integrationEvent);
 
         tenantContext.ClearTenant();
-        if (!subscription.IsScopeAware())
+        if (!subscription.IsTenantScoped())
         {
             return;
         }

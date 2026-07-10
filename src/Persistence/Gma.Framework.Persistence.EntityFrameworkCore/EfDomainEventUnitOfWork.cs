@@ -5,6 +5,7 @@ using Gma.Framework.Application.Events;
 using Gma.Framework.Cqrs.UnitOfWork;
 using Gma.Framework.Domain;
 using Gma.Framework.Naming;
+using Gma.Framework.Cqrs;
 
 public abstract class EfDomainEventUnitOfWork<TDbContext>(
     string moduleName,
@@ -33,7 +34,14 @@ public abstract class EfDomainEventUnitOfWork<TDbContext>(
             await domainEventDispatcher.DispatchAsync(domainEvents, cancellationToken).ConfigureAwait(false);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new OptimisticConcurrencyException(this.ModuleName, exception);
+        }
 
         foreach (IAggregateRoot aggregate in aggregatesWithEvents)
         {

@@ -1,14 +1,14 @@
 namespace Gma.Framework.Notifications.SignalR;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Gma.Framework.Naming;
 using Gma.Framework.Scoping;
 
 internal sealed class NotificationSignalRJwtBearerPostConfigureOptions(
-    IOptions<NotificationSignalROptions> signalROptions,
-    IOptions<ScopeOptions> scopeOptions) : IPostConfigureOptions<JwtBearerOptions>
+    IOptions<NotificationSignalROptions> signalROptions) : IPostConfigureOptions<JwtBearerOptions>
 {
     public void PostConfigure(string? name, JwtBearerOptions options)
     {
@@ -62,7 +62,8 @@ internal sealed class NotificationSignalRJwtBearerPostConfigureOptions(
                 return;
             }
 
-            if (!scopeOptions.Value.Enabled)
+            IScopeContext scopeContext = context.HttpContext.RequestServices.GetRequiredService<IScopeContext>();
+            if (!scopeContext.IsEnabled)
             {
                 return;
             }

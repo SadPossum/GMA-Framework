@@ -9,10 +9,37 @@ public abstract class EfOutboxStore<TDbContext>(
     TDbContext dbContext,
     IOptions<OutboxOptions> options,
     string moduleName)
-    : IOutboxStore
+    : IOutboxStore, IOutboxBacklogReader
     where TDbContext : DbContext
 {
     public string ModuleName { get; } = IntegrationEventNaming.NormalizeModuleName(moduleName);
+
+    public async Task<OutboxBacklogSnapshot> GetBacklogAsync(
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        IQueryable<OutboxMessage> pending = dbContext.Set<OutboxMessage>()
+            .AsNoTracking()
+            .Where(message => message.ProcessedAtUtc == null);
+
+        long pendingCount = await pending
+            .LongCountAsync(message => message.Attempts < options.Value.EffectiveMaxAttempts, cancellationToken)
+            .ConfigureAwait(false);
+        long exhaustedCount = await pending
+            .LongCountAsync(message => message.Attempts >= options.Value.EffectiveMaxAttempts, cancellationToken)
+            .ConfigureAwait(false);
+        DateTimeOffset? oldestPendingAtUtc = await pending
+            .Where(message => message.Attempts < options.Value.EffectiveMaxAttempts)
+            .MinAsync(message => (DateTimeOffset?)message.CreatedAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new OutboxBacklogSnapshot(
+            this.ModuleName,
+            pendingCount,
+            exhaustedCount,
+            oldestPendingAtUtc,
+            nowUtc);
+    }
 
     public async Task<IReadOnlyList<OutboxMessageRecord>> ClaimPendingAsync(
         int batchSize,

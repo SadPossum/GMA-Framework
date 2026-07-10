@@ -9,7 +9,7 @@ Current dependencies:
 - SQL Server or PostgreSQL
 - NATS with JetStream
 - ASP.NET Core hosting environment
-- secret/config provider for JWT signing key and connection strings
+- secret/config provider for Auth key rings and connection strings
 - Redis only when `Caching:Enabled=true` and `Caching:Provider=Redis`
 - realtime-backed SignalR/SSE notification streaming only when `Notifications:Enabled=true`
 - notification history tables only when the optional `Notifications` module is composed
@@ -24,8 +24,8 @@ Required production configuration:
 - `Persistence:Provider`
 - provider connection string
 - `ConnectionStrings:nats`
-- `Auth:Jwt:SigningKey`
-- `Auth:RefreshTokens:Pepper`
+- `Auth:Jwt:ActiveSigningKeyId` plus `Auth:Jwt:SigningKeys:<id>` (or legacy `Auth:Jwt:SigningKey` for a one-key deployment)
+- `Auth:RefreshTokens:ActivePepperId` plus `Auth:RefreshTokens:Peppers:<id>` (or legacy `Auth:RefreshTokens:Pepper` for a one-key deployment)
 - `Auth:RefreshTokenLifetimeDays`
 
 Administration bootstrap, tenancy, admin API, outbox, NATS JetStream, NATS consumer, notifications, caching, Redis, observability, JWT, and refresh-token settings are validated at startup. Persistence settings are validated when a persisted module is composed. Treat validation failures as deployment misconfiguration rather than runtime warnings.
@@ -81,6 +81,10 @@ Recommended production configuration:
 - `Administration:Api:RequireTenantClaimMatch`
 - `Administration:Api:AllowGeneratedPasswordResponses`
 - optional `Auth:Jwt:Issuer` and `Auth:Jwt:Audience` only when they must differ from `ApplicationIdentity:DisplayName`
+- `Http:AllowAnyHost=false` with concrete `AllowedHosts`
+- `Http:ForwardedHeaders` trusted proxy settings when running behind an ingress or load balancer
+- `Http:Cors`, `Http:RequestTimeouts`, and `Http:RateLimiting` values for the deployed clients and traffic envelope
+- `Http:PrivateNetwork` allowlists for hosts that expose private administration surfaces
 - `Notifications:Enabled`
 - `Notifications:SubscriberQueueCapacity`
 - `Notifications:MaximumPayloadBytes`
@@ -90,8 +94,10 @@ Recommended production configuration:
 - `Notifications:SignalR:Enabled`
 - `Notifications:SignalR:HubPath`
 - `Notifications:SignalR:ClientMethodName`
+- `Notifications:Retention` only after the product chooses read, unread, and broadcast retention windows
+- `FileManagement:RequireContentInspection=true` plus a real `IFileContentInspector` when the Files module is enabled
 
-Never use checked-in development JWT signing keys, refresh-token peppers, or database passwords in production. Auth option classes intentionally have no secret defaults; local placeholders live only in development configuration. The JWT signing key and refresh-token pepper are both validated for minimum shape at startup, but secret rotation and storage are still deployment responsibilities.
+Never use checked-in development JWT signing keys, refresh-token peppers, or database passwords in production. Auth option classes intentionally have no secret defaults; local placeholders live only in development configuration. Every configured signing/pepper key is validated at startup. Keep prior keys available for at least the corresponding token lifetime, remove them through a rehearsed rotation procedure, and store all key material in the deployment secret provider.
 
 ## Migrations
 
@@ -110,14 +116,14 @@ Each module with persistence owns its migrations.
 
 ## Health Checks
 
-The API maps:
+The production HTTP adapter maps:
 
 ```text
 /health
 /alive
 ```
 
-Service defaults may expose additional observability endpoints depending on environment.
+`/alive` has no dependency checks. `/health` contains only the readiness checks explicitly composed by the host, such as selected EF Core databases. Service defaults may expose additional observability endpoints depending on environment.
 
 Prometheus scraping is exposed at the configured path only when enabled.
 

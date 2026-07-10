@@ -115,6 +115,30 @@ public sealed class EfOutboxStoreTests
         Assert.Equal(Now.AddSeconds(4), afterOwner.NextAttemptAtUtc);
     }
 
+    [Fact]
+    public async Task Backlog_snapshot_separates_pending_and_exhausted_messages()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        TestOutboxStore store = new(dbContext, "auth", new OutboxOptions { MaxAttempts = 1 });
+        OutboxMessage pending = CreateMessage(Guid.Parse("10000000-0000-0000-0000-000000000001"), Now.AddMinutes(-5));
+        OutboxMessage exhausted = CreateMessage(Guid.Parse("10000000-0000-0000-0000-000000000002"), Now.AddMinutes(-4));
+        exhausted.MarkClaimed("worker-a", Now.AddMinutes(-3), TimeSpan.FromSeconds(1));
+        exhausted.MarkFailed("permanent", Now.AddMinutes(-3), maxAttempts: 1);
+        OutboxMessage processed = CreateMessage(Guid.Parse("10000000-0000-0000-0000-000000000003"), Now.AddMinutes(-6));
+        processed.MarkClaimed("worker-a", Now.AddMinutes(-2), TimeSpan.FromSeconds(1));
+        processed.MarkProcessed(Now.AddMinutes(-2));
+        dbContext.OutboxMessages.AddRange(pending, exhausted, processed);
+        await dbContext.SaveChangesAsync();
+
+        OutboxBacklogSnapshot snapshot = await store.GetBacklogAsync(Now, CancellationToken.None);
+
+        Assert.Equal("auth", snapshot.ModuleName);
+        Assert.Equal(1, snapshot.PendingCount);
+        Assert.Equal(1, snapshot.ExhaustedCount);
+        Assert.Equal(Now.AddMinutes(-5), snapshot.OldestPendingAtUtc);
+        Assert.Equal(TimeSpan.FromMinutes(5), snapshot.OldestPendingAge);
+    }
+
     private static TestDbContext CreateDbContext()
     {
         DbContextOptions<TestDbContext> options = new DbContextOptionsBuilder<TestDbContext>()

@@ -7,6 +7,7 @@ using Gma.Framework.Messaging;
 using Gma.Framework.ModuleComposition;
 using Gma.Framework.Modules;
 using Gma.Framework.Tasks;
+using Gma.Framework.Scoping;
 using Gma.Framework.Tenancy;
 using Xunit;
 
@@ -144,7 +145,7 @@ public sealed class ModuleDescriptorTests
                 new ModulePermissionDescriptor(" Catalog.Items.Read ", " Read catalog items. ", scopeRequirement: PermissionScopeRequirement.Scoped)
             ])
             .WithPublishedEvents([
-                new ModuleIntegrationEventDescriptor(" Item-Created ", " GMA.Catalog.Item-Created.V1 ", 1, [TenantScopeMetadataItem.Instance])
+                new ModuleIntegrationEventDescriptor(" Item-Created ", " GMA.Catalog.Item-Created.V1 ", 1, [ScopeMetadataItem.Instance])
             ])
             .WithSubscriptions([
                 new ModuleSubscriptionDescriptor(
@@ -152,7 +153,7 @@ public sealed class ModuleDescriptorTests
                     " Item-Created ",
                     " GMA.Catalog.Item-Created.V1 ",
                     " Item-Created-Projection ",
-                    [TenantScopeMetadataItem.Instance])
+                    [ScopeMetadataItem.Instance])
             ])
             .WithCacheEntries([
                 new ModuleCacheDescriptor(" Items ", CacheScope.Scope, [" Products "])
@@ -164,11 +165,11 @@ public sealed class ModuleDescriptorTests
                     ModuleTaskKind.OneShot,
                     supportsControlMessages: true,
                     " Search-Workers ",
-                    metadata: [TenantScopeMetadataItem.Instance])
+                    metadata: [ScopeMetadataItem.Instance])
             ])
             .WithProfile(new ModuleProfileDescriptor(
                 " Catalog ",
-                " Tenant-Scoped ",
+                " Scope-Aware ",
                 provides: [new ProvidedCompositionFeature(new CompositionFeatureId(" Catalog.Items "), " catalog/scope-aware ")]))
             .Build();
 
@@ -198,23 +199,23 @@ public sealed class ModuleDescriptorTests
             .WithPermissions([
                 new ModulePermissionDescriptor("catalog.items.create", "Create catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped)
             ])
-            .WithPublishedEvent(new ModuleIntegrationEventDescriptor("item-created", "gma.catalog.item-created.v1", 1, [TenantScopeMetadataItem.Instance]))
+            .WithPublishedEvent(new ModuleIntegrationEventDescriptor("item-created", "gma.catalog.item-created.v1", 1, [ScopeMetadataItem.Instance]))
             .WithPublishedEvents([
-                new ModuleIntegrationEventDescriptor("item-updated", "gma.catalog.item-updated.v1", 1, [TenantScopeMetadataItem.Instance])
+                new ModuleIntegrationEventDescriptor("item-updated", "gma.catalog.item-updated.v1", 1, [ScopeMetadataItem.Instance])
             ])
             .WithSubscription(new ModuleSubscriptionDescriptor(
                 "catalog",
                 "item-created",
                 "gma.catalog.item-created.v1",
                 "item-created-projection",
-                [TenantScopeMetadataItem.Instance]))
+                [ScopeMetadataItem.Instance]))
             .WithSubscriptions([
                 new ModuleSubscriptionDescriptor(
                     "catalog",
                     "item-updated",
                     "gma.catalog.item-updated.v1",
                     "item-updated-projection",
-                    [TenantScopeMetadataItem.Instance])
+                    [ScopeMetadataItem.Instance])
             ])
             .WithCacheEntry(new ModuleCacheDescriptor("item", CacheScope.Scope, ["catalog.items"]))
             .WithCacheEntries([
@@ -226,7 +227,7 @@ public sealed class ModuleDescriptorTests
                 ModuleTaskKind.OneShot,
                 supportsControlMessages: false,
                 "catalog-workers",
-                metadata: [TenantScopeMetadataItem.Instance]))
+                metadata: [ScopeMetadataItem.Instance]))
             .WithTasks([
                 new ModuleTaskDescriptor(
                     "rebuild-items",
@@ -234,7 +235,7 @@ public sealed class ModuleDescriptorTests
                     ModuleTaskKind.OneShot,
                     supportsControlMessages: true,
                     "catalog-workers",
-                    metadata: [TenantScopeMetadataItem.Instance])
+                    metadata: [ScopeMetadataItem.Instance])
             ])
             .WithProfile(new ModuleProfileDescriptor("catalog", "default"))
             .WithProfiles([new ModuleProfileDescriptor("catalog", "durable-events")])

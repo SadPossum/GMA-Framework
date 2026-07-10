@@ -18,6 +18,7 @@ using Gma.Framework.Tasks.Cqrs;
 using Gma.Framework.Tasks.Infrastructure;
 using Gma.Framework.Tenancy.Caching;
 using Gma.Framework.Tenancy.Infrastructure;
+using Gma.Framework.Tenancy.Scoping;
 using Gma.Framework.Tenancy.Tasks;
 using Xunit;
 
@@ -218,6 +219,7 @@ public sealed class ModuleCompositionFeatureTests
 
         builder.AddCachingCqrs();
         builder.AddTenancyInfrastructure();
+        builder.AddTenantScoping();
         builder.AddTenantCaching();
         builder.AddTenantTaskExecutionContext();
         builder.AddNatsJetStreamMessaging();

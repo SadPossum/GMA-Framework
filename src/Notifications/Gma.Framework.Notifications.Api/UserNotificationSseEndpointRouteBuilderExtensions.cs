@@ -3,6 +3,7 @@ namespace Gma.Framework.Notifications.Api;
 using System.Net.ServerSentEvents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,7 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
         endpoints.MapGet(sseOptions.StreamPath, StreamAsync)
             .RequireAuthorization()
             .RequireScope()
+            .DisableRequestTimeout()
             .WithTags("Notifications");
 
         return endpoints;

@@ -37,6 +37,7 @@
     <File Path="docs/architecture/projection-rebuild-tasks.md" />
     <File Path="docs/architecture/realtime.md" />
     <File Path="docs/architecture/scoped-resource-access.md" />
+    <File Path="docs/architecture/scoping-and-tenancy.md" />
     <File Path="docs/architecture/semantic-enum-refactor-notes.md" />
     <File Path="docs/architecture/shared-access-policy-foundation.md" />
     <File Path="docs/architecture/shared-access-policy-implementation-notes.md" />
@@ -82,6 +83,8 @@
   </Folder>
   <Folder Name="/src/Api/">
     <Project Path="src/Api/Gma.Framework.Api.OpenApi/Gma.Framework.Api.OpenApi.csproj" />
+    <Project Path="src/Api/Gma.Framework.Api.Production/Gma.Framework.Api.Production.csproj" />
+    <Project Path="src/Api/Gma.Framework.Api.Production.EntityFrameworkCore/Gma.Framework.Api.Production.EntityFrameworkCore.csproj" />
     <Project Path="src/Api/Gma.Framework.Api.Serilog/Gma.Framework.Api.Serilog.csproj" />
     <Project Path="src/Api/Gma.Framework.Api/Gma.Framework.Api.csproj" />
   </Folder>
