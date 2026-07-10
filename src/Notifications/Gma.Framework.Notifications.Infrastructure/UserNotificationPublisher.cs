@@ -51,7 +51,7 @@ internal sealed class UserNotificationPublisher(
             normalizedModuleName,
             metadata.Name,
             metadata.Version,
-            target.TenantId,
+            target.ScopeId,
             target.UserId,
             publishOptions.Title,
             publishOptions.Body,
@@ -79,11 +79,11 @@ internal sealed class UserNotificationPublisher(
             {
                 logger.LogWarning(
                     exception,
-                    "User notification {NotificationId} history persistence failed open for module {Module}, notification {NotificationName}, tenant {TenantId}, and user {UserId}.",
+                    "User notification {NotificationId} history persistence failed open for module {Module}, notification {NotificationName}, tenant {ScopeId}, and user {UserId}.",
                     message.Id,
                     message.Module,
                     message.Name,
-                    message.TenantId,
+                    message.ScopeId,
                     message.UserId);
             }
         }
@@ -119,12 +119,12 @@ internal sealed class UserNotificationPublisher(
                 metrics.RecordDelivery(message.Module, message.Name, sink.ProviderName, "failure", stopwatch.Elapsed);
                 logger.LogWarning(
                     exception,
-                    "User notification {NotificationId} delivery failed open through {NotificationProvider} for module {Module}, notification {NotificationName}, tenant {TenantId}, and user {UserId}.",
+                    "User notification {NotificationId} delivery failed open through {NotificationProvider} for module {Module}, notification {NotificationName}, tenant {ScopeId}, and user {UserId}.",
                     message.Id,
                     sink.ProviderName,
                     message.Module,
                     message.Name,
-                    message.TenantId,
+                    message.ScopeId,
                     message.UserId);
             }
         }

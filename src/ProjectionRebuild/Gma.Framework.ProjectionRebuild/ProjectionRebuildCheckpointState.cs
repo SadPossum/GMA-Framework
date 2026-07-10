@@ -6,18 +6,18 @@ public abstract class ProjectionRebuildCheckpointState
 {
     public const int ProjectionNameMaxLength = 128;
     public const int CursorMaxLength = 512;
-    public const string GlobalTenantScope = "";
+    public const string GlobalScope = "";
 
     protected ProjectionRebuildCheckpointState() { }
 
     protected ProjectionRebuildCheckpointState(
         ProjectionRebuildCheckpointKey key,
         ProjectionRebuildCheckpoint checkpoint,
-        bool tenantScoped)
-        => this.Initialize(key, checkpoint, tenantScoped);
+        bool scopeAware)
+        => this.Initialize(key, checkpoint, scopeAware);
 
     public Guid RunId { get; private set; }
-    public string TenantId { get; private set; } = string.Empty;
+    public string ScopeId { get; private set; } = string.Empty;
     public string ProjectionName { get; private set; } = string.Empty;
     public string? Cursor { get; private set; }
     public long ProcessedCount { get; private set; }
@@ -28,24 +28,24 @@ public abstract class ProjectionRebuildCheckpointState
     public DateTimeOffset UpdatedAtUtc { get; private set; }
     public DateTimeOffset? CompletedAtUtc { get; private set; }
 
-    public static string NormalizeTenantScope(string? tenantId, bool tenantScoped)
+    public static string NormalizeScope(string? scopeId, bool scopeAware)
     {
-        if (tenantScoped)
+        if (scopeAware)
         {
-            return string.IsNullOrWhiteSpace(tenantId)
-                ? throw new InvalidOperationException("Tenant-scoped projection rebuild checkpoints require a tenant id.")
-                : TenantIds.Normalize(tenantId);
+            return string.IsNullOrWhiteSpace(scopeId)
+                ? throw new InvalidOperationException("Scope-aware projection rebuild checkpoints require a scope id.")
+                : ScopeIds.Normalize(scopeId);
         }
 
-        return string.IsNullOrWhiteSpace(tenantId)
-            ? GlobalTenantScope
-            : TenantIds.Normalize(tenantId);
+        return string.IsNullOrWhiteSpace(scopeId)
+            ? GlobalScope
+            : ScopeIds.Normalize(scopeId);
     }
 
     public void Initialize(
         ProjectionRebuildCheckpointKey key,
         ProjectionRebuildCheckpoint checkpoint,
-        bool tenantScoped)
+        bool scopeAware)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(checkpoint);
@@ -56,7 +56,7 @@ public abstract class ProjectionRebuildCheckpointState
         }
 
         this.RunId = key.RunId;
-        this.TenantId = NormalizeTenantScope(key.TenantId, tenantScoped);
+        this.ScopeId = NormalizeScope(key.ScopeId, scopeAware);
         this.ProjectionName = NormalizeProjectionName(key.ProjectionName);
         this.Apply(checkpoint);
     }

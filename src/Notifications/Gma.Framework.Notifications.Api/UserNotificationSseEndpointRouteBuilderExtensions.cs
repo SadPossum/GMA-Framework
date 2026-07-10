@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Gma.Framework.Api.Tenancy;
+using Gma.Framework.Api.Scoping;
 using Gma.Framework.Naming;
 using Gma.Framework.Notifications;
-using Gma.Framework.Tenancy;
+using Gma.Framework.Scoping;
 
 public static class UserNotificationSseEndpointRouteBuilderExtensions
 {
@@ -31,7 +31,7 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
 
         endpoints.MapGet(sseOptions.StreamPath, StreamAsync)
             .RequireAuthorization()
-            .RequireTenant()
+            .RequireScope()
             .WithTags("Notifications");
 
         return endpoints;
@@ -48,8 +48,8 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
                 statusCode: StatusCodes.Status500InternalServerError);
         }
 
-        ITenantContext tenantContext = httpContext.RequestServices.GetRequiredService<ITenantContext>();
-        TenantOptions tenantOptions = httpContext.RequestServices.GetRequiredService<IOptions<TenantOptions>>().Value;
+        IScopeContext scopeContext = httpContext.RequestServices.GetRequiredService<IScopeContext>();
+        ScopeOptions scopeOptions = httpContext.RequestServices.GetRequiredService<IOptions<ScopeOptions>>().Value;
         NotificationSseOptions options = httpContext.RequestServices.GetRequiredService<IOptions<NotificationSseOptions>>().Value;
         string? userId = httpContext.User.GetNotificationUserId();
 
@@ -58,12 +58,12 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
             return Results.Unauthorized();
         }
 
-        if (!TryResolveTenantId(httpContext, tenantContext, tenantOptions, out string? tenantId))
+        if (!TryResolveScopeId(httpContext, scopeContext, scopeOptions, out string? scopeId))
         {
             return Results.Forbid();
         }
 
-        UserNotificationTarget target = UserNotificationTarget.User(tenantId, userId);
+        UserNotificationTarget target = UserNotificationTarget.User(scopeId, userId);
         return TypedResults.ServerSentEvents(
             ReadStreamAsync(feed, target, options, httpContext.RequestAborted));
     }
@@ -112,27 +112,33 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
         }
     }
 
-    private static bool TryResolveTenantId(
+    private static bool TryResolveScopeId(
         HttpContext httpContext,
-        ITenantContext tenantContext,
-        TenantOptions tenantOptions,
-        out string tenantId)
+        IScopeContext scopeContext,
+        ScopeOptions scopeOptions,
+        out string scopeId)
     {
-        if (!tenantContext.IsEnabled)
+        if (!scopeContext.IsEnabled)
         {
-            tenantId = tenantOptions.LocalDefaultTenantId;
-            return !string.IsNullOrWhiteSpace(tenantId);
+            if (!ScopeIds.TryNormalize(scopeOptions.LocalDefaultScopeId, out string? localScopeId))
+            {
+                scopeId = string.Empty;
+                return false;
+            }
+
+            scopeId = localScopeId;
+            return true;
         }
 
-        tenantId = tenantContext.TenantId ?? string.Empty;
-        string? tokenTenantId = httpContext.User.GetTenantId();
-        if (!TenantIds.TryNormalize(tokenTenantId, out string? normalizedTokenTenantId) ||
-            !string.Equals(normalizedTokenTenantId, tenantContext.TenantId, StringComparison.Ordinal))
+        scopeId = scopeContext.ScopeId ?? string.Empty;
+        string? tokenScopeId = httpContext.User.GetScopeId();
+        if (!ScopeIds.TryNormalize(tokenScopeId, out string? normalizedTokenScopeId) ||
+            !string.Equals(normalizedTokenScopeId, scopeContext.ScopeId, StringComparison.Ordinal))
         {
             return false;
         }
 
-        tenantId = normalizedTokenTenantId;
+        scopeId = normalizedTokenScopeId;
         return true;
     }
 }

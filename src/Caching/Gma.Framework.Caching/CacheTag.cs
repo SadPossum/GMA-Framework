@@ -18,8 +18,8 @@ public sealed record CacheTag
     public CacheScope Scope { get; }
     public IReadOnlyList<string> Segments { get; }
 
-    public static CacheTag Tenant(string module, string entry, params string[] segments) =>
-        new(module, entry, CacheScope.Tenant, segments);
+    public static CacheTag Scoped(string module, string entry, params string[] segments) =>
+        new(module, entry, CacheScope.Scope, segments);
 
     public static CacheTag Global(string module, string entry, params string[] segments) =>
         new(module, entry, CacheScope.Global, segments);

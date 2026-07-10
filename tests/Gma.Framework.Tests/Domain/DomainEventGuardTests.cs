@@ -15,7 +15,7 @@ public sealed class DomainEventGuardTests
 
         Assert.Equal(eventId, DomainEventGuards.RequireId(eventId, "eventId"));
         Assert.Equal(occurredAtUtc, DomainEventGuards.RequireOccurredAtUtc(occurredAtUtc, "occurredAtUtc"));
-        Assert.Equal("tenant-a", DomainEventGuards.NormalizeTenantId(" tenant-a ", "tenantId"));
+        Assert.Equal("tenant-a", DomainEventGuards.NormalizeScopeId(" tenant-a ", "scopeId"));
         Assert.Equal("value", DomainEventGuards.NormalizeRequiredText(" value ", 10, "value"));
     }
 
@@ -24,8 +24,8 @@ public sealed class DomainEventGuardTests
     {
         Assert.Throws<ArgumentException>(() => DomainEventGuards.RequireId(Guid.Empty, "eventId"));
         Assert.Throws<ArgumentException>(() => DomainEventGuards.RequireOccurredAtUtc(default, "occurredAtUtc"));
-        Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeTenantId(" ", "tenantId"));
-        Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeTenantId(new string('x', TenantIds.MaxLength + 1), "tenantId"));
+        Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeScopeId(" ", "scopeId"));
+        Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeScopeId(new string('x', ScopeIds.MaxLength + 1), "scopeId"));
         Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeRequiredText(" ", 10, "value"));
         Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeRequiredText("too-long", 3, "value"));
         Assert.Throws<ArgumentException>(() => DomainEventGuards.NormalizeRequiredText($"bad{char.MinValue}", 10, "value"));

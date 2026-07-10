@@ -4,7 +4,7 @@
 
 Use domain-owned access policies that return typed access scopes for list, search, feed, export, and other multi-resource reads.
 
-`Gma.Framework.AccessControl` remains a small vocabulary package for front-door subjects. It must not own business rules, EF translation, grants, relationship models, policy evaluators, or external policy-engine dependencies.
+`Gma.Framework.AccessControl` provides front-door subject vocabulary and generic coarse permission decisions. It must not own business rules, EF translation, relationship models, product-specific policy evaluators, or external policy-engine dependencies.
 
 The default pattern is:
 
@@ -37,13 +37,14 @@ Reference points:
 `Gma.Framework.AccessControl` may provide:
 
 - `AccessSubject` and `AccessSubjectKind` for API, admin, CLI, worker, and test front doors;
+- `PermissionCode`, `AccessScope`, `AccessRequirement`, `AccessDecision`, and provider-based authorization for coarse operation checks;
 - future optional adapters, if they are separate packages.
 
 `Gma.Framework.AccessControl` must not provide:
 
 - Catalog, Ordering, Notifications, social graph, PMS, chat, report, or staff-management rules;
 - generic EF query generation for business visibility;
-- generic persisted grants before repeated real modules prove the same grant model;
+- product-specific persisted grants or relationship graphs;
 - external policy engine dependencies in the core package.
 
 ## Module Pattern

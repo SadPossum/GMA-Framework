@@ -47,7 +47,7 @@ public sealed class ProjectionRebuildTests
         Assert.Equal("cursor-1", request.Cursor);
         Assert.Equal("ordering", key.ModuleName);
         Assert.Equal("catalog-projection", key.ProjectionName);
-        Assert.Equal("tenant-a", key.TenantId);
+        Assert.Equal("tenant-a", key.ScopeId);
         Assert.True(checkpoint.IsCompleted);
         Assert.Equal("cursor-2", checkpoint.Cursor);
         Assert.Equal(3, checkpoint.ProcessedCount);
@@ -117,7 +117,7 @@ public sealed class ProjectionRebuildTests
     public async Task Ef_checkpoint_store_saves_updates_and_reads_tenant_scoped_checkpoint_state()
     {
         await using TestProjectionDbContext dbContext = CreateProjectionDbContext();
-        TestProjectionCheckpointStore store = new(dbContext, "ordering", tenantScoped: true);
+        TestProjectionCheckpointStore store = new(dbContext, "ordering", scopeAware: true);
         ProjectionRebuildCheckpointKey key = new(
             "ordering",
             RunId,
@@ -138,7 +138,7 @@ public sealed class ProjectionRebuildTests
         ProjectionRebuildCheckpoint? updated = await store.GetAsync(key, CancellationToken.None);
         TestCheckpointState state = Assert.Single(await dbContext.Checkpoints.ToArrayAsync());
         Assert.Equal(completed, updated);
-        Assert.Equal("tenant-a", state.TenantId);
+        Assert.Equal("tenant-a", state.ScopeId);
         Assert.Equal("catalog-item-projections", state.ProjectionName);
         Assert.Equal(RunId, state.RunId);
         Assert.Equal(1, await dbContext.Checkpoints.CountAsync());
@@ -146,7 +146,7 @@ public sealed class ProjectionRebuildTests
             new ProjectionRebuildCheckpointKey("catalog", RunId, "catalog-item-projections", "tenant-a"),
             CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(
-            new ProjectionRebuildCheckpointKey("ordering", RunId, "catalog-item-projections", tenantId: null),
+            new ProjectionRebuildCheckpointKey("ordering", RunId, "catalog-item-projections", scopeId: null),
             checkpoint,
             CancellationToken.None));
     }
@@ -155,19 +155,19 @@ public sealed class ProjectionRebuildTests
     public async Task Ef_checkpoint_store_can_use_global_scope_when_tenant_scope_is_disabled()
     {
         await using TestProjectionDbContext dbContext = CreateProjectionDbContext();
-        TestProjectionCheckpointStore store = new(dbContext, "reporting", tenantScoped: false);
+        TestProjectionCheckpointStore store = new(dbContext, "reporting", scopeAware: false);
         ProjectionRebuildCheckpointKey key = new(
             "reporting",
             RunId,
             "global-report-projection",
-            tenantId: null);
+            scopeId: null);
         ProjectionRebuildCheckpoint checkpoint = ProjectionRebuildCheckpoint.Start(1, Now);
 
         await store.SaveAsync(key, checkpoint, CancellationToken.None);
 
         TestCheckpointState state = Assert.Single(await dbContext.Checkpoints.ToArrayAsync());
         ProjectionRebuildCheckpoint? saved = await store.GetAsync(key, CancellationToken.None);
-        Assert.Equal(ProjectionRebuildCheckpointState.GlobalTenantScope, state.TenantId);
+        Assert.Equal(ProjectionRebuildCheckpointState.GlobalScope, state.ScopeId);
         Assert.Equal(checkpoint, saved);
     }
 
@@ -181,14 +181,14 @@ public sealed class ProjectionRebuildTests
 
         Assert.Equal(
             [
-                nameof(ProjectionRebuildCheckpointState.TenantId),
+                nameof(ProjectionRebuildCheckpointState.ScopeId),
                 nameof(ProjectionRebuildCheckpointState.ProjectionName),
                 nameof(ProjectionRebuildCheckpointState.RunId)
             ],
             entityType.FindPrimaryKey()?.Properties.Select(property => property.Name));
         Assert.Equal(
-            TenantIds.MaxLength,
-            entityType.FindProperty(nameof(ProjectionRebuildCheckpointState.TenantId))?.GetMaxLength());
+            ScopeIds.MaxLength,
+            entityType.FindProperty(nameof(ProjectionRebuildCheckpointState.ScopeId))?.GetMaxLength());
         Assert.Equal(
             ProjectionRebuildCheckpointState.ProjectionNameMaxLength,
             entityType.FindProperty(nameof(ProjectionRebuildCheckpointState.ProjectionName))?.GetMaxLength());
@@ -241,13 +241,13 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             context,
-            tenantScoped: true,
+            scopeAware: true,
             observer: observer,
             cancellationToken: CancellationToken.None);
 
         Assert.Equal("ordering", summary.ModuleName);
         Assert.Equal("catalog-item-projections", summary.ProjectionName);
-        Assert.Equal("tenant-a", summary.TenantId);
+        Assert.Equal("tenant-a", summary.ScopeId);
         Assert.True(summary.Checkpoint.IsCompleted);
         Assert.Equal("c", summary.Checkpoint.Cursor);
         Assert.Equal(3, summary.Checkpoint.ProcessedCount);
@@ -290,7 +290,7 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             CreateRebuildContext(),
-            tenantScoped: true,
+            scopeAware: true,
             observer: ProjectionRebuildRunObserver.None,
             cancellationToken: CancellationToken.None);
 
@@ -319,7 +319,7 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             CreateRebuildContext(),
-            tenantScoped: true,
+            scopeAware: true,
             observer: ProjectionRebuildRunObserver.None,
             cancellationToken: CancellationToken.None));
 
@@ -360,7 +360,7 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             CreateRebuildContext(),
-            tenantScoped: true,
+            scopeAware: true,
             observer: ProjectionRebuildRunObserver.None,
             cancellationToken: CancellationToken.None);
 
@@ -400,7 +400,7 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             CreateRebuildContext(),
-            tenantScoped: true,
+            scopeAware: true,
             observer: ProjectionRebuildRunObserver.None,
             cancellationToken: CancellationToken.None);
 
@@ -427,7 +427,7 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             CreateRebuildContext(),
-            tenantScoped: true,
+            scopeAware: true,
             observer: ProjectionRebuildRunObserver.None,
             cancellationToken: CancellationToken.None));
 
@@ -463,11 +463,11 @@ public sealed class ProjectionRebuildTests
             source,
             writer,
             taskContext,
-            tenantScoped: true,
+            scopeAware: true,
             CancellationToken.None);
 
         Assert.True(summary.Checkpoint.IsCompleted);
-        Assert.Equal("tenant-a", summary.TenantId);
+        Assert.Equal("tenant-a", summary.ScopeId);
         Assert.Equal([100], reporter.Progress.Select(progress => progress.PercentComplete));
         Assert.Equal([taskContext.RunId], controlLoop.PolledRunIds);
     }
@@ -518,7 +518,7 @@ public sealed class ProjectionRebuildTests
             "worker-a",
             "node-a",
             attempt: 1,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
 
     private static MeterListener CreateListener(ICollection<MetricMeasurement> measurements)
     {
@@ -676,11 +676,11 @@ public sealed class ProjectionRebuildTests
     private sealed class TestProjectionCheckpointStore(
         TestProjectionDbContext dbContext,
         string moduleName,
-        bool tenantScoped)
+        bool scopeAware)
         : EfProjectionRebuildCheckpointStore<TestProjectionDbContext, TestCheckpointState>(
             dbContext,
             moduleName,
-            tenantScoped,
+            scopeAware,
             TestCheckpointState.CreateEmpty);
 
     private sealed class TestCheckpointState : ProjectionRebuildCheckpointState

@@ -13,7 +13,7 @@ public sealed record TaskRunLease
         int attempt,
         DateTimeOffset leasedAtUtc,
         DateTimeOffset lockedUntilUtc,
-        string? tenantId = null,
+        string? scopeId = null,
         Guid? correlationId = null,
         bool cancellationRequested = false,
         int payloadVersion = 1)
@@ -33,9 +33,9 @@ public sealed record TaskRunLease
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
         this.LeasedAtUtc = TaskRunRequest.RequireTimestamp(leasedAtUtc, nameof(leasedAtUtc));
         this.LockedUntilUtc = TaskRunRequest.RequireTimestamp(lockedUntilUtc, nameof(lockedUntilUtc));
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
         this.CorrelationId = correlationId is null
             ? null
             : TaskRunRequest.RequireId(correlationId.Value, nameof(correlationId));
@@ -58,7 +58,7 @@ public sealed record TaskRunLease
     public int PayloadVersion { get; }
     public DateTimeOffset LeasedAtUtc { get; }
     public DateTimeOffset LockedUntilUtc { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
     public Guid? CorrelationId { get; }
     public bool CancellationRequested { get; }
 
@@ -71,7 +71,7 @@ public sealed record TaskRunLease
             this.WorkerId,
             this.NodeId,
             this.Attempt,
-            this.TenantId,
+            this.ScopeId,
             this.CorrelationId,
             this.CancellationRequested,
             this.PayloadVersion,

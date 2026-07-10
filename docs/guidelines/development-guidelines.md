@@ -51,7 +51,7 @@ If a hotfix lands directly on `main`, merge `main` back into `dev` before contin
 | CLI admin adapter | `Gma.Framework.Administration.Cli` |
 | Framework module metadata | `Gma.Framework.Modules` |
 | Framework composition profiles and feature validation | `Gma.Framework.ModuleComposition` |
-| Framework permission metadata | `Gma.Framework.Authorization` |
+| Framework permission metadata | `Gma.Framework.Permissions` |
 | Framework naming primitives | `Gma.Framework.Naming` |
 | Framework numeric primitives | `Gma.Framework.Numerics` |
 | Framework result/error primitives | `Gma.Framework.Results` |
@@ -216,18 +216,18 @@ Rules:
 
 ## Tenancy
 
-Before writing tenant-scoped code, answer:
+Before writing tenant-scoped or scope-aware code, answer:
 
 - Is this endpoint tenant-scoped?
-- Does the aggregate store `TenantId`?
+- Does the aggregate store `ScopeId`?
 - Are unique indexes tenant-local?
 - Do queries preserve tenant filters?
-- Are tenant-owned cache keys paired with `CachingCompositionFeatures.TenantScopeRequired(...)`?
+- Are tenant-owned cache keys paired with `CachingCompositionFeatures.ScopeContextRequired(...)`?
 - Are integration events tenant-scoped?
 
-Use `TenantIds` in domain, application, infrastructure, and front-door code when accepting or storing a tenant id from aggregates, headers, commands, events, or configuration. Tenant ids are trimmed, case-preserving, capped at 128 characters, and reject whitespace or control characters to match persistence mappings.
+Use `ScopeIds` in reusable domain, application, infrastructure, and front-door code when accepting or storing a scope id from aggregates, commands, events, or configuration. Use `TenantIds` only at tenant-facing boundaries such as tenant headers, tenant catalogs, tenant-specific admin/RBAC records, and tenancy adapters. Both value families are trimmed, case-preserving, capped at 128 characters, and reject whitespace or control characters to match persistence mappings.
 
-Tenant-owned models should make ownership visible with `TenantAggregateRoot<TId>`, `TenantEntity<TId>`, or a direct `ITenantScoped` implementation. Do not hide tenancy behind shadow EF properties or host-side reflection. Tenant-aware EF modules should inherit `TenantAwareDbContext<TContext>` and call `ApplyTenantConventions(modelBuilder)` so `TenantId` mapping, the named `TenantFilter`, and write-side tenant guards stay centralized.
+Scope-owned models should make ownership visible with `ScopedAggregateRoot<TId>`, `ScopedEntity<TId>`, or a direct `IScopedEntity` implementation. Do not hide isolation behind shadow EF properties or host-side reflection. Scope-aware EF modules should inherit `ScopeAwareDbContext<TContext>` and call `ApplyScopeConventions(modelBuilder)` so `ScopeId` mapping, the named `ScopeFilter`, and write-side scope guards stay centralized.
 
 Infrastructure records that contain tenant ids are not automatically tenant-owned. Outbox, inbox, task runtime, audit, and projection-control tables should be classified deliberately before applying tenant filters.
 
@@ -235,14 +235,15 @@ If yes, tests must cover tenant isolation.
 
 ## Resource Access Policies
 
-Use `Gma.Framework.AccessControl` only for shared product/resource actor vocabulary such as `AccessSubject`. Put business visibility rules in the owning module, preferably in the domain, and make list/search/feed/export reads flow through typed access scopes that persistence must consume.
+Use `Gma.Framework.AccessControl` for shared actor vocabulary and coarse permission checks such as "can subject S perform permission P in scope X?" Put business visibility rules in the owning module, preferably in the domain, and make list/search/feed/export reads flow through typed access scopes that persistence must consume.
 
 Rules:
 
-- keep admin operation authorization in `Gma.Framework.Administration` and the optional `Administration` module unless an explicit adapter is added later;
+- keep admin operation authorization in `Gma.Framework.Administration`; compose `Gma.Framework.Administration.AccessControl` and `Gma.Modules.AccessControl` only when persisted RBAC should authorize admin operations;
 - define business access actors, policies, and query scopes in the owning module domain when the rule is part of product behavior;
 - use direct application checks for simple operational rules that do not shape persistence;
-- construct `AccessSubject` explicitly at front doors, workers, or tests;
+- construct identity-only `AccessSubject` values explicitly at front doors, workers, or tests;
+- pass tenant/resource context through `AccessScope` or module-owned typed visibility scopes, not through `AccessSubject`;
 - keep ASP.NET Core, EF, Auth, Administration, Tenancy runtime, NATS, Redis, and external policy engines out of `Gma.Framework.AccessControl`;
 - treat missing scopes as deny-by-default failures, not implicit allow;
 - load minimal access summaries before single-resource authorization when the full resource should not be loaded for unauthorized callers;
@@ -262,7 +263,7 @@ Rules:
 - keep `Microsoft.EntityFrameworkCore.Design` and `IDesignTimeDbContextFactory<TContext>` in provider-specific migration projects, not runtime persistence projects;
 - add migrations with `eng/add-migration.ps1 -Module <Module> -Provider SqlServer|PostgreSql -Name <Name>`;
 - run `eng/check-migrations.ps1 -NoBuild` after EF mapping changes so SQL Server and PostgreSQL snapshots stay aligned with the model;
-- use `TenantAwareDbContext<TContext>` plus `ApplyTenantConventions(modelBuilder)` for tenant-scoped EF entities;
+- use `ScopeAwareDbContext<TContext>` plus `ApplyScopeConventions(modelBuilder)` for scope-owned EF entities;
 - index tenant-scoped read paths with the tenant id first when queries filter by tenant and sort or join by another column;
 - no cross-module foreign keys;
 - do not use `EnsureCreated` in integration tests;
@@ -273,12 +274,12 @@ Rules:
 Rules:
 
 - domain raises domain events;
-- domain events inherit `DomainEvent` or `TenantDomainEvent` so common event id, occurrence time, and tenant id rules are not repeated per module;
+- domain events inherit `DomainEvent` or `ScopedDomainEvent` so common event id, occurrence time, and scope id rules are not repeated per module;
 - application handlers map domain events to integration events;
 - application handlers resolve the owning writer through `IOutboxWriterRegistry`;
 - module outbox writer stores integration events;
 - public integration events inherit `IntegrationEvent` so event id, occurrence time, event name, and version validation stay centralized;
-- tenant-owned integration events inherit `TenantIntegrationEvent` from `Gma.Framework.Tenancy.Messaging`; compose `AddTenantAwareMessaging()` in hosts that publish or consume them;
+- scope-owned integration events inherit `ScopedIntegrationEvent` or implement `IScopedIntegrationEvent`; compose `AddTenantAwareMessaging()` only in tenant-aware hosts that need tenant context set from those events;
 - hosted publisher sends to `IEventBus` only in hosts that explicitly opt into publishing;
 - consumers implement `IIntegrationEventHandler<TEvent>`;
 - each consuming module owns an inbox table and registers an `IInboxStore`;
@@ -322,7 +323,7 @@ Rules:
 - register task handlers explicitly through the attribute-backed `AddTaskHandler<TPayload,THandler>(moduleName)` overload from the owning module application registration;
 - keep payload code independent from scheduler packages, HTTP, CLI, and other module internals;
 - use `TaskExecutionContext` for run identity, tenant, node, worker id, worker group, attempt, correlation, and cancellation intent;
-- mark tenant-scoped task payloads with `TenantScopedAttribute` from `Gma.Framework.Tenancy` and compose `AddTenantTaskExecutionContext()` from `Gma.Framework.Tenancy.Tasks` only in worker hosts that actually run them;
+- mark scope-aware task payloads with `ScopeAwareAttribute` from `Gma.Framework.Scoping` and compose `AddTenantTaskExecutionContext()` from `Gma.Framework.Tenancy.Tasks` only in tenant-aware worker hosts that need tenant context set before handlers run;
 - use explicit task payload versions when changing payload shape; keep old handlers registered until old queued work is drained;
 - use deduplication keys for operator/API/schedule paths where duplicate active work would be harmful;
 - let code-defined schedules use the default version-aware dedupe key shape unless the module has a documented reason to override it: `schedule:<module>:<task>:<schedule>:v<payload-version>:<occurrence>`;
@@ -394,7 +395,7 @@ Rules:
 - Prefer small, explicit classes.
 - Keep application-layer DI registration host-agnostic. Use `IServiceCollection`; pass `IConfiguration` only for application-owned options.
 - Use `AddApplicationServicesFromAssembly(typeof(DependencyInjection).Assembly)` from module application registration for CQRS handlers, validators, and domain-event handlers. This is the project's only default reflection-based application registration convention.
-- Keep integration-event subscriptions explicit with `AddIntegrationEventHandler<TEvent,THandler>(consumerModule, producerModule)`; put event identity/version on the event contract through `EventType`/`EventVersion` constants plus `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, durable handler identity on the handler through `IntegrationEventHandlerAttribute`, and tenant behavior through `[TenantScoped]` from `Gma.Framework.Tenancy` when needed.
+- Keep integration-event subscriptions explicit with `AddIntegrationEventHandler<TEvent,THandler>(consumerModule, producerModule)`; put event identity/version on the event contract through `EventType`/`EventVersion` constants plus `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, durable handler identity on the handler through `IntegrationEventHandlerAttribute`, and isolation behavior through `[ScopeAware]` from `Gma.Framework.Scoping` when needed.
 - Keep user-notification metadata local to the notification payload through `NotificationNameAttribute`, `NotificationVersionAttribute`, and `NotificationDescriptionAttribute`; module descriptors should call `WithUserNotification<TPayload>()` rather than repeat names and versions.
 - Keep one application handler class per file under `<Module>.Application/Handlers`.
 - Keep one public contract type per file under `<Module>.Contracts`.

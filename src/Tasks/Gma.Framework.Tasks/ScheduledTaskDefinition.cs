@@ -11,7 +11,7 @@ public sealed record ScheduledTaskDefinition
         string payloadJson,
         TimeSpan interval,
         string workerGroup = TaskWorkerGroups.Default,
-        string? tenantId = null,
+        string? scopeId = null,
         int maxAttempts = 1,
         int payloadVersion = 1,
         string? deduplicationKeyPrefix = null,
@@ -25,9 +25,9 @@ public sealed record ScheduledTaskDefinition
         this.Interval = interval > TimeSpan.Zero
             ? interval
             : throw new ArgumentOutOfRangeException(nameof(interval), interval, "Scheduled task interval must be positive.");
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
         this.MaxAttempts = maxAttempts > 0
             ? maxAttempts
             : throw new ArgumentOutOfRangeException(nameof(maxAttempts), maxAttempts, "Scheduled task max attempts must be positive.");
@@ -48,7 +48,7 @@ public sealed record ScheduledTaskDefinition
     public string WorkerGroup { get; }
     public string PayloadJson { get; }
     public TimeSpan Interval { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
     public int MaxAttempts { get; }
     public int PayloadVersion { get; }
     public string DeduplicationKeyPrefix { get; }

@@ -58,11 +58,11 @@ public sealed class DomainEventTests
         Guid eventId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         DateTimeOffset occurredAtUtc = new(2026, 7, 2, 12, 0, 0, TimeSpan.Zero);
 
-        TestTenantDomainEvent domainEvent = new(eventId, occurredAtUtc, " tenant-a ");
+        TestScopedDomainEvent domainEvent = new(eventId, occurredAtUtc, " tenant-a ");
 
         Assert.Equal(eventId, domainEvent.EventId);
         Assert.Equal(occurredAtUtc, domainEvent.OccurredAtUtc);
-        Assert.Equal("tenant-a", domainEvent.TenantId);
+        Assert.Equal("tenant-a", domainEvent.ScopeId);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class DomainEventTests
 
         Assert.Throws<ArgumentException>(() => new TestDomainEvent(Guid.Empty, occurredAtUtc));
         Assert.Throws<ArgumentException>(() => new TestDomainEvent(eventId, default));
-        Assert.Throws<ArgumentException>(() => new TestTenantDomainEvent(eventId, occurredAtUtc, " "));
+        Assert.Throws<ArgumentException>(() => new TestScopedDomainEvent(eventId, occurredAtUtc, " "));
     }
 
     private sealed class TestAggregate(Guid id) : AggregateRoot<Guid>(id)
@@ -90,10 +90,10 @@ public sealed class DomainEventTests
         }
     }
 
-    private sealed record TestTenantDomainEvent : TenantDomainEvent
+    private sealed record TestScopedDomainEvent : ScopedDomainEvent
     {
-        public TestTenantDomainEvent(Guid eventId, DateTimeOffset occurredAtUtc, string tenantId)
-            : base(eventId, occurredAtUtc, tenantId)
+        public TestScopedDomainEvent(Guid eventId, DateTimeOffset occurredAtUtc, string scopeId)
+            : base(eventId, occurredAtUtc, scopeId)
         {
         }
     }

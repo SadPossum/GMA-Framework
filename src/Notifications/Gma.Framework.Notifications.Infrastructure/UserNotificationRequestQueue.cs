@@ -64,10 +64,10 @@ internal sealed class UserNotificationRequestQueue(
             {
                 logger.LogWarning(
                     exception,
-                    "User notification request failed open after commit for module {Module}, notification {NotificationName}, tenant {TenantId}, and user {UserId}.",
+                    "User notification request failed open after commit for module {Module}, notification {NotificationName}, tenant {ScopeId}, and user {UserId}.",
                     request.ModuleName,
                     request.NotificationName,
-                    request.Target.TenantId,
+                    request.Target.ScopeId,
                     request.Target.UserId);
             }
         }

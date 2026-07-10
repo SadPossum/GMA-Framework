@@ -22,7 +22,7 @@ builder.Services.AddIntegrationEventHandler<CatalogItemCreatedIntegrationEvent, 
     CatalogModuleMetadata.Name);
 ```
 
-The event contract owns event identity through `EventType`/`EventVersion` constants plus `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, tenant behavior through `[TenantScoped]`, and the handler owns stable handler identity through `IntegrationEventHandlerAttribute`. Registration remains explicit and supplies consumer/producer module context.
+The event contract owns event identity through `EventType`/`EventVersion` constants plus `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, scope behavior through `[ScopeAware]`, and the handler owns stable handler identity through `IntegrationEventHandlerAttribute`. Registration remains explicit and supplies consumer/producer module context.
 
 Each subscription requires a module-owned `IInboxStore`. The runtime creates a deterministic durable consumer per handler and acknowledges a NATS message only after the handler effect and inbox processed marker are committed.
 

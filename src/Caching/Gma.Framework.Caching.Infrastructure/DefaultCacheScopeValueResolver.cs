@@ -8,8 +8,8 @@ internal sealed class DefaultCacheScopeValueResolver : ICacheScopeValueResolver
         scope switch
         {
             CacheScope.Global => "global",
-            CacheScope.Tenant => throw new InvalidOperationException(
-                "A tenant-scoped cache key requires a tenant-aware cache scope resolver. Compose Gma.Framework.Tenancy.Caching for tenant-owned cache entries."),
+            CacheScope.Scope => throw new InvalidOperationException(
+                "A scope-aware cache key requires a cache scope resolver. Compose a scoping provider such as Gma.Framework.Tenancy.Caching for scope-aware cache entries."),
             _ => throw new InvalidOperationException($"Unsupported cache scope '{scope}'.")
         };
 }

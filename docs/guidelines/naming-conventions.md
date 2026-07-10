@@ -64,6 +64,7 @@ Framework project names:
 Gma.Framework.Api
 Gma.Framework.AccessControl
 Gma.Framework.Administration
+Gma.Framework.Administration.AccessControl
 Gma.Framework.Administration.Api
 Gma.Framework.Administration.Cli
 Gma.Framework.Application.Composition
@@ -71,7 +72,8 @@ Gma.Framework.Application.Events
 Gma.Framework.Application.Events.Infrastructure
 Gma.Framework.Api.OpenApi
 Gma.Framework.Api.Serilog
-Gma.Framework.Authorization
+Gma.Framework.Permissions
+Gma.Framework.AccessControl.AspNetCore
 Gma.Framework.Caching
 Gma.Framework.Caching.Cqrs
 Gma.Framework.Caching.Infrastructure
@@ -101,6 +103,8 @@ Gma.Framework.Notifications.SignalR
 Gma.Framework.Observability
 Gma.Framework.Observability.Infrastructure
 Gma.Framework.Pagination
+Gma.Framework.Scoping
+Gma.Framework.Scoping.Infrastructure
 Gma.Framework.Persistence.EntityFrameworkCore
 Gma.Framework.ProjectionRebuild
 Gma.Framework.ProjectionRebuild.EntityFrameworkCore
@@ -115,12 +119,14 @@ Gma.Framework.Tasks
 Gma.Framework.Tasks.Cqrs
 Gma.Framework.Tasks.Infrastructure
 Gma.Framework.Tenancy
+Gma.Framework.Tenancy.AccessControl.AspNetCore
 Gma.Framework.Tenancy.Api.Serilog
 Gma.Framework.Tenancy.Caching
 Gma.Framework.Tenancy.Cqrs
 Gma.Framework.Tenancy.Infrastructure
 Gma.Framework.Tenancy.Messaging
 Gma.Framework.Tenancy.Messaging.Infrastructure
+Gma.Framework.Tenancy.Scoping
 Gma.Framework.Tenancy.Tasks
 ```
 

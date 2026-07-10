@@ -148,9 +148,9 @@ Use integration tests for:
 
 Tenant convention tests should prove both read and write isolation:
 
-- the shared EF helper applies `TenantFilter` dynamically per `DbContext` tenant, not from a stale first-built model;
-- `ITenantScoped` mapped entities have a required `TenantId` with `TenantIds.MaxLength`;
-- `TenantAwareDbContext<TContext>` rejects invalid, unnormalized, and mismatched tenant ids before commit;
+- the shared EF helper applies `ScopeFilter` dynamically per `DbContext` scope, not from a stale first-built model;
+- `IScopedEntity` mapped entities have a required `ScopeId` with `ScopeIds.MaxLength`;
+- `ScopeAwareDbContext<TContext>` rejects invalid, unnormalized, and mismatched scope ids before commit;
 - global or runtime/control-plane records are intentionally exempted and documented.
 
 Integration tests should use migrations:

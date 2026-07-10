@@ -10,7 +10,7 @@ public sealed record TaskExecutionContext
         string workerId,
         string nodeId,
         int attempt,
-        string? tenantId = null,
+        string? scopeId = null,
         Guid? correlationId = null,
         bool cancellationRequested = false,
         int payloadVersion = 1,
@@ -28,9 +28,9 @@ public sealed record TaskExecutionContext
         this.PayloadVersion = payloadVersion > 0
             ? payloadVersion
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
         this.CorrelationId = correlationId is null
             ? null
             : RequireId(correlationId.Value, nameof(correlationId));
@@ -54,7 +54,7 @@ public sealed record TaskExecutionContext
     public string NodeId { get; }
     public int Attempt { get; }
     public int PayloadVersion { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
     public Guid? CorrelationId { get; }
     public bool CancellationRequested { get; }
     public TimeSpan? LeaseExtension { get; }

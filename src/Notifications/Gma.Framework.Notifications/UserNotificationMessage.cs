@@ -10,7 +10,7 @@ public sealed record UserNotificationMessage
         string module,
         string name,
         int version,
-        string tenantId,
+        string scopeId,
         string userId,
         string title,
         string? body,
@@ -27,7 +27,7 @@ public sealed record UserNotificationMessage
         this.Module = SharedNameSegments.NormalizeKebabSegment(module, "module name", nameof(module));
         this.Name = NotificationNames.NormalizeName(name, nameof(name));
         this.Version = NotificationVersions.Normalize(version, nameof(version));
-        this.TenantId = TenantIds.Normalize(tenantId);
+        this.ScopeId = ScopeIds.Normalize(scopeId);
         this.UserId = NotificationUserIds.Normalize(userId);
         this.Title = new NotificationPublishOptions(title).Title;
         this.Body = string.IsNullOrWhiteSpace(body)
@@ -42,7 +42,7 @@ public sealed record UserNotificationMessage
     public string Module { get; }
     public string Name { get; }
     public int Version { get; }
-    public string TenantId { get; }
+    public string ScopeId { get; }
     public string UserId { get; }
     public string Title { get; }
     public string? Body { get; }

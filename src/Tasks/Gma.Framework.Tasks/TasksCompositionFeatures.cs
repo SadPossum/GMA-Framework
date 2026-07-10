@@ -9,7 +9,7 @@ public static class TasksCompositionFeatures
     public static readonly CompositionFeatureId RuntimeReporter = new("tasks.runtime-reporter");
     public static readonly CompositionFeatureId ControlChannel = new("tasks.control-channel");
     public static readonly CompositionFeatureId CqrsDispatcher = new("tasks.cqrs-dispatcher");
-    public static readonly CompositionFeatureId TenantScope = new("tasks.tenant-scope");
+    public static readonly CompositionFeatureId ScopeContext = new("tasks.scope-context");
     public static readonly CompositionFeatureId Worker = new("tasks.worker");
     public static readonly CompositionFeatureId Scheduler = new("tasks.scheduler");
 
@@ -28,8 +28,8 @@ public static class TasksCompositionFeatures
     public static ProvidedCompositionFeature CqrsDispatcherProvided(string provider) =>
         new(CqrsDispatcher, provider, "Task handlers can dispatch CQRS commands through the task bridge.");
 
-    public static ProvidedCompositionFeature TenantScopeProvided(string provider) =>
-        new(TenantScope, provider, "Tenant-scoped task handlers resolve tenant context before execution.");
+    public static ProvidedCompositionFeature ScopeContextProvided(string provider) =>
+        new(ScopeContext, provider, "Scope-aware task handlers resolve scope context before execution.");
 
     public static ProvidedCompositionFeature WorkerProvided(string provider) =>
         new(Worker, provider, "Task worker hosted services are registered.");
@@ -52,8 +52,8 @@ public static class TasksCompositionFeatures
     public static RequiredCompositionFeature CqrsDispatcherRequired(string owner, string? reason = null, bool optional = false) =>
         new(CqrsDispatcher, owner, optional, reason);
 
-    public static RequiredCompositionFeature TenantScopeRequired(string owner, string? reason = null, bool optional = false) =>
-        new(TenantScope, owner, optional, reason);
+    public static RequiredCompositionFeature ScopeContextRequired(string owner, string? reason = null, bool optional = false) =>
+        new(ScopeContext, owner, optional, reason);
 
     public static RequiredCompositionFeature WorkerRequired(string owner, string? reason = null, bool optional = false) =>
         new(Worker, owner, optional, reason);

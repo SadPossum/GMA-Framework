@@ -25,7 +25,7 @@ public sealed class TenantTaskExecutionContextTests
         ModuleCompositionValidationResult result = builder.ValidateModuleComposition();
 
         Assert.True(result.IsValid, result.Report);
-        Assert.Contains("tasks.tenant-scope by Gma.Framework.Tenancy.Tasks", result.Report, StringComparison.Ordinal);
+        Assert.Contains("tasks.scope-context by Gma.Framework.Tenancy.Tasks", result.Report, StringComparison.Ordinal);
         Assert.Single(
             builder.Services,
             descriptor => descriptor.ServiceType == typeof(ITaskExecutionContextContributor));
@@ -54,7 +54,7 @@ public sealed class TenantTaskExecutionContextTests
             .GetServices<ITaskExecutionContextContributor>()
             .Single();
         ITenantContextAccessor tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
-        TaskExecutionContextPreparationContext context = CreatePreparationContext(tenantId: "tenant-a", tenantScoped: true);
+        TaskExecutionContextPreparationContext context = CreatePreparationContext(scopeId: "tenant-a", tenantScoped: true);
 
         TaskExecutionContextPreparationResult result = await contributor
             .PrepareAsync(context, CancellationToken.None);
@@ -75,14 +75,14 @@ public sealed class TenantTaskExecutionContextTests
         ITaskExecutionContextContributor contributor = scope.ServiceProvider
             .GetServices<ITaskExecutionContextContributor>()
             .Single();
-        TaskExecutionContextPreparationContext context = CreatePreparationContext(tenantId: null, tenantScoped: true);
+        TaskExecutionContextPreparationContext context = CreatePreparationContext(scopeId: null, tenantScoped: true);
 
         TaskExecutionContextPreparationResult result = await contributor
             .PrepareAsync(context, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.NotNull(result.ErrorMessage);
-        Assert.Contains("has no tenant id", result.ErrorMessage!, StringComparison.Ordinal);
+        Assert.Contains("has no scope id", result.ErrorMessage!, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public sealed class TenantTaskExecutionContextTests
             .Single();
         ITenantContextAccessor tenantContext = scope.ServiceProvider.GetRequiredService<ITenantContextAccessor>();
         tenantContext.SetTenant("existing-tenant");
-        TaskExecutionContextPreparationContext context = CreatePreparationContext(tenantId: null, tenantScoped: false);
+        TaskExecutionContextPreparationContext context = CreatePreparationContext(scopeId: null, tenantScoped: false);
 
         TaskExecutionContextPreparationResult result = await contributor
             .PrepareAsync(context, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class TenantTaskExecutionContextTests
         return builder.Build();
     }
 
-    private static TaskExecutionContextPreparationContext CreatePreparationContext(string? tenantId, bool tenantScoped)
+    private static TaskExecutionContextPreparationContext CreatePreparationContext(string? scopeId, bool tenantScoped)
     {
         DateTimeOffset leasedAtUtc = new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
         TaskRunLease lease = new(
@@ -127,7 +127,7 @@ public sealed class TenantTaskExecutionContextTests
             attempt: 1,
             leasedAtUtc,
             leasedAtUtc.AddMinutes(5),
-            tenantId);
+            scopeId);
         TaskHandlerRegistration registration = TaskHandlerRegistration.Create<TestPayload, TestHandler>(
             "catalog",
             "rebuild-search",

@@ -9,6 +9,6 @@ internal static class NotificationClaimsPrincipalExtensions
         user.FindFirstValue(ClaimTypes.NameIdentifier) ??
         user.FindFirstValue(ApplicationClaimNames.Subject);
 
-    public static string? GetTenantId(this ClaimsPrincipal user) =>
-        user.FindFirstValue(ApplicationClaimNames.TenantId);
+    public static string? GetScopeId(this ClaimsPrincipal user) =>
+        user.FindFirstValue(ApplicationClaimNames.ScopeId);
 }

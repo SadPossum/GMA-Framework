@@ -16,7 +16,7 @@ Projection rebuilds are explicit module task handlers backed by `Gma.Framework.P
 
 - The consuming module owns the rebuild task, destination projection, writer, and checkpoint table.
 - The producing module exposes source data through a public contract/export port, not through domain, application, or persistence internals.
-- Checkpoints are persisted in the consuming module schema and keyed by run id, projection name, and tenant id when tenant-scoped.
+- Checkpoints are persisted in the consuming module schema and keyed by run id, projection name, and scope id when scope-aware.
 - The shared runner owns batching, checkpoint load/save, observer callbacks, and bounded metrics without referencing task runtime contracts.
 - The task adapter maps rebuild observer callbacks to task progress reporting and cooperative task control polling.
 - TaskRuntime owns enqueueing, leasing, retry, timeout, admin control, and tenant-context setup.

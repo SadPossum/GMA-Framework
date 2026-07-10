@@ -10,6 +10,7 @@ GMA Framework is a set of reusable capability packages for modular monolith appl
 - Keep domain/application code independent of web, EF Core, and NATS details.
 - Use reliable outbox publishing for cross-boundary integration events.
 - Support shared-database tenancy from the start.
+- Use neutral scoping for reusable modules that need isolation without owning tenant semantics.
 - Keep metrics, logging, and tracing vendor-neutral inside modules.
 - Keep caching explicit, optional, tenant-safe, and provider-independent inside modules.
 - Keep user notifications optional and front-door focused; backend integration still goes through events/outbox/inbox.
@@ -23,6 +24,7 @@ GMA-Framework/
   src/
     Administration/
       Gma.Framework.Administration/
+      Gma.Framework.Administration.AccessControl/
       Gma.Framework.Administration.Api/
       Gma.Framework.Administration.Cli/
     Api/
@@ -74,6 +76,9 @@ GMA-Framework/
       Gma.Framework.Observability.Infrastructure/
     Pagination/
       Gma.Framework.Pagination/
+    Scoping/
+      Gma.Framework.Scoping/
+      Gma.Framework.Scoping.Infrastructure/
     Persistence/
       Gma.Framework.Persistence.EntityFrameworkCore/
     ProjectionRebuild/
@@ -91,7 +96,8 @@ GMA-Framework/
       Gma.Framework.Runtime.Infrastructure/
     Security/
       Gma.Framework.AccessControl/
-      Gma.Framework.Authorization/
+      Gma.Framework.AccessControl.AspNetCore/
+      Gma.Framework.Permissions/
       Gma.Framework.Security/
     Tasks/
       Gma.Framework.Tasks/
@@ -99,12 +105,14 @@ GMA-Framework/
       Gma.Framework.Tasks.Infrastructure/
     Tenancy/
       Gma.Framework.Tenancy/
+      Gma.Framework.Tenancy.AccessControl.AspNetCore/
       Gma.Framework.Tenancy.Api.Serilog/
       Gma.Framework.Tenancy.Caching/
       Gma.Framework.Tenancy.Cqrs/
       Gma.Framework.Tenancy.Infrastructure/
       Gma.Framework.Tenancy.Messaging/
       Gma.Framework.Tenancy.Messaging.Infrastructure/
+      Gma.Framework.Tenancy.Scoping/
       Gma.Framework.Tenancy.Tasks/
   tests/
     Gma.Framework.Tests/
@@ -112,13 +120,16 @@ GMA-Framework/
 
 In the `GMA-Skeleton` composition repository, this framework repository is mounted at `gma/framework`. Reusable modules are mounted beside it under `gma/modules/<alias>`, while skeleton-owned example modules remain under `src/Modules/<Example>`.
 
-Current logical module roots in the skeleton are `Administration/`, `Auth/`, `Files/`, `Notifications/`, `TaskRuntime/`, `Tenancy/`, `Catalog/`, `Ordering/`, and `TaskSamples/`. Reusable roots resolve through source-root properties to mounted repositories; example roots resolve to skeleton-owned source folders.
+Scoping is the lightweight bridge between tenant and non-tenant hosts. Reusable modules that only need isolation depend on `Gma.Framework.Scoping`; tenant-specific semantics stay in `Gma.Framework.Tenancy` and bridge packages such as `Gma.Framework.Tenancy.Scoping`.
+
+Current logical module roots in the skeleton are `AccessControl/`, `Administration/`, `Auth/`, `Files/`, `Notifications/`, `TaskRuntime/`, `Tenancy/`, `Catalog/`, `Ordering/`, and `TaskSamples/`. Reusable roots resolve through source-root properties to mounted repositories; example roots resolve to skeleton-owned source folders.
 
 ```text
 GMA-Skeleton/
   gma/
     framework/
     modules/
+      access-control/
       administration/
       auth/
       files/
@@ -168,7 +179,7 @@ builder.AddUserNotificationServerSentEvents();
 builder.AddUserNotificationSignalR();
 builder.Services.AddApiSecurityDefaults(); // no default scheme; Auth or another adapter supplies one
 builder.AddModule<TenancyModule>();
-builder.AddAuthModule(AuthProfile.TenantScoped());
+builder.AddAuthModule(AuthProfile.ScopeAware());
 builder.AddGmaOpenApi();
 builder.ValidateModuleComposition();
 app.UseGmaOpenApi(); // serves Swagger only in Development
@@ -187,7 +198,8 @@ builder.AddGmaInfrastructure();
 builder.AddMessagingInfrastructure(); // outbox writer registry without hosted publishers
 builder.AddTenantAwareMessaging(); // tenant-aware event scope/context bridge
 builder.AddAdminModule<AdministrationAdminCliModule>();
-builder.AddAuthAdminModule(AuthProfile.TenantScoped());
+builder.AddAdminModule<AccessControlAdminCliModule>();
+builder.AddAuthAdminModule(AuthProfile.ScopeAware());
 builder.ValidateModuleComposition();
 ```
 
@@ -203,7 +215,8 @@ builder.AddGmaInfrastructure();
 builder.AddMessagingInfrastructure();
 builder.AddTenantAwareMessaging(); // tenant-aware event scope/context bridge
 builder.AddAdminApiModule<AdministrationAdminApiModule>();
-builder.AddAuthAdminApiModule(AuthProfile.TenantScoped());
+builder.AddAdminApiModule<AccessControlAdminApiModule>();
+builder.AddAuthAdminApiModule(AuthProfile.ScopeAware());
 builder.AddGmaOpenApi();
 builder.ValidateModuleComposition();
 app.MapAdminApiModules();
@@ -251,13 +264,24 @@ Modules.*.Persistence
   -> Modules.*.Domain
 
 Gma.Framework.AccessControl
+  -> Gma.Framework.Permissions
   -> Gma.Framework.Naming
+
+Gma.Framework.AccessControl.AspNetCore
+  -> Gma.Framework.AccessControl
+  -> Gma.Framework.Permissions
+  -> Gma.Framework.Security
 
 Gma.Framework.Administration
   -> Gma.Framework.Naming
   -> Gma.Framework.Results
   -> Gma.Framework.Runtime
   -> Gma.Framework.Tenancy
+
+Gma.Framework.Administration.AccessControl
+  -> Gma.Framework.Administration
+  -> Gma.Framework.AccessControl
+  -> Gma.Framework.Permissions
 
 Gma.Framework.Administration.Api
   -> Gma.Framework.Administration
@@ -278,6 +302,7 @@ Gma.Framework.Administration.Cli
 Gma.Framework.Api
   -> Gma.Framework.Results
   -> Gma.Framework.Naming
+  -> Gma.Framework.Scoping
   -> Gma.Framework.Tenancy
 
 Gma.Framework.Api.OpenApi
@@ -304,7 +329,7 @@ Gma.Framework.Application.Events.Infrastructure
   -> Gma.Framework.Application.Events
   -> Gma.Framework.Domain
 
-Gma.Framework.Authorization
+Gma.Framework.Permissions
   -> Gma.Framework.Modules
   -> Gma.Framework.Naming
 
@@ -335,6 +360,12 @@ Gma.Framework.Caching.Infrastructure
   -> Gma.Framework.Runtime
   -> Gma.Framework.Runtime.Infrastructure
 
+Gma.Framework.Tenancy.AccessControl.AspNetCore
+  -> Gma.Framework.Tenancy
+  -> Gma.Framework.AccessControl
+  -> Gma.Framework.AccessControl.AspNetCore
+  -> Gma.Framework.Permissions
+
 Gma.Framework.Cqrs
   -> Gma.Framework.Results
 
@@ -364,9 +395,11 @@ Gma.Framework.FileManagement.Minio
 Gma.Framework.Infrastructure
   -> Gma.Framework.Application.Events.Infrastructure
   -> Gma.Framework.Cqrs.Infrastructure
+  -> Gma.Framework.Scoping.Infrastructure
   -> Gma.Framework.Runtime.Infrastructure
   -> Gma.Framework.Tenancy.Cqrs
   -> Gma.Framework.Tenancy.Infrastructure
+  -> Gma.Framework.Tenancy.Scoping
 
 Gma.Framework.Logging.Serilog
   -> no project references
@@ -428,8 +461,8 @@ Gma.Framework.Notifications.Api
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Naming
   -> Gma.Framework.Notifications
+  -> Gma.Framework.Scoping
   -> Gma.Framework.Security
-  -> Gma.Framework.Tenancy
 
 Gma.Framework.Notifications.Infrastructure
   -> Gma.Framework.Naming
@@ -457,8 +490,8 @@ Gma.Framework.Notifications.SignalR
   -> Gma.Framework.Naming
   -> Gma.Framework.Notifications
   -> Gma.Framework.Runtime
+  -> Gma.Framework.Scoping
   -> Gma.Framework.Security
-  -> Gma.Framework.Tenancy
 
 Gma.Framework.Observability
   -> Gma.Framework.Naming
@@ -471,12 +504,23 @@ Gma.Framework.Observability.Infrastructure
 Gma.Framework.Pagination
   -> no project references
 
+Gma.Framework.Scoping
+  -> Gma.Framework.ModuleComposition
+  -> Gma.Framework.Modules
+  -> Gma.Framework.Naming
+  -> Gma.Framework.Results
+
+Gma.Framework.Scoping.Infrastructure
+  -> Gma.Framework.Scoping
+  -> Gma.Framework.ModuleComposition
+  -> Gma.Framework.Naming
+
 Gma.Framework.Persistence.EntityFrameworkCore
   -> Gma.Framework.Application.Events
   -> Gma.Framework.Cqrs
   -> Gma.Framework.Domain
   -> Gma.Framework.Naming
-  -> Gma.Framework.Tenancy
+  -> Gma.Framework.Scoping
 
 Gma.Framework.ProjectionRebuild
   -> Gma.Framework.Naming
@@ -560,6 +604,13 @@ Gma.Framework.Tenancy.Messaging.Infrastructure
   -> Gma.Framework.Tenancy
   -> Gma.Framework.Tenancy.Messaging
 
+Gma.Framework.Tenancy.Scoping
+  -> Gma.Framework.Tenancy
+  -> Gma.Framework.Scoping
+  -> Gma.Framework.Scoping.Infrastructure
+  -> Gma.Framework.ModuleComposition
+  -> Gma.Framework.Naming
+
 Gma.Framework.Tenancy.Tasks
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Tasks
@@ -570,7 +621,7 @@ Gma.Modules.Files.Contracts
   -> Gma.Framework.FileManagement
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Modules
-  -> Gma.Framework.Tenancy
+  -> Gma.Framework.Scoping
 
 Gma.Modules.Files.Application
   -> Gma.Modules.Files.Contracts
@@ -580,7 +631,7 @@ Gma.Modules.Files.Application
   -> Gma.Framework.FileManagement
   -> Gma.Framework.Results
   -> Gma.Framework.Runtime
-  -> Gma.Framework.Tenancy
+  -> Gma.Framework.Scoping
 
 Gma.Modules.Files.Api
   -> Gma.Modules.Files.Application
@@ -590,9 +641,9 @@ Gma.Modules.Files.Api
   -> Gma.Framework.Cqrs
   -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Naming
+  -> Gma.Framework.Scoping
   -> Gma.Framework.Results
   -> Gma.Framework.Security
-  -> Gma.Framework.Tenancy
 ```
 
 Cross-module dependencies must go through:

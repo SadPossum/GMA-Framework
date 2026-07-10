@@ -3,5 +3,6 @@
     <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
     <ProjectReference Include="..\..\Modules\Gma.Framework.Modules\Gma.Framework.Modules.csproj" />
     <ProjectReference Include="..\..\Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />
+    <ProjectReference Include="..\..\Scoping\Gma.Framework.Scoping\Gma.Framework.Scoping.csproj" />
   </ItemGroup>
 </Project>

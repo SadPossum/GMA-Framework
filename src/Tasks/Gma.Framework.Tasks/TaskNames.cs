@@ -53,11 +53,11 @@ public static class TaskNames
     public static string NormalizeModuleName(string moduleName, string parameterName = "moduleName") =>
         SharedNameSegments.NormalizeKebabSegment(moduleName, "module name", parameterName);
 
-    public static string NormalizeTenantId(string tenantId, string parameterName = "tenantId") =>
-        TenantIds.TryNormalize(tenantId, out string? normalized)
+    public static string NormalizeScopeId(string scopeId, string parameterName = "scopeId") =>
+        ScopeIds.TryNormalize(scopeId, out string? normalized)
             ? normalized
             : throw new ArgumentException(
-                $"Tenant id is required, must be {TenantIds.MaxLength} characters or fewer, and cannot contain whitespace or control characters.",
+                $"Scope id is required, must be {ScopeIds.MaxLength} characters or fewer, and cannot contain whitespace or control characters.",
                 parameterName);
 
     public static string NormalizeControlCommandName(string commandName, string parameterName = "commandName")

@@ -19,7 +19,7 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             existingQuery = existingQuery.Concat(dbContext.Set<TaskRun>().Where(taskRun =>
                 taskRun.ModuleName == request.ModuleName &&
                 taskRun.TaskName == request.TaskName &&
-                taskRun.TenantId == request.TenantId &&
+                taskRun.ScopeId == request.ScopeId &&
                 taskRun.DeduplicationKey == request.DeduplicationKey &&
                 taskRun.Status != TaskRunStatus.Succeeded &&
                 taskRun.Status != TaskRunStatus.Failed &&
@@ -439,9 +439,9 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             query = query.Where(taskRun => taskRun.Status == filter.Status);
         }
 
-        if (filter.TenantId is not null)
+        if (filter.ScopeId is not null)
         {
-            query = query.Where(taskRun => taskRun.TenantId == filter.TenantId);
+            query = query.Where(taskRun => taskRun.ScopeId == filter.ScopeId);
         }
 
         return query;
@@ -464,9 +464,9 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             query = query.Where(taskRun => taskRun.WorkerGroup == filter.WorkerGroup);
         }
 
-        if (filter.TenantId is not null)
+        if (filter.ScopeId is not null)
         {
-            query = query.Where(taskRun => taskRun.TenantId == filter.TenantId);
+            query = query.Where(taskRun => taskRun.ScopeId == filter.ScopeId);
         }
 
         return query;
@@ -480,7 +480,7 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             taskRun.WorkerGroup,
             taskRun.PayloadVersion,
             taskRun.Status,
-            taskRun.TenantId,
+            taskRun.ScopeId,
             taskRun.CorrelationId,
             taskRun.CreatedAtUtc,
             taskRun.ScheduledAtUtc,

@@ -12,6 +12,16 @@ public sealed class AdminPermissionTests
         AdminPermission permission = AdminPermission.Create("Auth.Members.Read");
 
         Assert.Equal("auth.members.read", permission.Code);
+        Assert.False(permission.IsOwnerWildcard);
+    }
+
+    [Fact]
+    public void Create_preserves_owner_wildcard_as_admin_compatibility_only()
+    {
+        AdminPermission permission = AdminPermission.Create(" * ");
+
+        Assert.Equal(AdminPermission.OwnerWildcard, permission.Code);
+        Assert.True(permission.IsOwnerWildcard);
     }
 
     [Fact]

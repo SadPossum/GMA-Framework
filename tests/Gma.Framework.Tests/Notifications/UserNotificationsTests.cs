@@ -39,7 +39,7 @@ public sealed class UserNotificationsTests
 
         Assert.Equal("sample.event", message.Name);
         Assert.Equal(1, message.Version);
-        Assert.Equal("tenant-a", message.TenantId);
+        Assert.Equal("tenant-a", message.ScopeId);
         Assert.Equal("user-a", message.UserId);
         Assert.Equal("Report ready", message.Title);
         Assert.Equal(NotificationSeverity.Success, message.Severity);

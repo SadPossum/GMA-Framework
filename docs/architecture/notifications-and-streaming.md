@@ -223,7 +223,7 @@ The SSE adapter maps an authenticated stream endpoint at `Notifications:Sse:Stre
 /api/notifications/stream
 ```
 
-The endpoint requires authorization and tenant context. When tenancy is enabled, the tenant claim on the token must match the active tenant context. Messages are emitted as typed SSE items and heartbeats keep long-lived clients from appearing idle.
+The endpoint requires authorization and scope context. When scoping is enabled, the tenant claim on the token must match the active scope context. Messages are emitted as typed SSE items and heartbeats keep long-lived clients from appearing idle.
 
 ### SignalR
 
@@ -233,7 +233,7 @@ The SignalR adapter maps an authenticated hub at `Notifications:SignalR:HubPath`
 /hubs/notifications
 ```
 
-The hub derives tenant/user routing from claims and joins the connection to a server-owned hashed group. Clients do not choose group names. The adapter supports the common browser SignalR pattern of reading a bearer token from the configured query-string parameter only for the notification hub path.
+The hub derives scope/user routing from claims and joins the connection to a server-owned hashed group. Clients do not choose group names. The adapter supports the common browser SignalR pattern of reading a bearer token from the configured query-string parameter only for the notification hub path.
 
 SignalR is not used for CQRS commands, query dispatch, or backend module integration.
 
@@ -307,7 +307,7 @@ Add unit tests for:
 Add integration tests for:
 
 - authenticated SSE delivery;
-- tenant mismatch rejection;
+- scope mismatch rejection;
 - authenticated SignalR delivery.
 - Notifications inbox consumption from a real published request event when a runtime composes the module consumer.
 

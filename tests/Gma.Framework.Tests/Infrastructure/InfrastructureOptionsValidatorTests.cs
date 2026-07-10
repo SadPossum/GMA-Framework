@@ -24,14 +24,14 @@ public sealed class InfrastructureOptionsValidatorTests
     [Fact]
     public void Tenant_id_normalizer_trims_and_rejects_invalid_values()
     {
-        Assert.Equal("tenant-a", TenantIds.Normalize(" tenant-a "));
-        Assert.Equal("Tenant-A", TenantIds.Normalize(" Tenant-A "));
-        Assert.False(TenantIds.TryNormalize(" ", out _));
-        Assert.False(TenantIds.TryNormalize("tenant a", out _));
-        Assert.False(TenantIds.TryNormalize("tenant\tid", out _));
-        Assert.False(TenantIds.TryNormalize($"tenant{char.MinValue}id", out _));
-        Assert.False(TenantIds.TryNormalize(new string('x', TenantIds.MaxLength + 1), out _));
-        Assert.Throws<ArgumentException>(() => TenantIds.Normalize(string.Empty));
+        Assert.Equal("tenant-a", ScopeIds.Normalize(" tenant-a "));
+        Assert.Equal("Tenant-A", ScopeIds.Normalize(" Tenant-A "));
+        Assert.False(ScopeIds.TryNormalize(" ", out _));
+        Assert.False(ScopeIds.TryNormalize("tenant a", out _));
+        Assert.False(ScopeIds.TryNormalize("tenant\tid", out _));
+        Assert.False(ScopeIds.TryNormalize($"tenant{char.MinValue}id", out _));
+        Assert.False(ScopeIds.TryNormalize(new string('x', ScopeIds.MaxLength + 1), out _));
+        Assert.Throws<ArgumentException>(() => ScopeIds.Normalize(string.Empty));
     }
 
     [Fact]
@@ -381,7 +381,7 @@ public sealed class InfrastructureOptionsValidatorTests
     [InlineData("X-Tenant-Id", "default tenant", "LocalDefaultTenantId")]
     public void Tenant_validator_rejects_invalid_header_or_default_tenant(
         string headerName,
-        string localDefaultTenantId,
+        string LocalDefaultTenantId,
         string expectedFailure)
     {
         var validator = new TenantOptionsValidator();
@@ -391,7 +391,7 @@ public sealed class InfrastructureOptionsValidatorTests
             new TenantOptions
             {
                 HeaderName = headerName,
-                LocalDefaultTenantId = localDefaultTenantId
+                LocalDefaultTenantId = LocalDefaultTenantId
             });
 
         AssertFailure(result, expectedFailure);
@@ -407,7 +407,7 @@ public sealed class InfrastructureOptionsValidatorTests
             new TenantOptions
             {
                 HeaderName = "X-Tenant-Id",
-                LocalDefaultTenantId = new string('x', TenantIds.MaxLength + 1)
+                LocalDefaultTenantId = new string('x', ScopeIds.MaxLength + 1)
             });
 
         AssertFailure(result, "LocalDefaultTenantId");

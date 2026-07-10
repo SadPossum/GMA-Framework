@@ -16,13 +16,15 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.AccessControl\Gma.Framework.Administration.AccessControl.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Api\Gma.Framework.Administration.Api.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Cli\Gma.Framework.Administration.Cli.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.AccessControl\Gma.Framework.AccessControl.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.AccessControl.AspNetCore\Gma.Framework.AccessControl.AspNetCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api.Serilog\Gma.Framework.Api.Serilog.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Composition\Gma.Framework.Application.Composition.csproj" />
-    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Authorization\Gma.Framework.Authorization.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching\Gma.Framework.Caching.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching.Cqrs\Gma.Framework.Caching.Cqrs.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching.Infrastructure\Gma.Framework.Caching.Infrastructure.csproj" />
@@ -47,6 +49,8 @@
     <ProjectReference Include="$(GmaFrameworkRoot)Numerics\Gma.Framework.Numerics\Gma.Framework.Numerics.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Observability\Gma.Framework.Observability\Gma.Framework.Observability.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Observability\Gma.Framework.Observability.Infrastructure\Gma.Framework.Observability.Infrastructure.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Scoping\Gma.Framework.Scoping\Gma.Framework.Scoping.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Scoping\Gma.Framework.Scoping.Infrastructure\Gma.Framework.Scoping.Infrastructure.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Persistence\Gma.Framework.Persistence.EntityFrameworkCore\Gma.Framework.Persistence.EntityFrameworkCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)ProjectionRebuild\Gma.Framework.ProjectionRebuild.EntityFrameworkCore\Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)ProjectionRebuild\Gma.Framework.ProjectionRebuild.Tasks\Gma.Framework.ProjectionRebuild.Tasks.csproj" />
@@ -58,12 +62,14 @@
     <ProjectReference Include="$(GmaFrameworkRoot)Tasks\Gma.Framework.Tasks\Gma.Framework.Tasks.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tasks\Gma.Framework.Tasks.Infrastructure\Gma.Framework.Tasks.Infrastructure.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.AccessControl.AspNetCore\Gma.Framework.Tenancy.AccessControl.AspNetCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Api.Serilog\Gma.Framework.Tenancy.Api.Serilog.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Caching\Gma.Framework.Tenancy.Caching.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Cqrs\Gma.Framework.Tenancy.Cqrs.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Infrastructure\Gma.Framework.Tenancy.Infrastructure.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Messaging\Gma.Framework.Tenancy.Messaging.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Messaging.Infrastructure\Gma.Framework.Tenancy.Messaging.Infrastructure.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Scoping\Gma.Framework.Tenancy.Scoping.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Tasks\Gma.Framework.Tenancy.Tasks.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Security\Gma.Framework.Security.csproj" />

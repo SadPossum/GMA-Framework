@@ -100,8 +100,8 @@ public sealed class TenantMessagingTests
 
     private sealed record TestTenantIntegrationEvent : TenantIntegrationEvent
     {
-        public TestTenantIntegrationEvent(Guid eventId, string tenantId, DateTimeOffset occurredAtUtc)
-            : base(eventId, tenantId, occurredAtUtc, "test-event", 1)
+        public TestTenantIntegrationEvent(Guid eventId, string scopeId, DateTimeOffset occurredAtUtc)
+            : base(eventId, scopeId, occurredAtUtc, "test-event", 1)
         {
         }
     }

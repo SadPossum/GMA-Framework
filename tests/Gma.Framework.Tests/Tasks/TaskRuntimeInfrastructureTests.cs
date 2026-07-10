@@ -28,7 +28,7 @@ public sealed class TaskRuntimeInfrastructureTests
             Now,
             Now,
             workerGroup: "samples",
-            tenantId: "tenant-a",
+            scopeId: "tenant-a",
             maxAttempts: 2));
 
         TaskRunLease firstLease = taskRun.Claim(new TaskWorkerClaim(
@@ -47,7 +47,7 @@ public sealed class TaskRuntimeInfrastructureTests
             "worker-b",
             "node-a",
             attempt: 1,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
 
         Assert.Throws<InvalidOperationException>(() => taskRun.MarkStarted(wrongWorkerContext, Now.AddSeconds(1)));
 
@@ -297,7 +297,7 @@ public sealed class TaskRuntimeInfrastructureTests
             "worker-a",
             "node-a",
             attempt: 1,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
         TaskControlMessage pause = new(
             Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
             RunId,
@@ -813,7 +813,7 @@ public sealed class TaskRuntimeInfrastructureTests
             "worker-a",
             "node-a",
             attempt: 1,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
 
     private sealed class RecordingControlChannel(IReadOnlyList<TaskControlMessage> messages) : ITaskControlChannel
     {
@@ -902,7 +902,7 @@ public sealed class TaskRuntimeInfrastructureTests
                     "{}",
                     TimeSpan.FromMinutes(5),
                     "samples",
-                    tenantId: "tenant-a",
+                    scopeId: "tenant-a",
                     runOnStart: true)
             ]);
     }

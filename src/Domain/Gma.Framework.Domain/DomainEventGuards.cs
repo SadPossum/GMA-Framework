@@ -25,10 +25,10 @@ public static class DomainEventGuards
         return value;
     }
 
-    public static string NormalizeTenantId(string tenantId, string parameterName) =>
-        TenantIds.TryNormalize(tenantId, out string? normalized)
+    public static string NormalizeScopeId(string scopeId, string parameterName) =>
+        ScopeIds.TryNormalize(scopeId, out string? normalized)
             ? normalized
-            : throw new ArgumentException("Tenant id is not valid.", parameterName);
+            : throw new ArgumentException("Scope id is not valid.", parameterName);
 
     public static string NormalizeRequiredText(string value, int maxLength, string parameterName)
     {

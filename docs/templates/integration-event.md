@@ -23,7 +23,7 @@ Use `gma` only as the default local skeleton namespace. Production applications 
 ## Payload
 
 The event type should inherit `IntegrationEvent` and pass the stable event name and version to the base constructor. Do not duplicate event id, occurrence time, event name, or version properties in the module event type.
-If the event is tenant-owned, inherit `TenantIntegrationEvent` from `Gma.Framework.Tenancy.Messaging` instead and pass tenant id to that base type. Hosts that publish or consume tenant-owned events must call `AddTenantAwareMessaging()`.
+If the event is scope-owned, inherit `ScopedIntegrationEvent` from `Gma.Framework.Messaging` or implement `IScopedIntegrationEvent`, add `[ScopeAware]`, and pass scope id to that contract. Tenant-aware hosts that publish or consume scope-owned events must call `AddTenantAwareMessaging()` when consumer tenant context should be populated from event scope.
 
 ```json
 {

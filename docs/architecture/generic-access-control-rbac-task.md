@@ -1,7 +1,31 @@
 # Generic Access Control And RBAC Refactor Task
 
-Status: planning task
+Status: implemented in source-first skeleton; remote module packaging pending
 Date: 2026-07-09
+
+## Implementation Status
+
+The framework and module extraction are implemented in the source-first skeleton:
+
+- `Gma.Framework.AccessControl` now owns backend-neutral scope, requirement, decision, authorization service, decision-provider, grant-scope reader, scope-matching, and deny-by-default contracts.
+- `Gma.Framework.Permissions` owns `PermissionCode` and module permission descriptors while preserving existing string `Code` accessors.
+- `Gma.Framework.Administration` keeps source-compatible admin APIs, validates normal permission-code strings itself, and keeps the legacy `*` owner wildcard as an Administration compatibility concern.
+- `Gma.Framework.Administration.AccessControl` is the explicit bridge from `IAdminAuthorizationService` to generic `IAccessAuthorizationService`.
+- `Gma.Framework.AccessControl.AspNetCore` provides explicit `.RequirePermission(...)`, route/static/resolved-scope metadata, and filter-based enforcement.
+- `Gma.Framework.Tenancy.AccessControl.AspNetCore` provides the optional tenant-scope HTTP bridge and `.RequireTenantPermission(...)` helpers.
+- `Gma.Modules.AccessControl` owns persisted RBAC entities, SQL Server/PostgreSQL migrations, role/assignment application ports, bootstrap options, the persisted `IAccessDecisionProvider`, and the persisted `IAccessGrantScopeReader`.
+- `Gma.Modules.Administration` owns audit persistence and empty admin API/CLI shell modules. `Gma.Modules.AccessControl.AdminCli` and `.AdminApi` own role management/bootstrap front doors.
+- `Host.AdminCli`, `Host.AdminApi`, integration tests, solution layout, source roots, docs, and architecture guards compose AccessControl explicitly.
+- Concrete persisted permission grants require exact scope matches. The owner wildcard is the only current grant that uses global/ancestor scope matching until descriptor-driven per-permission inheritance is implemented.
+- Persisted permission checks prefilter by subject, relevant permission grants, and plausible request scopes in SQL before applying final scope-matching rules in memory.
+
+Remote packaging follow-up:
+
+- create the `GMA-Module-AccessControl` GitHub repository;
+- replace the current skeleton folder with a real `gma/modules/access-control` submodule pinned to `dev`;
+- add the submodule to `.gitmodules` and the submodule dev-head guard after the remote exists.
+
+The remaining sections preserve the design record and next-step intent. They are not a second source of truth over the implementation status above.
 
 Promote authorization from an Administration-owned concept into reusable GMA access-control infrastructure. Administration should become a management surface over generic access control, not the owner of RBAC semantics.
 
@@ -16,7 +40,7 @@ That is still the right default for product-specific visibility and list filteri
 - Product modules own deeper domain policy and resource filtering.
 - Administration provides operator front doors for managing grants, roles, assignments, and audit.
 
-Today, persisted RBAC lives in the Administration module through `AdminPermission`, `IAdminAuthorizationService`, `AdminOperationRunner`, and Administration persistence. That makes sense for admin API/CLI, but it is too narrow for reusable product modules that need permission checks outside admin surfaces.
+Before this refactor, persisted RBAC lived in the Administration module through `AdminPermission`, `IAdminAuthorizationService`, `AdminOperationRunner`, and Administration persistence. That made sense for admin API/CLI, but it was too narrow for reusable product modules that need permission checks outside admin surfaces.
 
 ## Goal
 
@@ -29,10 +53,13 @@ Auth
   identifies subjects and manages sessions/tokens
 
 Gma.Framework.AccessControl
-  defines subject, permission, scope, requirement, and decision contracts
+  defines subject, scope, requirement, and decision contracts
 
 Gma.Framework.AccessControl.AspNetCore
   adapts generic access requirements to endpoint authorization
+
+Gma.Framework.Tenancy.AccessControl.AspNetCore
+  adapts current tenant context to generic access scopes
 
 Gma.Modules.AccessControl
   optionally persists RBAC roles, permissions, assignments, and grant state
@@ -47,7 +74,7 @@ The current Administration authorization APIs should remain source-compatible du
 
 Do not implement:
 
-- BunkFy-specific staff, property, department, housekeeping, accounting, or provider rules in GMA.
+- app-specific staff, property, department, housekeeping, accounting, or provider rules in GMA.
 - A generic EF query-filter generator for business visibility.
 - A generic relationship graph engine.
 - OPA, Cedar, OpenFGA, SpiceDB, or other external policy engines in the core package.
@@ -81,7 +108,7 @@ AccessSubject
   tenant id: optional current tenant context
 
 Permission
-  code: dotted lower-case permission code, for example properties.rooms.manage
+  code: dotted lower-case permission code, for example example.resources.manage
 
 AccessScope
   global
@@ -107,6 +134,12 @@ Initial scope matching should be simple and documented:
 - global grants satisfy all scopes only for permissions that explicitly permit global assignment;
 - unknown or malformed scopes deny.
 
+Initial provider pipeline behavior is also intentionally conservative:
+
+- any deny decision vetoes prior or later allows;
+- at least one allow is required;
+- abstain-only or no-provider decisions deny by default.
+
 Avoid product-specific segment names in the core. The core only validates segment names and values. Product modules decide whether `property`, `department`, `region`, or another segment has meaning.
 
 ## Framework Responsibilities
@@ -116,7 +149,6 @@ Avoid product-specific segment names in the core. The core only validates segmen
 Owns backend-neutral contracts and value objects:
 
 - `AccessSubject` and `AccessSubjectKind` (already present);
-- `Permission` or `PermissionCode`;
 - `AccessScope` and scope segments;
 - `AccessRequirement`;
 - `AccessDecision`;
@@ -128,7 +160,7 @@ Owns backend-neutral contracts and value objects:
 
 It must not reference ASP.NET Core, EF Core, Auth, Administration, Tenancy runtime, Redis, NATS, or external policy engines.
 
-### `Gma.Framework.Authorization`
+### `Gma.Framework.Permissions`
 
 This package currently owns module permission metadata. Decide whether to:
 
@@ -153,44 +185,46 @@ Owns:
 
 - `RequirePermission(...)` endpoint helpers;
 - claim-to-subject resolution;
-- tenant claim/header matching helpers where the host opts in;
+- static, route, and named scope resolution helpers;
 - endpoint metadata for architecture tests and OpenAPI enrichment;
-- HTTP result mapping for unauthenticated, unauthorized, invalid scope, and tenant mismatch.
+- HTTP result mapping for unauthenticated, unauthorized, invalid scope, and missing scope resolvers.
 
 Example target:
 
 ```csharp
-properties.MapPost("/{propertyId:guid}/rooms", ...)
-    .RequireTenant()
-    .RequirePermission(
-        PropertiesPermissions.RoomsManage,
-        AccessScopeRoute.Tenant().Resource("property", "propertyId"));
+resources.MapPost("/{resourceId:guid}/children", ...)
+    .RequireRouteScopePermission(
+        ProductPermissions.ChildrenManage,
+        scopeSegmentName: "resource",
+        routeValueName: "resourceId");
 ```
 
-First implementation can support tenant-scope only:
+Tenant scope is deliberately outside this package. Compose `Gma.Framework.Tenancy.AccessControl.AspNetCore` when the endpoint wants current-tenant scope resolution:
 
 ```csharp
-.RequirePermission(PropertiesPermissions.RoomsManage)
+resources.MapPost("/", ...)
+    .RequireTenant()
+    .RequireTenantPermission(ProductPermissions.ResourcesManage);
 ```
 
 Do not make this a hidden global endpoint filter. Route authors must add explicit metadata.
 
 ### `Gma.Framework.Administration`
 
-Keep the operation-runner and admin-front-door contracts, but make authorization use generic AccessControl internally.
+Keep the operation-runner and admin-front-door contracts, but do not make the core Administration package depend on generic AccessControl.
 
 Likely migration:
 
-- `AdminPermission` wraps or aliases the generic `Permission`;
-- `IAdminAuthorizationService` becomes an adapter over `IAccessAuthorizationService`;
-- `AdminOperationRunner` builds an `AccessRequirement` from the admin actor, operation permission, and tenant scope;
+- `AdminPermission` validates compatible permission-code strings locally;
+- `Gma.Framework.Administration.AccessControl` adapts `IAdminAuthorizationService` to `IAccessAuthorizationService`;
+- the bridge builds an `AccessRequirement` from the admin actor, operation permission, and tenant scope;
 - admin audit remains admin-operation audit, not every generic access decision.
 
 This keeps CLI/API behavior stable while moving RBAC ownership out of Administration.
 
 ### Optional CQRS/Worker Adapters
 
-Do not build these first unless Properties or another module immediately needs them.
+Do not build these first unless a product module immediately needs them.
 
 Future shape:
 
@@ -198,7 +232,7 @@ Future shape:
 - CQRS pipeline behavior that authorizes before handler execution;
 - worker/service-principal helpers for scheduled tasks and data-provider adapters.
 
-Endpoint checks are enough for the first BunkFy Properties use case, but the core authorization service must be usable outside HTTP from day one.
+Endpoint checks are enough for the first real product module use case, but the core authorization service must be usable outside HTTP from day one.
 
 ## Module Responsibilities
 
@@ -240,19 +274,19 @@ Important modeling choices:
 
 ### `Gma.Modules.Administration`
 
-After the refactor, Administration owns management surfaces, not RBAC storage semantics.
+After the refactor, Administration owns audit storage and shell composition points, not RBAC storage semantics or role-management front doors.
 
 It should:
 
-- bootstrap the first owner by creating generic AccessControl roles/assignments;
-- expose admin API/CLI for role creation, permission grants, and role assignments;
 - expose admin audit views when useful;
-- continue to run all admin commands through admin operation authorization and audit;
-- depend on AccessControl contracts/application ports, not AccessControl persistence internals.
+- continue to run future admin audit operations through admin operation authorization and audit;
+- avoid AccessControl module dependencies unless a future audit feature truly needs them.
 
 It should not:
 
 - define generic permission, role, assignment, or scope value objects;
+- bootstrap the first owner;
+- expose role creation, permission grant, or role assignment commands/routes;
 - be required by normal API hosts that only need to enforce permissions;
 - be the only place persisted RBAC can be composed.
 
@@ -275,16 +309,17 @@ Product modules should:
 
 - declare permission codes in contracts/metadata;
 - use generic permission checks for management-style actions;
+- use `IAccessGrantScopeReader` for bulk authorization inputs when access-control grants drive list filtering, then translate the returned scopes through module-owned query scopes;
 - keep resource-specific visibility and list filtering in module-owned policies and typed scopes;
 - avoid hard-coding role names.
 
 Example:
 
 ```text
-Properties
-  declares properties.rooms.manage
+Example product module
+  declares example.items.manage
   uses RequirePermission for create/update/retire room actions
-  keeps future staff/property assignment meaning outside generic GMA core
+  keeps product-specific assignment meaning outside generic GMA core
 ```
 
 ## Scope Boundaries
@@ -305,10 +340,10 @@ Which resource-state transitions are valid?
 
 Examples:
 
-- AccessControl can allow `properties.rooms.manage` for `tenant:a/property:p1`.
-- Properties decides whether `p1` exists, whether the room is retired, and whether a typed room list scope translates into SQL.
-- Staff decides whether a staff member is assigned to a property.
-- Reservations decides whether a booking can be cancelled in its current state.
+- AccessControl can allow `example.resources.manage` for `tenant:a/resource:r1`.
+- A product module decides whether `p1` exists, whether the resource is retired, and whether a typed list scope translates into SQL.
+- Staff-like modules decide whether a subject is assigned to a resource.
+- Workflow modules decide whether a state transition is valid.
 
 Do not put those product meanings into the generic RBAC store.
 
@@ -360,7 +395,7 @@ Compatibility rules:
 
 - Add generic permission, scope, requirement, decision, and authorization service contracts.
 - Add tests for normalization, invalid inputs, scope matching, and deny-by-default behavior.
-- Keep current `AdminPermission` and `IAdminAuthorizationService` as wrappers/adapters.
+- Keep current `AdminPermission` and `IAdminAuthorizationService` source-compatible while moving AccessControl adaptation to the explicit bridge package.
 - Add docs and architecture guards that keep the core package backend-free.
 
 ### Phase 2: ASP.NET Adapter
@@ -380,36 +415,40 @@ Compatibility rules:
 
 ### Phase 4: Administration Rewire
 
-- Update Administration application/API/CLI to manage generic AccessControl roles and assignments.
+- Move role-management API/CLI surfaces to AccessControl admin front doors.
+- Keep Administration application/API/CLI audit-focused.
 - Keep admin operation audit behavior stable.
 - Preserve CLI command names where possible.
 - Add integration tests proving old admin flows still authorize module admin operations.
 
 ### Phase 5: Product Module Adoption
 
-- Apply endpoint permission checks in BunkFy Properties.
-- Add BunkFy architecture tests for state-changing management endpoints requiring tenant and permission metadata.
-- Keep Properties domain policies focused on physical topology rules, not RBAC semantics.
+- Apply endpoint permission checks in the first product module that needs management permissions.
+- Add app/module architecture tests for state-changing management endpoints requiring tenant and permission metadata.
+- Keep product-domain policies focused on product rules, not RBAC semantics.
 
 ### Phase 6: Optional Command/Worker Enforcement
 
 - Add command/query authorization metadata only after repeated need.
 - Add service-principal helpers for workers/data-provider adapters when real adapter modules need them.
 
-## Open Design Decisions
+## Resolved Decisions And Follow-Ups
 
-- Final module name: `Gma.Modules.AccessControl` or `Gma.Modules.Rbac`.
-- Whether `Gma.Framework.Authorization` remains a static metadata package or merges into AccessControl.
-- Exact `AccessScope` representation: string path, segment collection, or typed value object plus serializer.
-- Whether global assignments inherit to tenant/resource scopes by default or only for descriptor-marked permissions.
-- Whether wildcard grants survive as `*`, become a named owner permission, or stay Administration-only.
-- How much generic decision audit should exist outside admin operation audit.
-- Whether endpoint helpers should use ASP.NET authorization handlers, endpoint filters, or a thin adapter over both.
-- Migration strategy for existing Administration RBAC tables.
+- Resolved: the persisted module is named `Gma.Modules.AccessControl`, because RBAC is the first strategy but not the whole concept.
+- Resolved: `Gma.Framework.Permissions` remains a static metadata package and normalizes through `PermissionCode`.
+- Resolved: `AccessScope` is a typed value object backed by a normalized string path and segment parser.
+- Resolved: global and ancestor scope grants are explicit `AccessScopeMatchOptions`, not automatic defaults.
+- Resolved: wildcard owner grants stay as an Administration compatibility concern for now.
+- Resolved: admin-to-access-control authorization lives in `Gma.Framework.Administration.AccessControl`, not core `Gma.Framework.Administration`.
+- Resolved: persisted RBAC keeps concrete permission grants exact-scope by default; descriptor-driven inheritance remains a later extension point.
+- Resolved: endpoint helpers use explicit endpoint filters and metadata.
+- Resolved: Administration RBAC migrations are preserved as compatibility/no-op migrations while AccessControl owns new RBAC schema migrations.
+- Follow-up: generic decision audit remains deferred until a real non-admin audit use case appears.
+- Follow-up: command/query/worker authorization metadata remains deferred until repeated use proves the extra package surface is worth it.
 
 ## Acceptance Checks
 
-Before calling the refactor done:
+Before calling the source-first implementation done:
 
 - `Gma.Framework.AccessControl` has no ASP.NET Core, EF Core, Auth, Administration, Redis, NATS, or external policy engine references.
 - Generic permission and scope value objects have focused tests.
@@ -418,27 +457,27 @@ Before calling the refactor done:
 - Persisted RBAC is optional and explicitly composed.
 - Normal API endpoints can require permissions without registering admin API/CLI modules.
 - Module permission descriptors stay stable for existing modules.
-- BunkFy Properties can use generic permission checks for management writes.
+- Product modules can use generic permission checks for management writes without depending on Administration.
 - Docs clearly state which rules belong in framework, AccessControl module, Administration module, Auth, and product modules.
 
-## BunkFy Driver
+## Product Driver Example
 
-BunkFy Properties needs permission checks on tenant-scoped management endpoints in the normal API host. That is the first concrete adopter.
+A real product module may need permission checks on tenant-scoped management endpoints in the normal API host. That is the intended first adopter pattern.
 
-Initial BunkFy target after GMA refactor:
+Example target after the GMA refactor:
 
 ```csharp
-properties.MapPost("/", ...)
+resources.MapPost("/", ...)
     .RequireTenant()
-    .RequirePermission(PropertiesPermissions.PropertiesManage);
+    .RequirePermission(ProductPermissions.ResourcesManage);
 
-properties.MapPost("/{propertyId:guid}/rooms", ...)
+resources.MapPost("/{resourceId:guid}/children", ...)
     .RequireTenant()
-    .RequirePermission(PropertiesPermissions.RoomsManage);
+    .RequirePermission(ProductPermissions.ChildrenManage);
 
-properties.MapPost("/rooms/{roomId:guid}/beds", ...)
+resources.MapPost("/children/{childId:guid}/nested-children", ...)
     .RequireTenant()
-    .RequirePermission(PropertiesPermissions.BedsManage);
+    .RequirePermission(ProductPermissions.NestedChildrenManage);
 ```
 
-Resource-scoped property grants can come later when Staff/Access defines real product requirements.
+Resource-scoped grants can come later when a product module defines real requirements.

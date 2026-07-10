@@ -17,11 +17,11 @@ public static class ProjectionRebuildCheckpointEntityTypeBuilderExtensions
         builder.ToTable(tableName);
         builder.HasKey(checkpoint => new
         {
-            checkpoint.TenantId,
+            checkpoint.ScopeId,
             checkpoint.ProjectionName,
             checkpoint.RunId
         });
-        builder.Property(checkpoint => checkpoint.TenantId).HasMaxLength(TenantIds.MaxLength).IsRequired();
+        builder.Property(checkpoint => checkpoint.ScopeId).HasMaxLength(ScopeIds.MaxLength).IsRequired();
         builder.Property(checkpoint => checkpoint.ProjectionName)
             .HasMaxLength(ProjectionRebuildCheckpointState.ProjectionNameMaxLength)
             .IsRequired();

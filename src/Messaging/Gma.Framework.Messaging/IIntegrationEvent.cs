@@ -7,3 +7,8 @@ public interface IIntegrationEvent
     string EventName { get; }
     int Version { get; }
 }
+
+public interface IScopedIntegrationEvent : IIntegrationEvent
+{
+    string ScopeId { get; }
+}

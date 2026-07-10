@@ -5,8 +5,10 @@ using Microsoft.Extensions.Hosting;
 using Gma.Framework.Application.Events.Infrastructure;
 using Gma.Framework.Cqrs.Infrastructure;
 using Gma.Framework.Runtime.Infrastructure;
+using Gma.Framework.Scoping.Infrastructure;
 using Gma.Framework.Tenancy.Cqrs;
 using Gma.Framework.Tenancy.Infrastructure;
+using Gma.Framework.Tenancy.Scoping;
 
 public static class DependencyInjection
 {
@@ -22,7 +24,9 @@ public static class DependencyInjection
             return builder;
         }
 
+        builder.AddScopingInfrastructure();
         builder.AddTenancyInfrastructure();
+        builder.AddTenantScoping();
         builder.AddRuntimeInfrastructure();
         builder.AddApplicationEventsInfrastructure();
         builder.AddCqrsInfrastructure();

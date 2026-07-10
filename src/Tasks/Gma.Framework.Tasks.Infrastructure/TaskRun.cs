@@ -21,7 +21,7 @@ public class TaskRun
     public TaskRunStatus Status { get; private set; }
     public string Payload { get; private set; } = string.Empty;
     public string? DeduplicationKey { get; private set; }
-    public string? TenantId { get; private set; }
+    public string? ScopeId { get; private set; }
     public Guid? CorrelationId { get; private set; }
     public string? RequestedBy { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -53,7 +53,7 @@ public class TaskRun
         this.PayloadVersion = request.PayloadVersion;
         this.Payload = request.PayloadJson;
         this.DeduplicationKey = request.DeduplicationKey;
-        this.TenantId = request.TenantId;
+        this.ScopeId = request.ScopeId;
         this.CorrelationId = request.CorrelationId;
         this.RequestedBy = request.RequestedBy;
         this.CreatedAtUtc = request.CreatedAtUtc;
@@ -281,7 +281,7 @@ public class TaskRun
             this.Attempts,
             this.LeasedAtUtc ?? throw new InvalidOperationException("Task run has no lease timestamp."),
             this.LockedUntilUtc.Value,
-            this.TenantId,
+            this.ScopeId,
             this.CorrelationId,
             this.Status == TaskRunStatus.CancellationRequested,
             this.PayloadVersion);

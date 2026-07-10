@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Gma.Framework.ModuleComposition;
 using Gma.Framework.Notifications;
+using Gma.Framework.Scoping;
 
 public static class DependencyInjection
 {
@@ -38,6 +39,9 @@ public static class DependencyInjection
         if (notificationsOptions.Enabled && sseOptions.Enabled)
         {
             builder.ProvideFeature(NotificationsCompositionFeatures.ServerSentEventsProvided("Gma.Framework.Notifications.Api"));
+            builder.RequireFeature(ScopeCompositionFeatures.ContextRequired(
+                "Gma.Framework.Notifications.Api",
+                "Register scoping infrastructure before enabling notification SSE streaming."));
             builder.RequireFeature(NotificationsCompositionFeatures.LiveFeedRequired(
                 "Gma.Framework.Notifications.Api",
                 "Register Gma.Framework.Realtime.Notifications before enabling notification SSE streaming."));

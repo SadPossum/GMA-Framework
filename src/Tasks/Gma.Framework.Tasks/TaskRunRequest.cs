@@ -12,7 +12,7 @@ public sealed record TaskRunRequest
         DateTimeOffset createdAtUtc,
         DateTimeOffset scheduledAtUtc,
         string workerGroup = TaskWorkerGroups.Default,
-        string? tenantId = null,
+        string? scopeId = null,
         Guid? correlationId = null,
         string? requestedBy = null,
         int maxAttempts = 1,
@@ -26,9 +26,9 @@ public sealed record TaskRunRequest
         this.PayloadJson = NormalizePayload(payloadJson);
         this.CreatedAtUtc = RequireTimestamp(createdAtUtc, nameof(createdAtUtc));
         this.ScheduledAtUtc = RequireTimestamp(scheduledAtUtc, nameof(scheduledAtUtc));
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
         this.CorrelationId = correlationId is null
             ? null
             : RequireId(correlationId.Value, nameof(correlationId));
@@ -54,7 +54,7 @@ public sealed record TaskRunRequest
     public string PayloadJson { get; }
     public DateTimeOffset CreatedAtUtc { get; }
     public DateTimeOffset ScheduledAtUtc { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
     public Guid? CorrelationId { get; }
     public string? RequestedBy { get; }
     public int MaxAttempts { get; }

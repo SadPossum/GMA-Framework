@@ -9,6 +9,6 @@
     <ProjectReference Include="..\..\Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
     <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
     <ProjectReference Include="..\..\Security\Gma.Framework.Security\Gma.Framework.Security.csproj" />
-    <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
+    <ProjectReference Include="..\..\Scoping\Gma.Framework.Scoping\Gma.Framework.Scoping.csproj" />
   </ItemGroup>
 </Project>

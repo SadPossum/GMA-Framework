@@ -50,7 +50,7 @@ public sealed class TaskContractsTests
             " Worker-01 ",
             " Node-01 ",
             attempt: 2,
-            tenantId: " tenant-a ",
+            scopeId: " tenant-a ",
             correlationId: MessageId,
             leaseExtension: TimeSpan.FromMinutes(2));
 
@@ -61,7 +61,7 @@ public sealed class TaskContractsTests
         Assert.Equal("worker-01", context.WorkerId);
         Assert.Equal("node-01", context.NodeId);
         Assert.Equal(2, context.Attempt);
-        Assert.Equal("tenant-a", context.TenantId);
+        Assert.Equal("tenant-a", context.ScopeId);
         Assert.Equal(MessageId, context.CorrelationId);
         Assert.False(context.CancellationRequested);
         Assert.Equal(TimeSpan.FromMinutes(2), context.LeaseExtension);
@@ -108,7 +108,7 @@ public sealed class TaskContractsTests
             EnqueuedAtUtc,
             EnqueuedAtUtc.AddMinutes(1),
             workerGroup: " Search-Workers ",
-            tenantId: " tenant-a ",
+            scopeId: " tenant-a ",
             correlationId: MessageId,
             requestedBy: " operator ",
             maxAttempts: 3,
@@ -122,7 +122,7 @@ public sealed class TaskContractsTests
         Assert.Equal("{\"force\":true}", request.PayloadJson);
         Assert.Equal(EnqueuedAtUtc, request.CreatedAtUtc);
         Assert.Equal(EnqueuedAtUtc.AddMinutes(1), request.ScheduledAtUtc);
-        Assert.Equal("tenant-a", request.TenantId);
+        Assert.Equal("tenant-a", request.ScopeId);
         Assert.Equal(MessageId, request.CorrelationId);
         Assert.Equal("operator", request.RequestedBy);
         Assert.Equal(3, request.MaxAttempts);
@@ -175,7 +175,7 @@ public sealed class TaskContractsTests
             "{}",
             TimeSpan.FromMinutes(5),
             " Search-Workers ",
-            tenantId: " tenant-a ",
+            scopeId: " tenant-a ",
             maxAttempts: 3,
             payloadVersion: 2,
             runOnStart: true);
@@ -184,7 +184,7 @@ public sealed class TaskContractsTests
         Assert.Equal("catalog", definition.ModuleName);
         Assert.Equal("rebuild-search", definition.TaskName);
         Assert.Equal("search-workers", definition.WorkerGroup);
-        Assert.Equal("tenant-a", definition.TenantId);
+        Assert.Equal("tenant-a", definition.ScopeId);
         Assert.Equal(3, definition.MaxAttempts);
         Assert.Equal(2, definition.PayloadVersion);
         Assert.True(definition.RunOnStart);
@@ -305,7 +305,7 @@ public sealed class TaskContractsTests
         Assert.Equal("worker-01", context.WorkerId);
         Assert.Equal("node-01", context.NodeId);
         Assert.Equal(2, context.Attempt);
-        Assert.Equal("tenant-a", context.TenantId);
+        Assert.Equal("tenant-a", context.ScopeId);
         Assert.Equal(MessageId, context.CorrelationId);
         Assert.False(context.CancellationRequested);
         Assert.Equal(TimeSpan.FromMinutes(5), context.LeaseExtension);

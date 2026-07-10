@@ -1,10 +1,10 @@
 namespace Gma.Framework.Administration;
 
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
+using Gma.Framework.Naming;
 
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "AdminPermission is the public administration contract name.")]
-public sealed partial record AdminPermission
+public sealed record AdminPermission
 {
     public const int MaxLength = 256;
     public const string OwnerWildcard = "*";
@@ -12,6 +12,7 @@ public sealed partial record AdminPermission
     private AdminPermission(string code) => this.Code = code;
 
     public string Code { get; }
+    public bool IsOwnerWildcard => this.Code == OwnerWildcard;
 
     public static AdminPermission Create(string code)
     {
@@ -22,14 +23,16 @@ public sealed partial record AdminPermission
 
         string normalized = code.Trim().ToLowerInvariant();
 
-        if (normalized.Length > MaxLength)
+        if (normalized == OwnerWildcard)
         {
-            throw new ArgumentException($"Admin permission code must be {MaxLength} characters or fewer.", nameof(code));
+            return new AdminPermission(OwnerWildcard);
         }
 
-        if (normalized != OwnerWildcard && !PermissionCodeRegex().IsMatch(normalized))
+        if (!IsPermissionCode(normalized))
         {
-            throw new ArgumentException("Admin permission code must be dot-separated lowercase words.", nameof(code));
+            throw new ArgumentException(
+                "Admin permission code is required, must be a dot-separated lowercase code, and must be 256 characters or fewer.",
+                nameof(code));
         }
 
         return new AdminPermission(normalized);
@@ -46,8 +49,13 @@ public sealed partial record AdminPermission
 
         string normalized = code.Trim().ToLowerInvariant();
 
-        if (normalized.Length > MaxLength ||
-            (normalized != OwnerWildcard && !PermissionCodeRegex().IsMatch(normalized)))
+        if (normalized == OwnerWildcard)
+        {
+            permission = new AdminPermission(OwnerWildcard);
+            return true;
+        }
+
+        if (!IsPermissionCode(normalized))
         {
             return false;
         }
@@ -58,6 +66,15 @@ public sealed partial record AdminPermission
 
     public override string ToString() => this.Code;
 
-    [GeneratedRegex(@"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")]
-    private static partial Regex PermissionCodeRegex();
+    private static bool IsPermissionCode(string code)
+    {
+        if (code.Length > MaxLength)
+        {
+            return false;
+        }
+
+        string[] segments = code.Split('.');
+        return segments.Length >= 2 &&
+            segments.All(segment => SharedNameSegments.IsKebabSegment(segment));
+    }
 }

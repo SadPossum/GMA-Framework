@@ -151,7 +151,7 @@ public sealed class ModuleCompositionFeatureTests
     public void Multiple_profiles_for_same_module_fail()
     {
         ModuleProfileDescriptor global = new("auth", "global");
-        ModuleProfileDescriptor tenantScoped = new("auth", "tenant-scoped");
+        ModuleProfileDescriptor tenantScoped = new("auth", "scope-aware");
 
         ModuleCompositionValidationResult result = ModuleCompositionValidator.Validate(new ModuleCompositionSnapshot(
             selectedProfiles: [new SelectedModuleProfile(global), new SelectedModuleProfile(tenantScoped)]));
@@ -185,8 +185,8 @@ public sealed class ModuleCompositionFeatureTests
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.SelectModuleProfile(new ModuleProfileDescriptor(
             "auth",
-            "tenant-scoped",
-            requires: [new RequiredCompositionFeature(new CompositionFeatureId("tenancy.context"), "auth/tenant-scoped")]));
+            "scope-aware",
+            requires: [new RequiredCompositionFeature(new CompositionFeatureId("tenancy.context"), "auth/scope-aware")]));
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
             () => builder.ValidateModuleComposition());
@@ -199,13 +199,13 @@ public sealed class ModuleCompositionFeatureTests
     {
         Assert.Equal("caching.application", CachingCompositionFeatures.Application.Value);
         Assert.Equal("caching.invalidation", CachingCompositionFeatures.Invalidation.Value);
-        Assert.Equal("caching.tenant-scope", CachingCompositionFeatures.TenantScope.Value);
+        Assert.Equal("caching.scope-context", CachingCompositionFeatures.ScopeContext.Value);
         Assert.Equal("messaging.outbox", MessagingCompositionFeatures.Outbox.Value);
         Assert.Equal("messaging.event-bus", MessagingCompositionFeatures.EventBus.Value);
         Assert.Equal("notifications.history", NotificationsCompositionFeatures.History.Value);
         Assert.Equal("notifications.signalr", NotificationsCompositionFeatures.SignalR.Value);
         Assert.Equal("tasks.run-store", TasksCompositionFeatures.RunStore.Value);
-        Assert.Equal("tasks.tenant-scope", TasksCompositionFeatures.TenantScope.Value);
+        Assert.Equal("tasks.scope-context", TasksCompositionFeatures.ScopeContext.Value);
         Assert.Equal("tasks.worker", TasksCompositionFeatures.Worker.Value);
     }
 
@@ -236,8 +236,8 @@ public sealed class ModuleCompositionFeatureTests
         Assert.True(result.IsValid, result.Report);
         Assert.Contains("caching.application by Gma.Framework.Caching.Infrastructure", result.Report, StringComparison.Ordinal);
         Assert.Contains("caching.cqrs-invalidation by Gma.Framework.Caching.Cqrs", result.Report, StringComparison.Ordinal);
-        Assert.Contains("caching.tenant-scope by Gma.Framework.Tenancy.Caching", result.Report, StringComparison.Ordinal);
-        Assert.Contains("tasks.tenant-scope by Gma.Framework.Tenancy.Tasks", result.Report, StringComparison.Ordinal);
+        Assert.Contains("caching.scope-context by Gma.Framework.Tenancy.Caching", result.Report, StringComparison.Ordinal);
+        Assert.Contains("tasks.scope-context by Gma.Framework.Tenancy.Tasks", result.Report, StringComparison.Ordinal);
         Assert.Contains("messaging.nats-publishing by Gma.Framework.Messaging.Nats", result.Report, StringComparison.Ordinal);
         Assert.Contains("messaging.nats-consumers by Gma.Framework.Messaging.Nats", result.Report, StringComparison.Ordinal);
         Assert.Contains("notifications.live-feed by Gma.Framework.Realtime.Notifications", result.Report, StringComparison.Ordinal);

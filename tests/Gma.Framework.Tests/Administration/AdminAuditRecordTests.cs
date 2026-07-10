@@ -97,7 +97,7 @@ public sealed class AdminAuditRecordTests
     [Fact]
     public void Constructor_rejects_invalid_tenant_id()
     {
-        Assert.Throws<ArgumentException>(() => Create(tenantId: new string('x', TenantIds.MaxLength + 1)));
+        Assert.Throws<ArgumentException>(() => Create(tenantId: new string('x', ScopeIds.MaxLength + 1)));
     }
 
     [Fact]

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.AccessControl\Gma.Framework.AccessControl.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.AccessControl.AspNetCore\Gma.Framework.AccessControl.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />
+  </ItemGroup>
+</Project>

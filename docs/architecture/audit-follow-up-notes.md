@@ -59,7 +59,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Added startup validation for `Auth:RefreshTokenLifetimeDays` so refresh-token sessions cannot be configured with zero or negative lifetimes.
 - Added startup validation for outbox, NATS JetStream, and NATS consumer options so impossible runtime settings fail fast instead of being silently clamped by effective-value helpers.
 - Added startup validation for tenancy and admin API claim-binding options so invalid tenant headers, missing default tenants, and blank admin actor or tenant claim settings fail during composition.
-- Added startup validation for `Administration:Bootstrap:OwnerRoleName` and introduced `Gma.Modules.Administration.Tests` as a module-specific unit-test home.
+- Added startup validation for the owner role bootstrap option and introduced `Gma.Modules.Administration.Tests` as a module-specific unit-test home. This validation now lives under `AccessControl:Bootstrap:OwnerRoleName` after RBAC storage moved out of Administration.
 - Added startup validation for persistence provider connection strings, Redis adapter options, and ServiceDefaults observability options, with focused unit tests and architecture guards.
 - Moved persistence option validation out of `AddGmaInfrastructure()` and into persisted module registration so non-persistence hosts can still use shared infrastructure without database configuration.
 - Normalized CQRS unit-of-work module-name matching and added a guard that real transactional commands resolve to persisted modules with matching lowercase unit-of-work declarations.
@@ -74,7 +74,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Hardened `AdminAuditRecord` itself so audit metadata is normalized at the shared contract boundary, and centralized audit result values in `AdminAuditResults`.
 - Hardened persisted RBAC entities and repository actor normalization so principal ids, tenant scopes, and permission codes flow through shared admin/tenant value rules instead of local string trimming.
 - Aligned shared admin value-object maximum lengths with Administration EF mappings, replacing raw mapping lengths with named constants and tests for overlong actor, permission, operation, role, and audit error-code values.
-- Made `AdminOperationContext` validate required actor/operation values and moved `AdminRoleName` length enforcement out of regex quantifiers into the named `MaxLength` rule.
+- Made `AdminOperationContext` validate required actor/operation values and moved role-name length enforcement out of regex quantifiers into a named `MaxLength` rule. Role-name validation now lives in `Gma.Modules.AccessControl.Application`.
 - Aligned Auth member disable-reason validation with persistence by making the aggregate reject null, blank, and overlong reasons before EF sees them.
 - Aligned Auth username, password-hash, and refresh-token-hash invariants with persistence so null, blank, and overlong values return domain errors before EF mappings are involved.
 - Centralized shared inbox/outbox persistence metadata lengths on the shared message models, bounded generated worker ids, and wired module configs to those constants.
@@ -150,7 +150,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Aligned cache invalidation identity formatting with read formatting so disabled-cache invalidations still validate tenant scope and physical key limits before returning.
 - Routed cache tenant formatting through shared tenant id normalization so custom tenant contexts cannot produce untrimmed or malformed physical keys/tags.
 - Made `Caching:KeyPrefix` a validated compact storage identifier so bad cache prefix configuration fails at startup instead of producing odd escaped physical keys.
-- Made Redis cache `InstanceName` optional by default so the central `{ApplicationIdentity:Namespace}:{environment}:...` cache key format remains the normal physical identifier, while still allowing an explicit Redis partition prefix.
+- Made Redis cache `InstanceName` optional by default so the central `{ApplicationIdentity:Namespace}:{environment}:...` cache key format remains the normal physical identifier, while still allowing an explicit Redis scope prefix.
 - Centralized cache storage identifier normalization so host environment names and cache prefixes are lower-cased, bounded, and rejected before they can create ambiguous physical keys.
 - Centralized shared observability instrument-name constants and updated docs/tests so application, outbox, and cache metric names do not drift across infrastructure and operations guidance.
 - Hardened outbox publisher observability so metric listener/exporter failures cannot stop successful publish marking or failed-publish retry bookkeeping.
@@ -249,7 +249,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Removed the public API host's inert `AddCors()` registration and added a guard so browser cross-origin support returns later only as an explicit configured policy/adapter.
 - Moved default HTTP health endpoint mapping fully into `ServiceDefaults.MapDefaultEndpoints()`, so hosts get `/health`, `/alive`, and optional `/metrics` from one shared runtime endpoint owner.
 - Added neutral `Gma.Framework.Api` security defaults so HTTP hosts can safely run authentication/authorization middleware without making the Auth module the hidden owner of baseline ASP.NET Core security services; actual schemes remain explicit Auth or external identity adapter choices.
-- Centralized default JWT/admin claim-name strings in `Gma.Framework.Security.ApplicationClaimNames`, with `GmaClaimNames` kept as a compatibility shim, replacing raw `tenant_id`, `sid`, and `sub` literals in production code and guarding the contract against drift.
+- Centralized default JWT/admin claim-name strings in `Gma.Framework.Security.ApplicationClaimNames`, with `GmaClaimNames` kept as a compatibility shim, replacing raw claim-name literals in production code and guarding the contract against drift.
 - Hardened admin API claim-name option validation so actor and configured tenant claim names reject whitespace, control characters, and overlong values while preserving URI-style external identity claim types.
 - Split Auth core infrastructure from the JWT bearer authentication adapter into separate projects, keeping CLI Auth composition free of HTTP bearer packages/scheme registration while public/admin HTTP Auth surfaces opt into `Gma.Modules.Auth.Infrastructure.JwtBearer` explicitly.
 - Decoupled core Auth infrastructure registration from host-builder APIs: `Gma.Modules.Auth.Infrastructure` now exposes an `IServiceCollection` plus configuration extension, while host-builder coupling stays in HTTP/CLI composition and the explicit JWT bearer adapter.
@@ -350,7 +350,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Admin audit data must remain operation metadata only: actor, tenant, permission, result, timestamps, and error code. Never include passwords, tokens, token hashes, refresh tokens, or raw secrets.
 - Admin audit IDs and timestamps should come from shared infrastructure primitives so audit behavior stays deterministic and replaceable.
 - NATS subjects and integration event names are public contracts. Changing them is a versioned compatibility decision, not a local refactor.
-- `IntegrationEvent` centralizes event id, occurrence time, event name, and version validation. Tenant-owned events use `TenantIntegrationEvent` from `Gma.Framework.Tenancy.Messaging`; keep payload-specific fields in the module event type, and introduce richer envelope compatibility only through a documented messaging ADR.
+- `IntegrationEvent` centralizes event id, occurrence time, event name, and version validation. Scope-owned events use `ScopedIntegrationEvent` or `IScopedIntegrationEvent`; keep payload-specific fields in the module event type, and introduce richer envelope compatibility only through a documented messaging ADR.
 - Cross-module decisions should continue to use local projections or duplicated read data. Do not add cross-module EF relationships or direct domain/application references.
 
 ## Small Local Notes

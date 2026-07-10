@@ -11,13 +11,13 @@ public sealed class GmaClaimNamesTests
     {
         Assert.Equal(256, GmaClaimNames.MaxLength);
         Assert.Equal("sub", GmaClaimNames.Subject);
-        Assert.Equal("tenant_id", GmaClaimNames.TenantId);
+        Assert.Equal("scope_id", GmaClaimNames.ScopeId);
         Assert.Equal("sid", GmaClaimNames.SessionId);
 
         Assert.Equal(3, new HashSet<string>(
             [
                 GmaClaimNames.Subject,
-                GmaClaimNames.TenantId,
+                GmaClaimNames.ScopeId,
                 GmaClaimNames.SessionId
             ],
             StringComparer.Ordinal).Count);
@@ -25,11 +25,12 @@ public sealed class GmaClaimNamesTests
 
     [Theory]
     [InlineData("sub", true)]
+    [InlineData("scope_id", true)]
     [InlineData("tenant_id", true)]
     [InlineData("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", true)]
     [InlineData("", false)]
     [InlineData(" ", false)]
-    [InlineData("tenant id", false)]
+    [InlineData("scope id", false)]
     [InlineData("tenant\tid", false)]
     public void Validates_claim_name_shape(string value, bool expected)
     {

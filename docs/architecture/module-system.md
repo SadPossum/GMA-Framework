@@ -30,7 +30,7 @@ The shared core is intentionally small:
 - `Gma.Framework.Domain` owns aggregate/domain-event primitives and depends only on `Gma.Framework.Naming` for shared identifier syntax such as tenant ids and `Gma.Framework.Numerics` for reusable numeric validation.
 - `Gma.Framework.Modules` owns module metadata primitives and references only `Gma.Framework.Naming`.
 - `Gma.Framework.ModuleComposition` owns module profile, provided-feature, required-feature, required-module, and fail-fast composition validation primitives. It references only `Gma.Framework.Modules`, `Gma.Framework.Naming`, and hosting abstractions needed by composition roots.
-- `Gma.Framework.Authorization` owns permission metadata descriptor extensions and references only `Gma.Framework.Modules` and `Gma.Framework.Naming`.
+- `Gma.Framework.Permissions` owns permission metadata descriptor extensions and references only `Gma.Framework.Modules` and `Gma.Framework.Naming`.
 - `Gma.Framework.Caching` owns cache contracts, provider/options seams, adapter markers, cache descriptor metadata, and cache composition feature ids. It references `Gma.Framework.ModuleComposition`, `Gma.Framework.Modules`, and `Gma.Framework.Naming`.
 - `Gma.Framework.Messaging` owns integration event, outbox/inbox, subscription, messaging descriptor contracts, and messaging composition feature ids. It references shared primitives plus DI abstractions, not transport adapters.
 - `Gma.Framework.Tasks` owns task contracts, task descriptor metadata, and task runtime composition feature ids. It does not reference CQRS or runtime adapters.
@@ -58,7 +58,7 @@ Shared project ownership quick reference:
 - `Gma.Framework.Tenancy.Api.Serilog`: optional tenant-to-HTTP-request-log bridge that contributes tenant id to Serilog diagnostic context without making the base Serilog adapter depend on tenancy.
 - `Gma.Framework.Tenancy.Caching`: optional tenant-to-cache bridge that resolves tenant-owned cache scope values without making cache infrastructure depend on tenancy.
 - `Gma.Framework.Tenancy.Cqrs`: optional tenant-to-CQRS logging bridge that contributes tenant context to CQRS log scopes without making CQRS infrastructure depend on tenancy.
-- `Gma.Framework.Tenancy.Tasks`: optional tenant-to-task execution bridge that prepares tenant context for tenant-scoped task handlers without making task infrastructure depend on tenancy.
+- `Gma.Framework.Tenancy.Tasks`: optional tenant-to-task execution bridge that prepares tenant context for scope-aware task handlers without making task infrastructure depend on tenancy.
 - `Gma.Framework.Caching.Infrastructure`: HybridCache-backed cache-aside runtime, cache invalidation queue, cache metrics, and cache option validation.
 - `Gma.Framework.Caching.Cqrs`: optional command pipeline bridge that flushes deferred cache invalidations after successful CQRS unit-of-work commits.
 - `Gma.Framework.Messaging.Infrastructure`: EF outbox/inbox base helpers, outbox publisher, outbox options, a null event bus, and messaging metrics.
@@ -71,7 +71,7 @@ Shared project ownership quick reference:
 - `Gma.Framework.Observability.Infrastructure`: shared CQRS metric implementations, module-name resolution, and bounded tag normalization. Capability metrics live beside their owning runtime adapters.
 - `Gma.Framework.Modules`: module descriptor, descriptor builder, descriptor feature base, generic metadata naming/guard helpers, and custom metadata feature support.
 - `Gma.Framework.ModuleComposition`: profile metadata, composition feature requirements/providers, module requirement validation, and host-level validation extensions.
-- `Gma.Framework.Authorization`: permission metadata and `WithPermission(...)` / `WithPermissions(...)` / `GetPermissions()` descriptor extensions.
+- `Gma.Framework.Permissions`: permission metadata and `WithPermission(...)` / `WithPermissions(...)` / `GetPermissions()` descriptor extensions.
 - `Gma.Framework.Cqrs`: command/query contracts, validators, dispatcher contracts, `Unit`, and transactional unit-of-work contracts.
 - `Gma.Framework.Cqrs.Infrastructure`: CQRS dispatcher and pipeline behavior implementations.
 - `Gma.Framework.Application.Events`: domain-event handler and dispatcher contracts.
@@ -169,11 +169,11 @@ Author descriptors through the builder:
 public static ModuleDescriptor Descriptor { get; } = ModuleDescriptor
     .Create(Name)
     .WithSchema(Schema)
-    .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", tenantScoped: true))
+    .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped))
     .WithPublishedEvent<CatalogItemCreatedIntegrationEvent>()
     .WithCacheEntries([
-        new ModuleCacheDescriptor(ItemsCacheEntry, CacheScope.Tenant, [ItemsCacheTag]),
-        new ModuleCacheDescriptor(ItemCacheEntry, CacheScope.Tenant, [ItemsCacheTag]),
+        new ModuleCacheDescriptor(ItemsCacheEntry, CacheScope.Scope, [ItemsCacheTag]),
+        new ModuleCacheDescriptor(ItemCacheEntry, CacheScope.Scope, [ItemsCacheTag]),
     ])
     .Build();
 ```
@@ -185,7 +185,7 @@ For metadata that belongs to one local type, prefer the attribute-backed helpers
 - put `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute` on integration event contract types and use `WithPublishedEvent<TEvent>()`;
 - put `IntegrationEventHandlerAttribute` on consumer handler types and register them with `AddIntegrationEventHandler<TEvent,THandler>(consumerModule, producerModule)`;
 - put split task attributes such as `TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, and optional `TaskWorkerGroupAttribute`/`SupportsTaskControlAttribute` on serialized task payload contract types and use `WithTask<TPayload>()` plus `AddTaskHandler<TPayload,THandler>(moduleName)`;
-- put `[TenantScoped]` from `Gma.Framework.Tenancy` on event or task payload contracts that need tenant context.
+- put `[ScopeAware]` from `Gma.Framework.Scoping` on event or task payload contracts that need scope context.
 
 These helpers read attributes from known generic types only. They do not scan assemblies, discover modules, register endpoints, start consumers, or compose workers. Keep permissions and cache metadata descriptor-authored until a single local owner type exists for that metadata.
 
@@ -193,13 +193,13 @@ The root descriptor owns only identity and polymorphic capability features. Capa
 
 - `Gma.Framework.Modules` owns the root descriptor, builder, and custom feature base.
 - `Gma.Framework.ModuleComposition` owns module profile metadata plus `WithProfile(...)`, `WithProfiles(...)`, `GetCompositionProfiles()`, `SelectModuleProfile(...)`, `ProvideFeature(...)`, `RequireFeature(...)`, `RequireModule(...)`, and `ValidateModuleComposition()`.
-- `Gma.Framework.Authorization` owns permission metadata plus `WithPermission(...)`, `WithPermissions(...)`, and `GetPermissions()`.
+- `Gma.Framework.Permissions` owns permission metadata plus `WithPermission(...)`, `WithPermissions(...)`, and `GetPermissions()`.
 - `Gma.Framework.Naming` owns low-level kebab-case segment, module-name, and tenant-id normalization shared by domain events, API/admin composition, CLI command ownership, modules, messaging, caching, and task metadata.
 - `Gma.Framework.Messaging` owns published-event and subscription metadata plus `IntegrationEventNameAttribute`, `IntegrationEventVersionAttribute`, `IntegrationEventHandlerAttribute`, `WithPublishedEvent(...)`, `WithPublishedEvent<TEvent>()`, `WithPublishedEvents(...)`, `WithSubscription(...)`, `WithSubscription<TEvent>(producerModule, handlerName)`, `WithSubscriptions(...)`, `GetPublishedEvents()`, and `GetSubscriptions()`.
 - `Gma.Framework.Caching` owns cache metadata plus `WithCacheEntry(...)`, `WithCacheEntries(...)`, and `GetCacheEntries()`.
 - `Gma.Framework.Caching.Cqrs` owns the optional command pipeline behavior that flushes deferred invalidations after successful CQRS unit-of-work commits.
 - `Gma.Framework.Tasks` owns task metadata plus `TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, `TaskWorkerGroupAttribute`, `SupportsTaskControlAttribute`, `WithTask(...)`, `WithTask<TPayload>()`, `WithTasks(...)`, and `GetTasks()`.
-- `Gma.Framework.Tenancy` owns `[TenantScoped]` and tenancy metadata readers. Base messaging/task packages do not reference tenancy.
+- `Gma.Framework.Scoping` owns `[ScopeAware]` and scope metadata readers. `Gma.Framework.Tenancy` owns `[TenantScoped]` as a tenant-facing compatibility contributor. Base messaging/task packages do not reference tenancy.
 
 This is an intentional extension seam. The root `ModuleDescriptor` is sealed so its identity surface stays stable; new optional shared capabilities should add a `ModuleDescriptorFeature` subtype and builder/read extensions in their own namespace rather than adding another root property or subclassing the root descriptor.
 Feature keys are stable and capability-prefixed, for example `authorization.permissions`, `messaging.published-events`, `caching.entries`, and `tasks.handlers`. Custom feature keys should follow the same `<capability>.<entry>` shape to avoid collisions across optional packages.
@@ -221,11 +221,11 @@ Example:
 
 ```csharp
 builder.AddModule<TenancyModule>();
-builder.AddAuthModule(AuthProfile.TenantScoped());
+builder.AddAuthModule(AuthProfile.ScopeAware());
 builder.ValidateModuleComposition();
 ```
 
-`AuthProfile.TenantScoped()` selects the `auth` tenant-scoped profile, provides Auth features, and requires the generic `tenancy.context` feature. `Gma.Framework.Tenancy.Infrastructure` provides the baseline context service so CLI/admin hosts can set tenant context explicitly, while `TenancyModule` selects its default profile and additionally provides `tenancy.header-resolution` for HTTP header-based tenant resolution.
+`AuthProfile.ScopeAware()` selects the `auth` scope-aware profile, provides Auth features, and requires the generic `scoping.context` feature. `Gma.Framework.Tenancy.Scoping` bridges tenant context into scope context, while `TenancyModule` selects its default profile and additionally provides `tenancy.header-resolution` for HTTP header-based tenant resolution.
 
 For tenant-free projects, compose the global profile explicitly:
 
@@ -234,7 +234,7 @@ builder.AddAuthModule(AuthProfile.Global("global"));
 builder.ValidateModuleComposition();
 ```
 
-The global profile omits `TenancyModule`; it does not omit the baseline shared tenant context service. Compose `Gma.Framework.Infrastructure` (or `Gma.Framework.Tenancy.Infrastructure`) so `ITenantContext` resolves to the configured `Tenancy:LocalDefaultTenantId`, which Auth sets to the global scope value.
+The global profile omits `TenancyModule`; it still needs baseline scoping infrastructure. Compose `Gma.Framework.Infrastructure` (or `Gma.Framework.Scoping.Infrastructure`) so `IScopeContext` resolves to the configured `Scoping:LocalDefaultScopeId`, which Auth sets to the global scope value.
 
 Rules:
 
@@ -246,9 +246,9 @@ Rules:
 
 Current reusable/example profiles:
 
-- `CatalogProfiles.Default` provides `catalog.items` and requires tenant context, cache-aside/invalidation services, and outbox infrastructure because its handlers directly depend on those contracts.
-- `OrderingProfiles.Default` provides orders plus Ordering-owned catalog item projections. It requires Catalog item facts and tenant context, while NATS consumers and task workers remain optional projection-maintenance enhancements.
-- `NotificationsProfiles.Default` provides durable notification history and broadcasts and requires tenant context. Shared live delivery remains separate through `Gma.Framework.Notifications.Infrastructure`, `Gma.Framework.Notifications.Api`, and `Gma.Framework.Notifications.SignalR`.
+- `CatalogProfiles.Default` provides `catalog.items` and requires scope context, cache-aside/invalidation services, and outbox infrastructure because its handlers directly depend on those contracts.
+- `OrderingProfiles.Default` provides orders plus Ordering-owned catalog item projections. It requires Catalog item facts and scope context, while NATS consumers and task workers remain optional projection-maintenance enhancements.
+- `NotificationsProfiles.Default` provides durable notification history and broadcasts and requires scope context. Shared live delivery remains separate through `Gma.Framework.Notifications.Infrastructure`, `Gma.Framework.Notifications.Api`, and `Gma.Framework.Notifications.SignalR`.
 - `TaskRuntimeProfiles.Default` describes the admin front door and requires the persisted run store, reporter, and control channel provided by `Gma.Modules.TaskRuntime.Persistence`. Worker-only hosts may compose `Gma.Modules.TaskRuntime.Persistence` with `Gma.Framework.Tasks.Infrastructure` directly and still validate the `tasks.run-store` requirement.
 
 Current adapter feature catalogs live in the capability packages that own the small public contract: `Gma.Framework.Caching.CachingCompositionFeatures`, `Gma.Framework.Messaging.MessagingCompositionFeatures`, `Gma.Framework.Notifications.NotificationsCompositionFeatures`, and `Gma.Framework.Tasks.TasksCompositionFeatures`.

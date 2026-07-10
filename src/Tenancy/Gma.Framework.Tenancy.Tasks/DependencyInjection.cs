@@ -25,7 +25,7 @@ public static class DependencyInjection
             "Gma.Framework.Tenancy.Tasks",
             optional: false,
             reason: "Tenant task execution context needs an ITenantContextAccessor provider."));
-        builder.ProvideFeature(TasksCompositionFeatures.TenantScopeProvided("Gma.Framework.Tenancy.Tasks"));
+        builder.ProvideFeature(TasksCompositionFeatures.ScopeContextProvided("Gma.Framework.Tenancy.Tasks"));
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Scoped<ITaskExecutionContextContributor, TenantTaskExecutionContextContributor>());
 

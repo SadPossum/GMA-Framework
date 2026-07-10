@@ -24,7 +24,7 @@ internal sealed class SignalRUserNotificationSink(
 
         string groupName = NotificationSignalRGroupNames.ForUser(
             applicationIdentity.Value.EffectiveNamespace,
-            message.TenantId,
+            message.ScopeId,
             message.UserId);
         await hubContext.Clients
             .Group(groupName)

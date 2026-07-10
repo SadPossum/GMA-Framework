@@ -12,35 +12,35 @@ public sealed class TenantModelTests
     {
         TestTenantAggregate aggregate = new(Guid.NewGuid(), " tenant-a ");
 
-        Assert.Equal("tenant-a", aggregate.TenantId);
+        Assert.Equal("tenant-a", aggregate.ScopeId);
     }
 
     [Fact]
     public void Tenant_entity_normalizes_tenant_id()
     {
-        TestTenantEntity entity = new(Guid.NewGuid(), " tenant-a ");
+        TestScopedEntity entity = new(Guid.NewGuid(), " tenant-a ");
 
-        Assert.Equal("tenant-a", entity.TenantId);
+        Assert.Equal("tenant-a", entity.ScopeId);
     }
 
     [Fact]
     public void Tenant_base_types_reject_invalid_tenant_ids()
     {
         Assert.Throws<ArgumentException>(() => new TestTenantAggregate(Guid.NewGuid(), " "));
-        Assert.Throws<ArgumentException>(() => new TestTenantEntity(Guid.NewGuid(), "tenant with spaces"));
+        Assert.Throws<ArgumentException>(() => new TestScopedEntity(Guid.NewGuid(), "tenant with spaces"));
     }
 
     [Fact]
     public void Disable_tenant_filter_attribute_requires_reason()
     {
-        Assert.Throws<ArgumentException>(() => new DisableTenantFilterAttribute(" "));
+        Assert.Throws<ArgumentException>(() => new DisableScopeFilterAttribute(" "));
 
-        DisableTenantFilterAttribute attribute = new("Projection rebuild reads are module-owned.");
+        DisableScopeFilterAttribute attribute = new("Projection rebuild reads are module-owned.");
 
         Assert.Equal("Projection rebuild reads are module-owned.", attribute.Reason);
     }
 
-    private sealed class TestTenantAggregate(Guid id, string tenantId) : TenantAggregateRoot<Guid>(id, tenantId);
+    private sealed class TestTenantAggregate(Guid id, string scopeId) : ScopedAggregateRoot<Guid>(id, scopeId);
 
-    private sealed class TestTenantEntity(Guid id, string tenantId) : TenantEntity<Guid>(id, tenantId);
+    private sealed class TestScopedEntity(Guid id, string scopeId) : ScopedEntity<Guid>(id, scopeId);
 }

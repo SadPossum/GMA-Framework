@@ -8,6 +8,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 
 - [Architecture Overview](architecture/overview.md)
 - [Module System](architecture/module-system.md)
+- [Scoping And Tenancy](architecture/scoping-and-tenancy.md)
 - [Module Composition Features And Profiles Task](architecture/module-composition-features-task.md)
 - [CQRS and Domain Events](architecture/cqrs-and-domain-events.md)
 - [Persistence and Tenancy](architecture/persistence-and-tenancy.md)
@@ -26,7 +27,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Shared Access Policy Foundation](architecture/shared-access-policy-foundation.md)
 - [Scoped Resource Access](architecture/scoped-resource-access.md)
 - [Projection Rebuild Tasks](architecture/projection-rebuild-tasks.md)
-- [Tenant Model Conventions Task](architecture/tenant-model-conventions-task.md)
+- [Scope Model Conventions Task](architecture/tenant-model-conventions-task.md)
 
 ## Implementation Notes
 
@@ -37,7 +38,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Projection Rebuild Implementation Notes](architecture/projection-rebuild-implementation-notes.md)
 - [Notifications and Streaming Implementation Notes](architecture/notifications-streaming-implementation-notes.md)
 - [Semantic Enum Refactor Notes](architecture/semantic-enum-refactor-notes.md)
-- [Tenant Model Conventions Implementation Notes](architecture/tenant-model-conventions-implementation-notes.md)
+- [Scope Model Conventions Implementation Notes](architecture/tenant-model-conventions-implementation-notes.md)
 - [Production Readiness Backlog](architecture/production-readiness-backlog.md)
 - [Architecture Hardening Notes](architecture/audit-hardening-notes.md)
 - [Architecture Audit Follow-Up Notes](architecture/audit-follow-up-notes.md)

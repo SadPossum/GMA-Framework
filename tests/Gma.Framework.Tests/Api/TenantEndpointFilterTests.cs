@@ -101,7 +101,7 @@ public sealed class TenantEndpointFilterTests
     {
         public bool IsEnabled => true;
         public string? TenantId { get; private set; }
-        public void SetTenant(string tenantId) => this.TenantId = tenantId;
+        public void SetTenant(string scopeId) => this.TenantId = scopeId;
         public void ClearTenant() => this.TenantId = null;
     }
 }

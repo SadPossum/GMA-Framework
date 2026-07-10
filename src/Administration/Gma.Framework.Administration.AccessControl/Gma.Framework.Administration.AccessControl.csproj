@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.AccessControl\Gma.Framework.AccessControl.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />
+  </ItemGroup>
+</Project>

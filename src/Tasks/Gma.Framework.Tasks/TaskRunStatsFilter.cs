@@ -6,7 +6,7 @@ public sealed record TaskRunStatsFilter
         string? moduleName = null,
         string? taskName = null,
         string? workerGroup = null,
-        string? tenantId = null)
+        string? scopeId = null)
     {
         this.ModuleName = string.IsNullOrWhiteSpace(moduleName)
             ? null
@@ -17,13 +17,13 @@ public sealed record TaskRunStatsFilter
         this.WorkerGroup = string.IsNullOrWhiteSpace(workerGroup)
             ? null
             : TaskNames.NormalizeWorkerGroup(workerGroup, nameof(workerGroup));
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
     }
 
     public string? ModuleName { get; }
     public string? TaskName { get; }
     public string? WorkerGroup { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
 }

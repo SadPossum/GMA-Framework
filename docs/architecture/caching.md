@@ -14,7 +14,7 @@ Modules may depend on the contracts in `Gma.Framework.Caching`:
 
 Hosts and cache adapters also use `CachingOptions`, `CacheProvider`, and the distributed adapter registration marker from `Gma.Framework.Caching`. Those types are kept with cache contracts so provider adapters do not depend on the full HybridCache runtime package.
 
-Modules must not reference HybridCache, StackExchange.Redis, or `Gma.Framework.Caching.Redis`. The host selects the implementation. Tenant-owned cache entries also need the `Gma.Framework.Tenancy.Caching` bridge in the host; modules express that need through `CachingCompositionFeatures.TenantScopeRequired(...)`, not by referencing the bridge.
+Modules must not reference HybridCache, StackExchange.Redis, or `Gma.Framework.Caching.Redis`. The host selects the implementation. Scope-owned cache entries need a scope resolver in the host; tenant hosts satisfy that through the `Gma.Framework.Tenancy.Caching` bridge. Modules express that need through `CachingCompositionFeatures.ScopeContextRequired(...)`, not by referencing the bridge.
 
 Do not cache authorization decisions, refresh tokens, tenant resolution, or other security-sensitive state. Prefer immutable read models and data that can safely be reconstructed from its source.
 
@@ -23,12 +23,12 @@ Do not cache authorization decisions, refresh tokens, tenant resolution, or othe
 Query handlers opt in at the read site:
 
 ```csharp
-CacheKey key = CacheKey.Tenant("catalog", "product", query.ProductId.ToString());
+CacheKey key = CacheKey.Scoped("catalog", "product", query.ProductId.ToString());
 
 return await cache.GetOrCreateAsync(
     key,
     token => repository.GetReadModelAsync(query.ProductId, token),
-    tags: [CacheTag.Tenant("catalog", "products")],
+    tags: [CacheTag.Scoped("catalog", "products")],
     cancellationToken: cancellationToken);
 ```
 
@@ -42,9 +42,9 @@ Modules create logical keys. Infrastructure generates physical keys centrally:
 {application-namespace}:{environment}:{module}:{scope}:{tenant-or-global}:{entry}:{encoded-segments}
 ```
 
-Use `CacheKey.Tenant` and `CacheTag.Tenant` for tenant-owned data. Base cache infrastructure is tenant-neutral and fails fast for tenant-scoped keys unless the host composes `AddTenantCaching()` from `Gma.Framework.Tenancy.Caching`. With that bridge enabled, a tenant-scoped key requires an active tenant when tenancy is enabled, and the active tenant id is normalized through the shared `TenantIds` rules before infrastructure formats the physical key or tag. Use global keys only for data that is identical for every tenant.
+Use `CacheKey.Scoped` and `CacheTag.Scoped` for scope-owned data. Base cache infrastructure is tenant-neutral and fails fast for scoped keys unless the host composes a scope resolver such as `AddTenantCaching()` from `Gma.Framework.Tenancy.Caching`. With that bridge enabled, a scoped key requires an active tenant when tenancy is enabled, and the active tenant id is normalized before infrastructure formats the physical key or tag. Use global keys only for data that is identical for every scope.
 
-By default, the storage prefix comes from `ApplicationIdentity:Namespace`; the skeleton default is `gma`. Override `Caching:KeyPrefix` only when cache storage must intentionally use a different physical partition than messaging and observability. Storage prefix and host environment names are normalized to lowercase and validated before physical keys are generated. `Caching:KeyPrefix` must be 1-32 ASCII letters, digits, `-`, or `_`; the host environment segment uses the same character set with a 64-character limit. A key or tag can include up to 16 nonblank, case-preserving segments, with each segment capped at 256 characters before encoding. Segments cannot contain whitespace or control characters. Segments are URI-encoded by infrastructure, and the default physical key limit is 1024 characters. Keys and tenant IDs may appear in structured logs, but never in metric tags.
+By default, the storage prefix comes from `ApplicationIdentity:Namespace`; the skeleton default is `gma`. Override `Caching:KeyPrefix` only when cache storage must intentionally use a different physical scope than messaging and observability. Storage prefix and host environment names are normalized to lowercase and validated before physical keys are generated. `Caching:KeyPrefix` must be 1-32 ASCII letters, digits, `-`, or `_`; the host environment segment uses the same character set with a 64-character limit. A key or tag can include up to 16 nonblank, case-preserving segments, with each segment capped at 256 characters before encoding. Segments cannot contain whitespace or control characters. Segments are URI-encoded by infrastructure, and the default physical key limit is 1024 characters. Keys and tenant IDs may appear in structured logs, but never in metric tags.
 
 ## Policies
 
@@ -62,8 +62,8 @@ Default policy:
 Command and domain-event handlers enqueue invalidations through `ICacheInvalidationQueue`:
 
 ```csharp
-invalidationQueue.Remove(CacheKey.Tenant("catalog", "product", productId.ToString()));
-invalidationQueue.RemoveByTag(CacheTag.Tenant("catalog", "products"));
+invalidationQueue.Remove(CacheKey.Scoped("catalog", "product", productId.ToString()));
+invalidationQueue.RemoveByTag(CacheTag.Scoped("catalog", "products"));
 ```
 
 The cache invalidation command behavior wraps the unit-of-work behavior. It flushes only after all unit-of-work commits succeed. Failed commands and failed commits leave the cache untouched.
@@ -111,4 +111,4 @@ builder.AddTenantCaching(); // only for tenant-owned cache keys
 ```
 
 Use `builder.AddCachingInfrastructure()` instead of `AddCachingCqrs()` only when the host intentionally wants cache-aside runtime without CQRS command invalidation. The Redis adapter is a no-op unless caching is enabled and the provider is `Redis`.
-When Redis mode is enabled, `Caching:Redis:ConnectionName`, optional `Caching:Redis:InstanceName`, and the matching `ConnectionStrings:<name>` value are validated at startup. `InstanceName` adds a Redis-provider prefix before the central physical key, so leave it empty unless the Redis database itself needs an extra partition.
+When Redis mode is enabled, `Caching:Redis:ConnectionName`, optional `Caching:Redis:InstanceName`, and the matching `ConnectionStrings:<name>` value are validated at startup. `InstanceName` adds a Redis-provider prefix before the central physical key, so leave it empty unless the Redis database itself needs an extra scope.

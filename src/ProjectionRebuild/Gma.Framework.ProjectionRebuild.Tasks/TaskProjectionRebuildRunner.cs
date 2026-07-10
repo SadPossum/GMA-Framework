@@ -14,14 +14,14 @@ public sealed class TaskProjectionRebuildRunner<TSnapshot>(
         IProjectionRebuildSource<TSnapshot> source,
         IProjectionRebuildWriter<TSnapshot> writer,
         TaskExecutionContext context,
-        bool tenantScoped,
+        bool scopeAware,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         ProjectionRebuildExecutionContext rebuildContext = new(
             context.RunId,
-            tenantScoped ? context.TenantId : null);
+            scopeAware ? context.ScopeId : null);
         TaskProjectionRebuildRunObserver observer = new(context, reporter, controlLoop);
 
         return runner.RunAsync(
@@ -30,7 +30,7 @@ public sealed class TaskProjectionRebuildRunner<TSnapshot>(
             source,
             writer,
             rebuildContext,
-            tenantScoped,
+            scopeAware,
             observer,
             cancellationToken);
     }

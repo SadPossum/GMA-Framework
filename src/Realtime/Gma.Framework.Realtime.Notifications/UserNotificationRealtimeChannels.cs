@@ -9,16 +9,16 @@ internal static class UserNotificationRealtimeChannels
     {
         ArgumentNullException.ThrowIfNull(target);
 
-        return ForUser(target.TenantId, target.UserId);
+        return ForUser(target.ScopeId, target.UserId);
     }
 
     public static RealtimeChannel ForMessage(UserNotificationMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        return ForUser(message.TenantId, message.UserId);
+        return ForUser(message.ScopeId, message.UserId);
     }
 
-    private static RealtimeChannel ForUser(string tenantId, string userId) =>
-        RealtimeChannel.Create("notifications-user", tenantId, userId);
+    private static RealtimeChannel ForUser(string scopeId, string userId) =>
+        RealtimeChannel.Create("notifications-user", scopeId, userId);
 }

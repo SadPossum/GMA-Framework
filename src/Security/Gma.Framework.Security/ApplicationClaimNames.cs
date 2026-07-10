@@ -5,7 +5,8 @@ public static class ApplicationClaimNames
     public const int MaxLength = 256;
 
     public const string Subject = "sub";
-    public const string TenantId = "tenant_id";
+    public const string ScopeId = "scope_id";
+    public const string TenantId = ScopeId;
     public const string SessionId = "sid";
 
     public static bool IsValidClaimName(string? claimName) =>

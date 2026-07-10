@@ -25,7 +25,7 @@ public static class DependencyInjection
             "Gma.Framework.Tenancy.Caching",
             optional: false,
             reason: "Tenant cache scope resolution needs an ITenantContext provider."));
-        builder.ProvideFeature(CachingCompositionFeatures.TenantScopeProvided("Gma.Framework.Tenancy.Caching"));
+        builder.ProvideFeature(CachingCompositionFeatures.ScopeContextProvided("Gma.Framework.Tenancy.Caching"));
         builder.Services.Replace(ServiceDescriptor.Scoped<ICacheScopeValueResolver, TenantCacheScopeValueResolver>());
 
         return builder;

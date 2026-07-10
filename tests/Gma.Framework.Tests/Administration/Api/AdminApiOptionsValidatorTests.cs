@@ -65,16 +65,16 @@ public sealed class AdminApiOptionsValidatorTests
     }
 
     [Theory]
-    [InlineData("tenant id")]
+    [InlineData("scope id")]
     [InlineData("tenant\tid")]
-    public void Validate_rejects_invalid_tenant_id_claim(string tenantIdClaim)
+    public void Validate_rejects_invalid_tenant_id_claim(string TenantIdClaim)
     {
         ValidateOptionsResult result = this.validator.Validate(
             name: null,
             new AdminApiOptions
             {
                 RequireTenantClaimMatch = false,
-                TenantIdClaim = tenantIdClaim
+                TenantIdClaim = TenantIdClaim
             });
 
         AssertFailure(result, "TenantIdClaim");

@@ -10,7 +10,7 @@ public sealed record ModuleCacheDescriptor
         this.Scope = scope is CacheScope.Unknown || !Enum.IsDefined(scope)
             ? throw new ArgumentException("Cache scope must be a known non-unknown value.", nameof(scope))
             : scope;
-        this.TenantScoped = this.Scope == CacheScope.Tenant;
+        this.ScopeAware = this.Scope == CacheScope.Scope;
         this.Tags = Array.AsReadOnly((tags ?? throw new ArgumentNullException(nameof(tags)))
             .Select(tag => CacheIdentity.ValidateName(tag, nameof(tags)))
             .ToArray());
@@ -25,6 +25,6 @@ public sealed record ModuleCacheDescriptor
 
     public string Name { get; }
     public CacheScope Scope { get; }
-    public bool TenantScoped { get; }
+    public bool ScopeAware { get; }
     public IReadOnlyList<string> Tags { get; }
 }

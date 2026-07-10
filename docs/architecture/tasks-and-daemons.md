@@ -19,7 +19,7 @@ Modules declare owned work by putting task identity on the serialized payload co
 [TaskKind(ModuleTaskKind.OneShot)]
 [TaskWorkerGroup("search-workers")]
 [SupportsTaskControl]
-[TenantScoped]
+[ScopeAware]
 public sealed record RebuildSearchPayload(bool Force) : ITaskPayload
 {
     public const string TaskName = "rebuild-search";
@@ -32,12 +32,12 @@ public static ModuleDescriptor Descriptor { get; } = ModuleDescriptor
     .Build();
 ```
 
-`TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, `TaskWorkerGroupAttribute`, `SupportsTaskControlAttribute`, `ModuleTaskDescriptor`, `WithTask<TPayload>()`, `WithTask(...)`, and `WithTasks(...)` live in `Gma.Framework.Tasks`. Tenant scope is a `Gma.Framework.Tenancy` metadata attribute, not a task-package field. The descriptor is discoverability and policy metadata. It is not runtime module discovery and does not register a worker.
-Task handler identity is `(module, task, payload version)` so modules can keep old payload handlers alive while introducing a new payload shape. Worker group, tenant scope, kind, and control-message support are routing and policy metadata that must still match the module descriptor.
+`TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, `TaskWorkerGroupAttribute`, `SupportsTaskControlAttribute`, `ModuleTaskDescriptor`, `WithTask<TPayload>()`, `WithTask(...)`, and `WithTasks(...)` live in `Gma.Framework.Tasks`. Scope behavior comes from `[ScopeAware]` in `Gma.Framework.Scoping`, not from the task package. The descriptor is discoverability and policy metadata. It is not runtime module discovery and does not register a worker.
+Task handler identity is `(module, task, payload version)` so modules can keep old payload handlers alive while introducing a new payload shape. Worker group, scope behavior, kind, and control-message support are routing and policy metadata that must still match the module descriptor.
 
 ## Payload Contracts
 
-Serialized task payloads implement `ITaskPayload`. If the task is visible in module metadata or can be enqueued outside the current application assembly, keep the payload type in `<Module>.Contracts`, expose task identity constants on the payload contract, and annotate it with the small task-owned attributes plus `[TenantScoped]` when the tenancy package applies.
+Serialized task payloads implement `ITaskPayload`. If the task is visible in module metadata or can be enqueued outside the current application assembly, keep the payload type in `<Module>.Contracts`, expose task identity constants on the payload contract, and annotate it with the small task-owned attributes plus `[ScopeAware]` when an active scope is required.
 
 Task handler code implements `ITaskHandler<TPayload>`:
 
@@ -54,7 +54,7 @@ internal sealed class RebuildSearchTask : ITaskHandler<RebuildSearchPayload>
 }
 ```
 
-`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, tenant id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch.
+`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, optional scope id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch.
 
 Register payload handlers explicitly from the owning module application project:
 
@@ -89,7 +89,7 @@ The shared task store contract is intentionally not tied to EF, Quartz.NET, Hang
 
 `ITaskRunStore` combines enqueueing, lease-based claiming, status reporting, and control messages:
 
-- `TaskRunRequest` represents an enqueue request with module/task identity, worker group, payload JSON, tenant id, correlation id, schedule time, requester, and max attempts.
+- `TaskRunRequest` represents an enqueue request with module/task identity, worker group, payload JSON, optional scope id, correlation id, schedule time, requester, and max attempts.
 - `TaskRunRequest.PayloadVersion` selects the matching handler registration.
 - `TaskRunRequest.DeduplicationKey` lets producers make active queued/running/retry work idempotent without exposing physical provider keys.
 - `TaskWorkerClaim` represents a worker's claim request, including worker group, worker id, node id, batch size, and lease duration.
@@ -227,6 +227,6 @@ The default remains small: persistent tasks, hosted workers, code-defined schedu
 - Store implementations use `ITaskRunStore` and `TaskRunStatusTransitions` instead of ad hoc status changes.
 - Task worker hosts call `AddTaskWorkerRuntime()` explicitly and must also compose a concrete `ITaskRunStore`.
 - `Host.Worker` calls `AddTaskWorkerRuntime()` only when `Tasks:Worker:Enabled=true`; disabled task settings must not register worker hosted services.
-- `Gma.Framework.Tasks.Infrastructure` is tenant-neutral. Worker hosts that execute payloads marked with `TenantScopedAttribute` must also compose `AddTenantTaskExecutionContext()` from `Gma.Framework.Tenancy.Tasks`.
+- `Gma.Framework.Tasks.Infrastructure` is tenant-neutral. Worker hosts that execute payloads marked with `[ScopeAware]` in a tenant-aware app must also compose `AddTenantTaskExecutionContext()` from `Gma.Framework.Tenancy.Tasks`.
 - Task scheduler hosts call `AddTaskRunScheduling()` explicitly and must also compose a concrete `ITaskRunStore`.
 - Running a task on another node must still use module contracts, integration events, or control messages, not direct cross-module internals.

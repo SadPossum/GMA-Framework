@@ -7,12 +7,12 @@ This is an implementation task brief for a future architecture slice. It should 
 Initial slice implemented:
 
 - `Gma.Framework.ModuleComposition` owns validated profile/feature/module requirement primitives and host validation extensions.
-- Auth exposes `AuthProfile.Global(...)` and `AuthProfile.TenantScoped()` through public contracts and profile-aware API/Admin API/Admin CLI front doors.
+- Auth exposes `AuthProfile.Global(...)` and `AuthProfile.ScopeAware()` through public contracts and profile-aware API/Admin API/Admin CLI front doors.
 - Tenancy exposes a default profile that provides `tenancy.context` and `tenancy.header-resolution`; shared tenancy infrastructure provides the baseline `tenancy.context` service for non-HTTP/admin composition.
 - Runtime hosts validate composition explicitly with `ValidateModuleComposition()`.
 - Follow-up slice implemented package-owned feature catalogs for caching, messaging, notifications, and tasks; shared adapters now advertise concrete capabilities through composition metadata.
 - Catalog, Ordering, Notifications, and TaskRuntime expose default profiles in their `.Contracts/Metadata` folders, and their public/admin front doors select those profiles explicitly.
-- Auth global-profile tests now prove composition with `Gma.Framework.Infrastructure` and without `TenancyModule`; the profile uses the shared null/default tenant context and stores the configured global scope in the existing tenant/scope column.
+- Auth global-profile tests now prove composition with `Gma.Framework.Infrastructure` and without `TenancyModule`; the profile uses the shared null/default scope context and stores the configured global scope in the existing tenant/scope column.
 - Remaining follow-up work is mostly optional worker-host examples, broader API/Admin API/Admin CLI global-profile smoke coverage when those hosts are made tenant-free, and any future decoupling of tenant-shaped metadata from outbox/inbox/task records.
 
 ## Summary
@@ -25,7 +25,7 @@ Example:
 
 ```csharp
 builder.AddAuthModule(AuthProfile.Global("global"));
-builder.AddAuthModule(AuthProfile.TenantScoped());
+builder.AddAuthModule(AuthProfile.ScopeAware());
 ```
 
 The Auth example is illustrative only. The shared feature should not be Auth-specific, tenancy-specific, or messaging-specific. Auth, Catalog, Ordering, Notifications, TaskRuntime, and future modules should all be able to use the same composition vocabulary.
@@ -66,7 +66,7 @@ Auth only
 but there is no shared composition contract that says:
 
 ```text
-Auth profile tenant-scoped requires tenancy.context.
+Auth profile scope-aware requires scoping.context.
 Auth profile global provides auth.members and uses the configured global scope id.
 Catalog durable events require messaging.outbox.
 Ordering projections require Catalog contracts plus messaging consumers when live projection updates are enabled.
@@ -121,9 +121,9 @@ Auth global profile
   provides auth.members
   uses auth.scope.global
 
-Auth tenant-scoped profile
+Auth scope-aware profile
   requires persistence
-  requires tenancy.context
+  requires scoping.context
   provides auth.members
 ```
 
@@ -217,7 +217,7 @@ Add builder/read helpers:
 ```csharp
 ModuleDescriptor.Create(AuthModuleMetadata.Name)
     .WithProfile(AuthProfiles.Global)
-    .WithProfile(AuthProfiles.TenantScoped)
+    .WithProfile(AuthProfiles.ScopeAware)
     .Build();
 
 descriptor.GetProfiles();
@@ -248,7 +248,7 @@ builder.ValidateModuleComposition();
 Or module-oriented:
 
 ```csharp
-builder.AddAuthModule(AuthProfile.TenantScoped());
+builder.AddAuthModule(AuthProfile.ScopeAware());
 builder.AddTenancyModule();
 
 builder.Services.AddModuleCompositionValidation();
@@ -268,9 +268,9 @@ The concrete API can differ, but it must support:
 Validation should fail with clear messages such as:
 
 ```text
-Module 'auth' profile 'tenant-scoped' requires feature 'tenancy.context',
+Module 'auth' profile 'scope-aware' requires feature 'scoping.context',
 but no composed module or adapter provides it.
-Register TenancyModule, or use AuthProfile.Global("global").
+Register scoping infrastructure plus a tenant bridge, or use AuthProfile.Global("global").
 ```
 
 Rules:
@@ -294,7 +294,7 @@ Auth example:
 public sealed record AuthProfile
 {
     public static AuthProfile Global(string scopeId) => ...;
-    public static AuthProfile TenantScoped() => ...;
+    public static AuthProfile ScopeAware() => ...;
 }
 ```
 
@@ -302,15 +302,15 @@ Possible behavior:
 
 ```text
 AuthProfile.Global("global")
-  -> no tenancy.context requirement
+  -> no scoping.context requirement
   -> stores "global" in existing TenantId/scope column
   -> tokens/admin reads use the same global scope
-  -> still composes baseline Gma.Framework.Infrastructure so ITenantContext resolves to the configured default scope
+  -> still composes baseline Gma.Framework.Infrastructure so IScopeContext resolves to the configured default scope
 
-AuthProfile.TenantScoped()
-  -> requires tenancy.context
-  -> stores resolved tenant id
-  -> fails when tenant id is missing
+AuthProfile.ScopeAware()
+  -> requires scoping.context
+  -> stores resolved scope id
+  -> fails when scope id is missing
 ```
 
 The module should decide whether a capability is:
@@ -379,9 +379,9 @@ These packages should depend only on the smallest contracts needed from each sid
 
 Shared messaging/outbox code is tenant-neutral in source: base integration events, envelopes, outbox records, and inbox records expose generic message scope metadata. Tenant-owned event contracts live in `Gma.Framework.Tenancy.Messaging`; runtime scope/context behavior lives in `Gma.Framework.Tenancy.Messaging.Infrastructure`.
 
-Shared caching runtime is tenant-neutral in source: `Gma.Framework.Caching.Infrastructure` formats logical cache scopes through a generic `ICacheScopeValueResolver`. Tenant-owned cache keys require the `caching.tenant-scope` feature provided by `Gma.Framework.Tenancy.Caching`.
+Shared caching runtime is tenant-neutral in source: `Gma.Framework.Caching.Infrastructure` formats logical cache scopes through a generic `ICacheScopeValueResolver`. Tenant-owned cache keys require the `caching.scope-context` feature provided by `Gma.Framework.Tenancy.Caching`.
 
-Shared task worker runtime is tenant-neutral in source: `Gma.Framework.Tasks.Infrastructure` prepares execution context through generic `ITaskExecutionContextContributor` instances. Tenant-scoped task payloads require the `tasks.tenant-scope` feature provided by `Gma.Framework.Tenancy.Tasks`.
+Shared task worker runtime is tenant-neutral in source: `Gma.Framework.Tasks.Infrastructure` prepares execution context through generic `ITaskExecutionContextContributor` instances. Tenant-scoped task payloads require the `tasks.scope-context` feature provided by `Gma.Framework.Tenancy.Tasks`.
 
 The implemented shape is:
 
@@ -395,8 +395,8 @@ Base event/envelope:
   optional generic scope id
 
 Tenancy adapter:
-  TenantIntegrationEvent base type
-  tenant id validation
+  ScopedIntegrationEvent base type
+  scope id validation
   generic scope resolver
   tenant context setup
 
@@ -411,7 +411,7 @@ Compatibility storage:
   ScopeId currently maps to the existing TenantId column
 ```
 
-Do not remove tenant ids from real modules casually. For many reusable modules, especially Auth, keeping one stable schema with an explicit global/default scope value is better than generating tenant-free and tenant-scoped migrations.
+Do not remove scope ids from real modules casually. For many reusable modules, especially Auth, keeping one stable schema with an explicit global/default scope value is better than generating scope-free and scope-aware migrations.
 
 The first slice intentionally avoided a broad migration or physical column rename.
 
@@ -423,13 +423,13 @@ Implement only if feasible within the first slice:
 
 - add an `AuthProfile` object;
 - support a global/default scope id profile;
-- support a tenant-scoped profile requiring `tenancy.context`;
+- support a scope-aware profile requiring `scoping.context`;
 - keep existing schema shape;
 - use a non-empty configured scope value such as `global`;
 - update public/admin Auth composition calls;
 - add startup validation for invalid profile combinations;
 - add tests proving global profile does not require Tenancy module;
-- add tests proving tenant-scoped profile fails without Tenancy module.
+- add tests proving the scope-aware profile fails without a scope context provider.
 
 If the Auth change is too large, create a smaller fake/sample module profile in tests first and leave Auth as the second slice.
 
@@ -496,7 +496,7 @@ Add focused tests:
 - metadata does not auto-register services;
 - architecture tests keep base packages free from unrelated optional package references;
 - Auth global profile can compose without Tenancy module, if Auth is included in the first proof;
-- Auth tenant-scoped profile fails without Tenancy module, if Auth is included in the first proof.
+- Auth scope-aware profile fails without a scope context provider, if Auth is included in the first proof.
 
 ## Documentation Requirements
 
@@ -539,7 +539,7 @@ Docs must explain:
 4. Add composition validation and deterministic diagnostics.
 5. Add descriptor metadata integration.
 6. Add tests with a small fake/test module profile.
-7. Add Auth global versus tenant-scoped profile as the first real proof, if feasible.
+7. Add Auth global versus scope-aware profile as the first real proof, if feasible.
 8. Document cross-boundary adapter package rules.
 9. Plan remaining tenancy/caching/tasks decoupling as follow-up bridge packages.
 
@@ -549,5 +549,5 @@ Docs must explain:
 - Should validation run through an explicit `builder.ValidateModuleComposition()` call, an `IHostedService`, options validation, or all of these for different host types?
 - Should provided features be multi-provider by default, exclusive by default, or require a per-feature policy?
 - Should module profile descriptors live only in contracts metadata, or should runtime selected profiles be separate objects?
-- Should Auth introduce `ScopeId` language in infrastructure code while keeping tenant id in domain payloads?
+- Auth now uses `ScopeId` language in reusable code while tenant-facing adapters keep tenant terminology at boundaries.
 - Which cross-boundary package should be split next after tenant messaging: tenancy plus caching, tenancy plus tasks, or tenant-aware CQRS logging?

@@ -6,13 +6,13 @@ using Gma.Framework.Naming;
 public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpointState>(
     TDbContext dbContext,
     string moduleName,
-    bool tenantScoped,
+    bool scopeAware,
     Func<TCheckpointState> createState)
     : IProjectionRebuildCheckpointStore
     where TDbContext : DbContext
     where TCheckpointState : ProjectionRebuildCheckpointState
 {
-    private readonly bool tenantScoped = tenantScoped;
+    private readonly bool scopeAware = scopeAware;
     private readonly Func<TCheckpointState> createState =
         createState ?? throw new ArgumentNullException(nameof(createState));
 
@@ -22,7 +22,7 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
         ProjectionRebuildCheckpointKey key,
         CancellationToken cancellationToken)
     {
-        string tenantScope = this.ValidateAndGetTenantScope(key);
+        string scopeValue = this.ValidateAndGetScope(key);
 
         TCheckpointState? checkpoint = await dbContext
             .Set<TCheckpointState>()
@@ -30,7 +30,7 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
             .SingleOrDefaultAsync(
                 item =>
                     item.RunId == key.RunId &&
-                    item.TenantId == tenantScope &&
+                    item.ScopeId == scopeValue &&
                     item.ProjectionName == key.ProjectionName,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -44,14 +44,14 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        string tenantScope = this.ValidateAndGetTenantScope(key);
+        string scopeValue = this.ValidateAndGetScope(key);
 
         TCheckpointState? state = await dbContext
             .Set<TCheckpointState>()
             .SingleOrDefaultAsync(
                 item =>
                     item.RunId == key.RunId &&
-                    item.TenantId == tenantScope &&
+                    item.ScopeId == scopeValue &&
                     item.ProjectionName == key.ProjectionName,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -59,7 +59,7 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
         if (state is null)
         {
             state = this.createState();
-            state.Initialize(key, checkpoint, this.tenantScoped);
+            state.Initialize(key, checkpoint, this.scopeAware);
             dbContext.Set<TCheckpointState>().Add(state);
         }
         else
@@ -70,7 +70,7 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private string ValidateAndGetTenantScope(ProjectionRebuildCheckpointKey key)
+    private string ValidateAndGetScope(ProjectionRebuildCheckpointKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
 
@@ -80,6 +80,6 @@ public abstract class EfProjectionRebuildCheckpointStore<TDbContext, TCheckpoint
                 $"Projection checkpoint store for module '{this.ModuleName}' cannot handle module '{key.ModuleName}'.");
         }
 
-        return ProjectionRebuildCheckpointState.NormalizeTenantScope(key.TenantId, this.tenantScoped);
+        return ProjectionRebuildCheckpointState.NormalizeScope(key.ScopeId, this.scopeAware);
     }
 }

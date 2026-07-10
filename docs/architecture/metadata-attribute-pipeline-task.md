@@ -41,7 +41,7 @@ Descriptor helpers compose metadata from the packages that are referenced. Base 
 - Make attributes small facts, not mini configuration objects.
 - Put each attribute in the package that owns and validates that fact.
 - If a helper requires an attribute from its package, fail fast with a clear exception when it is missing.
-- Do not put `TenantScoped` or other tenancy concepts in messaging/task descriptors unless the tenancy package provides that metadata feature.
+- Do not put tenancy concepts in messaging/task descriptors unless a tenancy package provides that metadata feature. Generic reusable payloads should use `[ScopeAware]`.
 - Do not put physical application namespace or subject prefix on event contract attributes. Subject prefixes come from application identity/configuration.
 - Do not put module identity on event/handler/task attributes when the descriptor or registration context already knows the module.
 - Keep permissions and cache metadata descriptor-authored unless a single local owner type emerges.
@@ -73,7 +73,7 @@ Tasks:
 [TaskKind(ModuleTaskKind.OneShot)]
 [TaskWorkerGroup("projection-workers")]
 [SupportsTaskControl]
-[TenantScoped]
+[ScopeAware]
 public sealed record RebuildCatalogItemProjectionPayload(...) : ITaskPayload
 {
     public const string TaskName = "rebuild-catalog-item-projections";
@@ -81,11 +81,11 @@ public sealed record RebuildCatalogItemProjectionPayload(...) : ITaskPayload
 }
 ```
 
-Tenancy:
+Scoping:
 
 ```csharp
-[TenantScoped]
-public sealed record SomeTenantOwnedPayload(...) : ITaskPayload;
+[ScopeAware]
+public sealed record SomeScopeOwnedPayload(...) : ITaskPayload;
 ```
 
 The exact names can change during implementation, but the ownership boundary should not.
@@ -117,7 +117,7 @@ Internally:
 1. Audit the current uncommitted metadata-attribute draft.
 2. Replace broad attributes with smaller package-owned attributes.
 3. Remove tenancy fields from `Gma.Framework.Messaging` and `Gma.Framework.Tasks` descriptors unless they move into tenancy-owned metadata features.
-4. Introduce tenancy-owned metadata readers/features if the current descriptors still need tenant scope for architecture docs, runtime policy, or validation.
+4. Introduce tenancy-owned metadata readers/features only if descriptors need tenant-specific policy beyond generic scope metadata.
 5. Update Auth, Catalog, Ordering, and TaskSamples to use the split attributes.
 6. Keep module descriptors explicit and builder-authored.
 7. Keep old explicit descriptor/registration overloads where they are still useful for edge cases and tests.

@@ -193,7 +193,7 @@ else {
     @()
 }
 $metadataPermissionDescriptor = if ($AdminCli -or $AdminApi) {
-    "new ModulePermissionDescriptor(${Name}AdminPermissionCodes.Manage, `"Manage $Name administration operations.`", tenantScoped: true)"
+    "new ModulePermissionDescriptor(${Name}AdminPermissionCodes.Manage, `"Manage $Name administration operations.`", scopeRequirement: PermissionScopeRequirement.Scoped)"
 }
 else {
     $null
@@ -207,13 +207,13 @@ if ($metadataPermissionDescriptor) {
     $metadataDescriptorLines += "        .WithPermission($metadataPermissionDescriptor)"
 }
 if ($Cache) {
-    $metadataDescriptorLines += '        .WithCacheEntry(new ModuleCacheDescriptor(ModuleCacheEntry, CacheScope.Tenant, [ModuleCacheTag]))'
+    $metadataDescriptorLines += '        .WithCacheEntry(new ModuleCacheDescriptor(ModuleCacheEntry, CacheScope.Scope, [ModuleCacheTag]))'
 }
 $metadataDescriptorLines += '        .Build()'
 $metadataDescriptor = $metadataDescriptorLines -join "`r`n"
 $metadataUsings = @("using Gma.Framework.Modules;")
 if ($AdminCli -or $AdminApi) {
-    $metadataUsings = @("using Gma.Framework.Authorization;") + $metadataUsings
+    $metadataUsings = @("using Gma.Framework.Permissions;") + $metadataUsings
 }
 if ($Cache) {
     $metadataUsings = @("using Gma.Framework.Caching;") + $metadataUsings
@@ -222,7 +222,7 @@ $contractsProjectReferences = @(
     '    <ProjectReference Include="$(GmaFrameworkRoot)Modules\Gma.Framework.Modules\Gma.Framework.Modules.csproj" />'
 )
 if ($AdminCli -or $AdminApi) {
-    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Authorization\Gma.Framework.Authorization.csproj" />'
+    $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />'
 }
 if ($Cache) {
     $contractsProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Caching\Gma.Framework.Caching\Gma.Framework.Caching.csproj" />'
@@ -324,12 +324,12 @@ using Gma.Framework.Caching;
 
 internal static class ${Name}Cache
 {
-    public static CacheKey ModuleKey(params string[] segments) => CacheKey.Tenant(
+    public static CacheKey ModuleKey(params string[] segments) => CacheKey.Scoped(
         ${Name}ModuleMetadata.Name,
         ${Name}ModuleMetadata.ModuleCacheEntry,
         segments);
 
-    public static CacheTag ModuleTag() => CacheTag.Tenant(
+    public static CacheTag ModuleTag() => CacheTag.Scoped(
         ${Name}ModuleMetadata.Name,
         ${Name}ModuleMetadata.ModuleCacheTag);
 }
@@ -408,7 +408,7 @@ if ($Persistence) {
     $dbContextUsings = @(
         'using Microsoft.EntityFrameworkCore;',
         'using Gma.Framework.Persistence.EntityFrameworkCore;',
-        'using Gma.Framework.Tenancy;'
+        'using Gma.Framework.Scoping;'
     )
     if ($Outbox -or $Inbox) {
         $dbContextUsings += 'using Gma.Framework.Messaging.Infrastructure;'
@@ -421,7 +421,7 @@ if ($Persistence) {
         '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Domain\Gma.Framework.Domain\Gma.Framework.Domain.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Persistence\Gma.Framework.Persistence.EntityFrameworkCore\Gma.Framework.Persistence.EntityFrameworkCore.csproj" />',
-        '    <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />'
+        '    <ProjectReference Include="$(GmaFrameworkRoot)Scoping\Gma.Framework.Scoping\Gma.Framework.Scoping.csproj" />'
     )
     if ($Outbox -or $Inbox) {
         $persistenceProjectReferences += '    <ProjectReference Include="$(GmaFrameworkRoot)Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />'
@@ -446,8 +446,8 @@ $($persistenceProjectReferences -join "`r`n")
     Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}DbContext.cs") @"
 namespace $Name.Persistence;
 
-$($dbContextUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}DbContext(DbContextOptions<${Name}DbContext> options, ITenantContext tenantContext)
-    : TenantAwareDbContext<${Name}DbContext>(options, tenantContext)
+$($dbContextUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}DbContext(DbContextOptions<${Name}DbContext> options, IScopeContext scopeContext)
+    : ScopeAwareDbContext<${Name}DbContext>(options, scopeContext)
 {
 $($dbSets -join "`r`n")
 
@@ -455,7 +455,7 @@ $($dbSets -join "`r`n")
     {
         modelBuilder.HasDefaultSchema(${Name}Migrations.Schema);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(${Name}DbContext).Assembly);
-        this.ApplyTenantConventions(modelBuilder);
+        this.ApplyScopeConventions(modelBuilder);
     }
 }
 "@
@@ -641,7 +641,7 @@ public sealed class ${Name}SqlServerDesignTimeDbContextFactory : IDesignTimeDbCo
                 ${Name}Migrations.SqlServerAssembly,
                 ${Name}Migrations.Schema,
                 ${Name}Migrations.HistoryTable),
-            new DesignTimeTenantContext());
+            new DesignTimeScopeContext());
 }
 "@
 }
@@ -681,7 +681,7 @@ public sealed class ${Name}PostgreSqlDesignTimeDbContextFactory : IDesignTimeDbC
                 ${Name}Migrations.PostgreSqlAssembly,
                 ${Name}Migrations.Schema,
                 ${Name}Migrations.HistoryTable),
-            new DesignTimeTenantContext());
+            new DesignTimeScopeContext());
 }
 "@
 }

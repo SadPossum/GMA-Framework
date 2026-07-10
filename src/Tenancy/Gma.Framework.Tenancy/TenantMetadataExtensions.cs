@@ -1,6 +1,7 @@
 namespace Gma.Framework.Tenancy;
 
 using Gma.Framework.Modules;
+using Gma.Framework.Scoping;
 
 public static class TenantMetadataExtensions
 {
@@ -13,7 +14,7 @@ public static class TenantMetadataExtensions
     public static bool IsTenantScoped(this ModuleMetadataItems metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
-        return metadata.Contains<TenantScopeMetadataItem>();
+        return metadata.Contains<TenantScopeMetadataItem>() || metadata.Contains<ScopeMetadataItem>();
     }
 
     public static ModuleMetadataItem RequireTenantScopedMetadata(this ModuleMetadataItems metadata, string targetName)
@@ -21,7 +22,8 @@ public static class TenantMetadataExtensions
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(targetName);
 
-        return metadata.Get<TenantScopeMetadataItem>() ?? throw new InvalidOperationException(
+        ModuleMetadataItem? scopeMetadata = metadata.Get<TenantScopeMetadataItem>() ?? (ModuleMetadataItem?)metadata.Get<ScopeMetadataItem>();
+        return scopeMetadata ?? throw new InvalidOperationException(
             $"{targetName} must declare {nameof(TenantScopedAttribute)} metadata.");
     }
 }

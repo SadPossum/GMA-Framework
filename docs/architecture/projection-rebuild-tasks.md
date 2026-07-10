@@ -15,7 +15,7 @@ The first implementation adds a small shared projection rebuild helper in `Gma.F
 - `IProjectionRebuildTransactionBoundary` is optional and module-qualified; EF-backed modules can register `EfProjectionRebuildTransactionBoundary<TDbContext>` when writer effects and checkpoint saves share the same module DbContext.
 - `Catalog.Contracts/Exports` exposes `CatalogItemProjectionExport` and `ICatalogItemProjectionExportSource`.
 - `Catalog.Persistence` implements the export source from Catalog's EF model.
-- `Ordering.Application` registers `rebuild-catalog-item-projections` as an explicit tenant-scoped task.
+- `Ordering.Application` registers `rebuild-catalog-item-projections` as an explicit scope-aware task.
 - `Ordering.Persistence` owns `ordering.projection_rebuild_checkpoints` and the writer for `CatalogItemProjection`.
 
 The concrete use case is `Ordering` rebuilding its local `CatalogItemProjection` from Catalog exports after a consumer is introduced, a projection changes shape, or a repair/backfill is required.
@@ -59,7 +59,7 @@ The shared framework should own repetitive operational behavior:
 For EF-backed modules, `Gma.Framework.ProjectionRebuild.EntityFrameworkCore` owns the repeated checkpoint entity/store mapping shape. The module still provides a concrete checkpoint state type, maps it into its own schema, includes provider-specific migrations, and registers the store explicitly.
 When a projection writer and checkpoint store use the same DbContext, the module may register an EF transaction boundary so each write batch and its checkpoint save commit or roll back together. Modules that write through separate stores or external systems should leave the boundary unregistered and keep the writer idempotent.
 
-Tenant context remains owned by the caller. Tenant-scoped rebuild tasks declare tenant scope in `ModuleTaskDescriptor`; the worker sets `ITenantContextAccessor` before invoking the task handler, then the task handler calls `TaskProjectionRebuildRunner<TSnapshot>`.
+Scope context remains owned by the caller. Scope-aware rebuild tasks declare scope behavior in `ModuleTaskDescriptor`; a tenant-aware worker sets `ITenantContextAccessor` from the task scope before invoking the task handler, then the task handler calls `TaskProjectionRebuildRunner<TSnapshot>`.
 
 The owning module must still define the data semantics:
 
@@ -111,11 +111,11 @@ flowchart LR
 
 Each rebuild task payload must declare split task attributes and be listed in module metadata with `ModuleDescriptor.Create(...).WithTask<TPayload>().Build()`.
 
-The task payload should expose task identity constants and carry `TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, optional routing/control attributes, and `[TenantScoped]` when tenant context is required. The descriptor should reference it with `WithTask<TPayload>()`. The attributes must state:
+The task payload should expose task identity constants and carry `TaskNameAttribute`, `TaskPayloadVersionAttribute`, `TaskDescriptionAttribute`, `TaskKindAttribute`, optional routing/control attributes, and `[ScopeAware]` when scope context is required. The descriptor should reference it with `WithTask<TPayload>()`. The attributes must state:
 
 - task name, for example `rebuild-catalog-item-projections`;
 - task kind, normally `OneShot`;
-- tenant scope;
+- scope behavior;
 - worker group, for example `projection-workers`;
 - whether control messages are supported;
 - payload version.
@@ -134,7 +134,7 @@ A future constrained helper or source generator is acceptable only if it satisfi
 
 - it scans one explicitly supplied module application assembly;
 - it registers only `ITaskHandler<TPayload>` implementations;
-- it verifies task name, worker group, kind, tenant scope metadata, payload version, and control-message support against the payload attributes and `ModuleTaskDescriptor`;
+- it verifies task name, worker group, kind, scope metadata, payload version, and control-message support against the payload attributes and `ModuleTaskDescriptor`;
 - architecture tests fail on metadata or registration drift;
 - hosts still explicitly compose the module and task worker runtime.
 
@@ -151,7 +151,7 @@ V1 payload fields:
 
 Recommended future fields:
 
-- optional tenant id when tenant-scoped;
+- optional scope id when scope-aware;
 - optional force/full-rebuild flag;
 - optional source filter, such as updated-after timestamp or id range;
 - deduplication key.
@@ -426,4 +426,3 @@ The feature is production-ready when:
 5. Add migration/backfill documentation using the concrete task.
 6. Add architecture guards for rebuild task registration and source boundary rules.
 7. Add production metrics and runbook guidance.
-

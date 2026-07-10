@@ -1,7 +1,7 @@
 namespace Gma.Framework.Tests;
 
 using System.Reflection;
-using Gma.Framework.Authorization;
+using Gma.Framework.Permissions;
 using Gma.Framework.Caching;
 using Gma.Framework.Messaging;
 using Gma.Framework.ModuleComposition;
@@ -141,7 +141,7 @@ public sealed class ModuleDescriptorTests
             .WithSchema(" Catalog ")
             .WithAdminSurfaceName(" Catalog-Admin ")
             .WithPermissions([
-                new ModulePermissionDescriptor(" Catalog.Items.Read ", " Read catalog items. ", tenantScoped: true)
+                new ModulePermissionDescriptor(" Catalog.Items.Read ", " Read catalog items. ", scopeRequirement: PermissionScopeRequirement.Scoped)
             ])
             .WithPublishedEvents([
                 new ModuleIntegrationEventDescriptor(" Item-Created ", " GMA.Catalog.Item-Created.V1 ", 1, [TenantScopeMetadataItem.Instance])
@@ -155,7 +155,7 @@ public sealed class ModuleDescriptorTests
                     [TenantScopeMetadataItem.Instance])
             ])
             .WithCacheEntries([
-                new ModuleCacheDescriptor(" Items ", CacheScope.Tenant, [" Products "])
+                new ModuleCacheDescriptor(" Items ", CacheScope.Scope, [" Products "])
             ])
             .WithTasks([
                 new ModuleTaskDescriptor(
@@ -169,7 +169,7 @@ public sealed class ModuleDescriptorTests
             .WithProfile(new ModuleProfileDescriptor(
                 " Catalog ",
                 " Tenant-Scoped ",
-                provides: [new ProvidedCompositionFeature(new CompositionFeatureId(" Catalog.Items "), " catalog/tenant-scoped ")]))
+                provides: [new ProvidedCompositionFeature(new CompositionFeatureId(" Catalog.Items "), " catalog/scope-aware ")]))
             .Build();
 
         Assert.Equal("catalog", descriptor.Name);
@@ -182,11 +182,11 @@ public sealed class ModuleDescriptorTests
         Assert.Equal("item-created", publishedEvent.EventType);
         Assert.Equal("item-created-projection", Assert.Single(descriptor.GetSubscriptions()).HandlerName);
         Assert.Equal("items", Assert.Single(descriptor.GetCacheEntries()).Name);
-        Assert.Equal(CacheScope.Tenant, Assert.Single(descriptor.GetCacheEntries()).Scope);
+        Assert.Equal(CacheScope.Scope, Assert.Single(descriptor.GetCacheEntries()).Scope);
         Assert.Equal(["products"], Assert.Single(descriptor.GetCacheEntries()).Tags);
         Assert.Equal("rebuild-search", Assert.Single(descriptor.GetTasks()).Name);
         Assert.Equal("search-workers", Assert.Single(descriptor.GetTasks()).WorkerGroup);
-        Assert.Equal("tenant-scoped", Assert.Single(descriptor.GetCompositionProfiles()).ProfileName);
+        Assert.Equal("scope-aware", Assert.Single(descriptor.GetCompositionProfiles()).ProfileName);
     }
 
     [Fact]
@@ -194,9 +194,9 @@ public sealed class ModuleDescriptorTests
     {
         ModuleDescriptor descriptor = ModuleDescriptor
             .Create("catalog")
-            .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", tenantScoped: true))
+            .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped))
             .WithPermissions([
-                new ModulePermissionDescriptor("catalog.items.create", "Create catalog items.", tenantScoped: true)
+                new ModulePermissionDescriptor("catalog.items.create", "Create catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped)
             ])
             .WithPublishedEvent(new ModuleIntegrationEventDescriptor("item-created", "gma.catalog.item-created.v1", 1, [TenantScopeMetadataItem.Instance]))
             .WithPublishedEvents([
@@ -216,9 +216,9 @@ public sealed class ModuleDescriptorTests
                     "item-updated-projection",
                     [TenantScopeMetadataItem.Instance])
             ])
-            .WithCacheEntry(new ModuleCacheDescriptor("item", CacheScope.Tenant, ["catalog.items"]))
+            .WithCacheEntry(new ModuleCacheDescriptor("item", CacheScope.Scope, ["catalog.items"]))
             .WithCacheEntries([
-                new ModuleCacheDescriptor("items", CacheScope.Tenant, ["catalog.items"])
+                new ModuleCacheDescriptor("items", CacheScope.Scope, ["catalog.items"])
             ])
             .WithTask(new ModuleTaskDescriptor(
                 "rebuild-item",
@@ -492,8 +492,8 @@ public sealed class ModuleDescriptorTests
         Assert.Throws<ArgumentException>(() => ModuleDescriptor
             .Create("catalog")
             .WithSchema("catalog")
-            .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", tenantScoped: true))
-            .WithPermission(new ModulePermissionDescriptor("Catalog.Items.Read", "Read catalog items.", tenantScoped: true)));
+            .WithPermission(new ModulePermissionDescriptor("catalog.items.read", "Read catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped))
+            .WithPermission(new ModulePermissionDescriptor("Catalog.Items.Read", "Read catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped)));
     }
 
     [Fact]
@@ -533,15 +533,15 @@ public sealed class ModuleDescriptorTests
     {
         ModuleCacheDescriptor tenantScoped = new(
             "items",
-            CacheScope.Tenant,
+            CacheScope.Scope,
             ["items"]);
         ModuleCacheDescriptor global = new(
             "items",
             CacheScope.Global,
             ["items"]);
 
-        Assert.True(tenantScoped.TenantScoped);
-        Assert.False(global.TenantScoped);
+        Assert.True(tenantScoped.ScopeAware);
+        Assert.False(global.ScopeAware);
     }
 
     [Fact]
@@ -570,7 +570,17 @@ public sealed class ModuleDescriptorTests
     public void Module_permission_descriptor_rejects_invalid_permission_codes(string code)
     {
         Assert.Throws<ArgumentException>(() =>
-            new ModulePermissionDescriptor(code, "Read catalog items.", tenantScoped: true));
+            new ModulePermissionDescriptor(code, "Read catalog items.", scopeRequirement: PermissionScopeRequirement.Scoped));
+    }
+
+    [Fact]
+    public void Module_permission_descriptor_rejects_unknown_scope_requirement()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            new ModulePermissionDescriptor(
+                "catalog.items.read",
+                "Read catalog items.",
+                scopeRequirement: PermissionScopeRequirement.Unknown));
     }
 
     private sealed record TestFeature : ModuleDescriptorFeature
@@ -645,7 +655,7 @@ public sealed class ModuleDescriptorTests
     [TenantScoped]
     private sealed record AttributedIntegrationEvent(
         Guid EventId,
-        string TenantId,
+        string ScopeId,
         DateTimeOffset OccurredAtUtc) : IIntegrationEvent
     {
         public const string EventType = "item-created";

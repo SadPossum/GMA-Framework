@@ -74,8 +74,8 @@ Recommended production configuration:
 - `Caching:Redis:ConnectionName` when Redis is selected
 - `ConnectionStrings:redis` when Redis is selected
 - optional `Caching:Redis:InstanceName` only when Redis itself needs an extra provider-level prefix
-- `Administration:Bootstrap:AllowWhenAssignmentsExist`
-- `Administration:Bootstrap:OwnerRoleName`
+- `AccessControl:Bootstrap:AllowWhenAssignmentsExist`
+- `AccessControl:Bootstrap:OwnerRoleName`
 - `Administration:Api:ActorIdClaim`
 - `Administration:Api:TenantIdClaim`
 - `Administration:Api:RequireTenantClaimMatch`

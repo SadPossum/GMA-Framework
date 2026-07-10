@@ -85,7 +85,7 @@ internal sealed class TaskRunSchedulerService(
         CancellationToken cancellationToken)
     {
         DateTimeOffset occurrenceUtc = GetOccurrenceStartUtc(nowUtc, schedule.Interval);
-        string scheduleKey = $"{schedule.ModuleName}:{schedule.ScheduleName}:{schedule.TaskName}:v{schedule.PayloadVersion}:{schedule.TenantId ?? "global"}";
+        string scheduleKey = $"{schedule.ModuleName}:{schedule.ScheduleName}:{schedule.TaskName}:v{schedule.PayloadVersion}:{schedule.ScopeId ?? "global"}";
 
         if (!this.lastOccurrenceBySchedule.TryGetValue(scheduleKey, out DateTimeOffset lastOccurrenceUtc))
         {
@@ -114,7 +114,7 @@ internal sealed class TaskRunSchedulerService(
             nowUtc,
             nowUtc,
             schedule.WorkerGroup,
-            schedule.TenantId,
+            schedule.ScopeId,
             correlationId: null,
             requestedBy: options.RequestedBy,
             schedule.MaxAttempts,

@@ -8,5 +8,7 @@
     <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime.Infrastructure\Gma.Framework.Runtime.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy.Cqrs\Gma.Framework.Tenancy.Cqrs.csproj" />
     <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy.Infrastructure\Gma.Framework.Tenancy.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Scoping\Gma.Framework.Scoping.Infrastructure\Gma.Framework.Scoping.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy.Scoping\Gma.Framework.Tenancy.Scoping.csproj" />
   </ItemGroup>
 </Project>

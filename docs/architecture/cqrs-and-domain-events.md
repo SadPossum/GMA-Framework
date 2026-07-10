@@ -60,7 +60,7 @@ The default skeleton does not use FluentValidation. ADR 0007 keeps validation be
 ## Domain Events
 
 Aggregate roots collect domain events during behavior execution.
-Concrete module domain events inherit `DomainEvent` for event id and occurrence time. Tenant-scoped domain events inherit `TenantDomainEvent`, which also normalizes tenant id through the shared tenant rules.
+Concrete module domain events inherit `DomainEvent` for event id and occurrence time. Tenant-scoped domain events inherit `ScopedDomainEvent`, which also normalizes tenant id through the shared tenant rules.
 Payload-specific fields remain in the owning module domain project so events still speak the module's ubiquitous language.
 
 The module unit of work:
@@ -94,7 +94,7 @@ Gma.Modules.Auth.Domain.Events.MemberRegisteredDomainEvent
 - Query handlers should not mutate persistent state or enqueue integration events.
 - Aggregate methods enforce business invariants.
 - Domain events describe something that already happened inside a module.
-- Inherit domain events from `DomainEvent` or `TenantDomainEvent` instead of re-declaring common metadata in every event type.
+- Inherit domain events from `DomainEvent` or `ScopedDomainEvent` instead of re-declaring common metadata in every event type.
 - Integration events describe something published across module or process boundaries.
 - Do not publish integration events directly from command handlers.
 - Use domain event handlers to project committed domain facts into the outbox.

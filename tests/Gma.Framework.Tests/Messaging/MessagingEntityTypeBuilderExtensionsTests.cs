@@ -28,7 +28,7 @@ public sealed class MessagingEntityTypeBuilderExtensionsTests
             MessageScopeIds.MaxLength,
             entityType.FindProperty(nameof(OutboxMessage.ScopeId))?.GetMaxLength());
         Assert.Equal(
-            "TenantId",
+            "ScopeId",
             entityType.FindProperty(nameof(OutboxMessage.ScopeId))?.GetColumnName());
         Assert.Equal(
             OutboxMessage.LockedByMaxLength,
@@ -68,7 +68,7 @@ public sealed class MessagingEntityTypeBuilderExtensionsTests
             MessageScopeIds.MaxLength,
             entityType.FindProperty(nameof(InboxMessage.ScopeId))?.GetMaxLength());
         Assert.Equal(
-            "TenantId",
+            "ScopeId",
             entityType.FindProperty(nameof(InboxMessage.ScopeId))?.GetColumnName());
         Assert.Equal(
             InboxMessage.LockedByMaxLength,

@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Gma.Framework.Domain;
 using Gma.Framework.Domain.Models;
 using Gma.Framework.Naming;
+using Gma.Framework.Scoping;
 using Gma.Framework.Persistence.EntityFrameworkCore;
-using Gma.Framework.Tenancy;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -16,7 +16,7 @@ public sealed class TenantModelConventionTests
     public async Task Apply_tenant_conventions_filters_per_context_tenant()
     {
         string databaseName = Guid.NewGuid().ToString("N");
-        await using (TestTenantDbContext seed = CreateDbContext(databaseName, enabled: false, tenantId: null))
+        await using (TestTenantDbContext seed = CreateDbContext(databaseName, enabled: false, scopeId: null))
         {
             seed.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-a", "A"));
             seed.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-b", "B"));
@@ -24,8 +24,8 @@ public sealed class TenantModelConventionTests
             await seed.SaveChangesAsync();
         }
 
-        await using TestTenantDbContext tenantA = CreateDbContext(databaseName, enabled: true, tenantId: "tenant-a");
-        await using TestTenantDbContext tenantB = CreateDbContext(databaseName, enabled: true, tenantId: "tenant-b");
+        await using TestTenantDbContext tenantA = CreateDbContext(databaseName, enabled: true, scopeId: "tenant-a");
+        await using TestTenantDbContext tenantB = CreateDbContext(databaseName, enabled: true, scopeId: "tenant-b");
 
         Assert.Equal(["A"], await tenantA.TenantRecords.Select(record => record.Name).ToListAsync());
         Assert.Equal(["B"], await tenantB.TenantRecords.Select(record => record.Name).ToListAsync());
@@ -36,14 +36,14 @@ public sealed class TenantModelConventionTests
     [Fact]
     public void Apply_tenant_conventions_configures_tenant_property_and_named_filter()
     {
-        using TestTenantDbContext dbContext = CreateDbContext(Guid.NewGuid().ToString("N"), enabled: true, tenantId: "tenant-a");
+        using TestTenantDbContext dbContext = CreateDbContext(Guid.NewGuid().ToString("N"), enabled: true, scopeId: "tenant-a");
         IEntityType entityType = dbContext.Model.FindEntityType(typeof(TestTenantRecord)) ??
             throw new InvalidOperationException("Tenant record was not configured.");
 
         Assert.Equal(
-            TenantIds.MaxLength,
-            entityType.FindProperty(nameof(TestTenantRecord.TenantId))?.GetMaxLength());
-        Assert.Contains(TenantFilterNames.TenantFilter, entityType.GetDeclaredQueryFilters().Select(filter => filter.Key));
+            ScopeIds.MaxLength,
+            entityType.FindProperty(nameof(TestTenantRecord.ScopeId))?.GetMaxLength());
+        Assert.Contains(ScopeFilterNames.ScopeFilter, entityType.GetDeclaredQueryFilters().Select(filter => filter.Key));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class TenantModelConventionTests
         await using TestTenantDbContext dbContext = CreateDbContext(
             Guid.NewGuid().ToString("N"),
             enabled: true,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
 
         dbContext.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-a", "A"));
 
@@ -67,7 +67,7 @@ public sealed class TenantModelConventionTests
         await using TestTenantDbContext dbContext = CreateDbContext(
             Guid.NewGuid().ToString("N"),
             enabled: true,
-            tenantId: null);
+            scopeId: null);
 
         dbContext.GlobalRecords.Add(new TestGlobalRecord { Id = Guid.NewGuid(), Name = "global" });
 
@@ -82,14 +82,14 @@ public sealed class TenantModelConventionTests
         await using TestTenantDbContext dbContext = CreateDbContext(
             Guid.NewGuid().ToString("N"),
             enabled: true,
-            tenantId: "tenant-a");
+            scopeId: "tenant-a");
 
         dbContext.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-b", "B"));
 
-        TenantWriteGuardException exception = await Assert.ThrowsAsync<TenantWriteGuardException>(
+        ScopeWriteGuardException exception = await Assert.ThrowsAsync<ScopeWriteGuardException>(
             () => dbContext.SaveChangesAsync());
 
-        Assert.Contains("active tenant is 'tenant-a'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("active scope is 'tenant-a'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,33 +98,33 @@ public sealed class TenantModelConventionTests
         await using TestTenantDbContext dbContext = CreateDbContext(
             Guid.NewGuid().ToString("N"),
             enabled: false,
-            tenantId: null);
+            scopeId: null);
 
         dbContext.MutableTenantRecords.Add(new MutableTenantRecord
         {
             Id = Guid.NewGuid(),
-            TenantId = " tenant-a ",
+            ScopeId = " tenant-a ",
             Name = "A"
         });
 
-        TenantWriteGuardException exception = await Assert.ThrowsAsync<TenantWriteGuardException>(
+        ScopeWriteGuardException exception = await Assert.ThrowsAsync<ScopeWriteGuardException>(
             () => dbContext.SaveChangesAsync());
 
-        Assert.Contains("invalid or unnormalized tenant id", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("invalid or unnormalized scope id", exception.Message, StringComparison.Ordinal);
     }
 
-    private static TestTenantDbContext CreateDbContext(string databaseName, bool enabled, string? tenantId)
+    private static TestTenantDbContext CreateDbContext(string databaseName, bool enabled, string? scopeId)
     {
         DbContextOptions<TestTenantDbContext> options = new DbContextOptionsBuilder<TestTenantDbContext>()
             .UseInMemoryDatabase(databaseName)
             .Options;
 
-        return new TestTenantDbContext(options, new TestTenantContext(enabled, tenantId));
+        return new TestTenantDbContext(options, new TestTenantContext(enabled, scopeId));
     }
 
     private sealed class TestTenantDbContext(
         DbContextOptions<TestTenantDbContext> options,
-        ITenantContext tenantContext) : TenantAwareDbContext<TestTenantDbContext>(options, tenantContext)
+        IScopeContext scopeContext) : ScopeAwareDbContext<TestTenantDbContext>(options, scopeContext)
     {
         public DbSet<TestTenantRecord> TenantRecords => this.Set<TestTenantRecord>();
         public DbSet<MutableTenantRecord> MutableTenantRecords => this.Set<MutableTenantRecord>();
@@ -135,25 +135,25 @@ public sealed class TenantModelConventionTests
             modelBuilder.Entity<TestTenantRecord>().ToTable("tenant_records");
             modelBuilder.Entity<MutableTenantRecord>().ToTable("mutable_tenant_records");
             modelBuilder.Entity<TestGlobalRecord>().ToTable("global_records");
-            this.ApplyTenantConventions(modelBuilder);
+            this.ApplyScopeConventions(modelBuilder);
         }
     }
 
-    private sealed class TestTenantContext(bool enabled, string? tenantId) : ITenantContext
+    private sealed class TestTenantContext(bool enabled, string? scopeId) : IScopeContext
     {
         public bool IsEnabled { get; } = enabled;
-        public string? TenantId { get; } = tenantId;
+        public string? ScopeId { get; } = scopeId;
     }
 
-    private sealed class TestTenantRecord(Guid id, string tenantId, string name) : TenantEntity<Guid>(id, tenantId)
+    private sealed class TestTenantRecord(Guid id, string scopeId, string name) : ScopedEntity<Guid>(id, scopeId)
     {
         public string Name { get; private set; } = name;
     }
 
-    private sealed class MutableTenantRecord : ITenantScoped
+    private sealed class MutableTenantRecord : IScopedEntity
     {
         public Guid Id { get; set; }
-        public string TenantId { get; set; } = string.Empty;
+        public string ScopeId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
     }
 

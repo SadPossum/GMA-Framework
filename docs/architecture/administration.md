@@ -7,7 +7,8 @@ Administration is an optional first-class capability. It has CLI and HTTP front 
 - Keep `Host.Api` focused on public HTTP APIs.
 - Make admin surfaces explicit host choices.
 - Keep command parsing and HTTP mapping outside domain and application code.
-- Persist RBAC and audit only when the optional Administration module is present.
+- Persist admin audit only when the optional Administration module is present.
+- Use the optional `Gma.Modules.AccessControl` module and `Gma.Framework.Administration.AccessControl` bridge for persisted RBAC.
 - Let feature modules expose admin commands without depending on another module's internals.
 
 ## Projects
@@ -16,6 +17,7 @@ Shared contracts:
 
 ```text
 Gma.Framework.Administration
+Gma.Framework.Administration.AccessControl
 Gma.Framework.Administration.Api
 Gma.Framework.Administration.Cli
 ```
@@ -27,7 +29,18 @@ Host.AdminCli
 Host.AdminApi
 ```
 
-Optional persisted RBAC/audit module:
+Optional persisted RBAC module:
+
+```text
+Gma.Modules.AccessControl.Application
+Gma.Modules.AccessControl.Persistence
+Gma.Modules.AccessControl.AdminCli
+Gma.Modules.AccessControl.AdminApi
+Gma.Modules.AccessControl.Persistence.SqlServerMigrations
+Gma.Modules.AccessControl.Persistence.PostgreSqlMigrations
+```
+
+Optional persisted audit and administration front-door module:
 
 ```text
 Gma.Modules.Administration.Application
@@ -59,8 +72,10 @@ Gma.Modules.Auth.AdminApi
 
 The shared core also owns the admin operation runner used by CLI and HTTP front doors for actor context, tenant context, authorization, execution, and audit.
 It does not own command-line parsing, HTTP mapping, or host-builder module contracts.
-The default authorization service denies everything. The default audit sink is a no-op. This keeps admin support optional until a host composes real RBAC and audit.
-Custom `IAdminAuthorizationService` implementations should return `AdminAuthorizationResult` through `Allowed()` or `Denied(reason)`. Allowed results carry no failure reason, and denied results carry a bounded, normalized operator-facing reason.
+`AdminPermission` validates normal dot-separated permission codes directly; the legacy `*` owner wildcard remains Administration-specific compatibility behavior.
+The default admin authorization service denies by default, and the default audit sink is a no-op. This keeps admin support optional until a host composes real RBAC and audit.
+`Gma.Framework.Administration.AccessControl` is the explicit bridge that adapts `IAdminAuthorizationService` to generic `IAccessAuthorizationService`.
+Custom `IAdminAuthorizationService` implementations remain supported and should return `AdminAuthorizationResult` through `Allowed()` or `Denied(reason)`. Allowed results carry no failure reason, and denied results carry a bounded, normalized operator-facing reason.
 
 ## CLI Adapter
 
@@ -114,6 +129,7 @@ builder.AddCachingCqrs();
 builder.AddGmaInfrastructure();
 builder.AddMessagingInfrastructure(); // outbox writer registry without hosted publishers
 builder.AddAdminModule<AdministrationAdminCliModule>();
+builder.AddAdminModule<AccessControlAdminCliModule>();
 builder.AddAdminModule<AuthAdminCliModule>();
 ```
 
@@ -121,20 +137,21 @@ It does not map HTTP endpoints and does not start long-running publishers or con
 
 `Host.AdminApi` is a separate optional web host. It maps admin HTTP endpoints, requires authentication, and composes only the admin API modules the project wants.
 
-HTTP bootstrap is intentionally not exposed. Use the CLI bootstrap command for first-owner setup, then use the admin API for normal RBAC and module administration.
-`Administration:Bootstrap:OwnerRoleName` is validated at startup and must be a valid admin role-name slug.
+HTTP bootstrap is intentionally not exposed. Use the AccessControl CLI bootstrap command for first-owner setup, then use the AccessControl admin API for normal RBAC and module administration.
+`AccessControl:Bootstrap:OwnerRoleName` is validated at startup and must be a valid access-control role-name slug.
 
 `Host.Api` does not register admin API modules.
 
 ## RBAC
 
-The Administration module stores:
+The AccessControl module stores:
 
 - principals;
 - roles;
 - role permissions;
-- principal role assignments;
-- audit entries.
+- principal role assignments.
+
+The Administration module stores admin operation audit entries.
 
 Permission codes are declared by modules in code. Role and assignment data is persisted by permission code.
 
@@ -147,7 +164,7 @@ auth.members.disable
 *
 ```
 
-`*` is the owner wildcard grant. Authorization is deny-by-default and checks global assignments plus tenant-scoped assignments for the requested tenant.
+`*` is the owner wildcard grant. Authorization is deny-by-default in the core admin package. When `Gma.Framework.Administration.AccessControl` and `Gma.Modules.AccessControl` are composed, authorization flows through generic `IAccessAuthorizationService` plus the AccessControl persisted decision provider. Global assignments and tenant-scoped assignments are stored as normalized access scopes, such as `global` and `tenant:default`.
 
 ## Audit
 
@@ -185,12 +202,12 @@ Admin API tenant binding is configurable under `Administration:Api`:
 ```json
 {
   "ActorIdClaim": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier",
-  "TenantIdClaim": "tenant_id",
+  "TenantIdClaim": "scope_id",
   "RequireTenantClaimMatch": true
 }
 ```
 
-When `RequireTenantClaimMatch` is `true`, tenant-scoped admin HTTP operations compare the requested tenant with the configured token claim if that claim is present. A present mismatch fails before RBAC with `Admin.TenantClaimMismatch` and is audited. A missing tenant claim is allowed so external identity providers or global operator tokens can still work; RBAC must still grant the actor permission for the requested tenant.
+When `RequireTenantClaimMatch` is `true`, tenant-scoped admin HTTP operations compare the requested tenant with the configured token scope claim if that claim is present. A present mismatch fails before RBAC with `Admin.TenantClaimMismatch` and is audited. A missing scope claim is allowed so external identity providers or global operator tokens can still work; RBAC must still grant the actor permission for the requested tenant.
 Admin API options are validated at startup: `ActorIdClaim` is required, and `TenantIdClaim` is required when tenant-claim matching is enabled.
 
 Global RBAC assignments have no tenant scope. Tenant-scoped assignments can administer only the matching tenant.
@@ -205,6 +222,7 @@ gma-admin
   -> IAdminOperationRunner
   -> actor and tenant context
   -> IAdminAuthorizationService
+  -> optional AccessControl bridge
   -> IRequestDispatcher
   -> module command/query handler
   -> module unit of work
@@ -222,6 +240,7 @@ HTTP request
   -> IAdminOperationRunner
   -> actor and tenant context
   -> IAdminAuthorizationService
+  -> optional AccessControl bridge
   -> IRequestDispatcher
   -> module command/query handler
   -> module unit of work
@@ -236,6 +255,7 @@ HTTP request
 - Only `.AdminApi`, `Gma.Framework.Administration.Api`, and `Host.AdminApi` should map admin HTTP routes.
 - Admin modules may call their own module application layer and shared admin contracts.
 - Admin modules must not contain business rules or EF code.
+- Core `Gma.Framework.Administration` must not reference `Gma.Framework.AccessControl`; use `Gma.Framework.Administration.AccessControl` for that integration.
 - The Administration module must not reference Auth internals.
 - Destructive commands should require `--yes`.
 - Password input should use hidden prompt, `--password-stdin`, or `--generate-password`.
@@ -267,7 +287,7 @@ HTTP request
 
 ## Current HTTP Endpoints
 
-Administration:
+AccessControl:
 
 ```text
 GET  /api/admin/roles

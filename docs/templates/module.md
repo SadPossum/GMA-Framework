@@ -36,7 +36,7 @@ Place public contract files in the standard folders:
 - `Serialization/` for owner-package JSON converters for public contract enums and other stable wire types.
 - `Types/` for public enum-like or code-list types.
 
-Confirm the public contracts `.csproj` references `Gma.Framework.Modules` for module metadata, `Gma.Framework.ModuleComposition` for public profiles/composition features, `Gma.Framework.Authorization` for permission metadata, `Gma.Framework.Messaging` for integration events/subscriptions, `Gma.Framework.Caching` for cache metadata, and `Gma.Framework.Tasks` for task metadata/contracts only when those capabilities are declared. Public contracts should avoid `Gma.Framework.Application.Composition` and `Gma.Framework.Cqrs`; keep CQRS commands/queries and paging helpers in the module application boundary. Optional producer `.Contracts` references are allowed. Keep package and framework references out.
+Confirm the public contracts `.csproj` references `Gma.Framework.Modules` for module metadata, `Gma.Framework.ModuleComposition` for public profiles/composition features, `Gma.Framework.Permissions` for permission metadata, `Gma.Framework.Messaging` for integration events/subscriptions, `Gma.Framework.Caching` for cache metadata, and `Gma.Framework.Tasks` for task metadata/contracts only when those capabilities are declared. Public contracts should avoid `Gma.Framework.Application.Composition` and `Gma.Framework.Cqrs`; keep CQRS commands/queries and paging helpers in the module application boundary. Optional producer `.Contracts` references are allowed. Keep package and framework references out.
 If the module exposes rebuild/backfill export contracts, reference `Gma.Framework.ProjectionRebuild` from `.Contracts`, keep the source interface backend-free, and implement the source in the producer persistence adapter.
 Admin permission code strings live here so `<Module>ModuleMetadata` can declare permissions without referencing admin-only framework packages.
 When the module becomes compiled code, add its contract metadata descriptor to `tests/Architecture.Tests/Support/ArchitectureCatalog.cs`; architecture tests compare that catalog with every `<Module>ModuleMetadata.Descriptor`.
@@ -88,7 +88,7 @@ Confirm the admin API `.csproj` has no package references, only an optional `Mic
 ## Domain Model
 
 List aggregates, entities, value objects, domain events, and core invariants.
-Confirm domain events inherit `DomainEvent` or `TenantDomainEvent` from `Gma.Framework.Domain` so event id, occurrence time, and tenant id rules stay centralized.
+Confirm domain events inherit `DomainEvent` or `ScopedDomainEvent` from `Gma.Framework.Domain` so event id, occurrence time, and scope id rules stay centralized.
 Confirm the domain project references only shared domain/error primitives and does not reference contracts, application, persistence, infrastructure, HTTP, admin, EF, or host abstractions.
 Confirm the domain `.csproj` has no package or framework references unless a future ADR explicitly expands the domain dependency model.
 
@@ -96,7 +96,7 @@ Confirm the domain `.csproj` has no package or framework references unless a fut
 
 List commands, queries, handlers, validators, domain event handlers, and integration event handlers.
 State which commands implement `ITransactionalCommand<TResponse>` and which commands intentionally remain plain `ICommand<TResponse>`.
-List task payloads and daemons, if any. State the `TaskNameAttribute` value, `TaskPayloadVersionAttribute` value, `TaskKindAttribute`, tenant scope marker, worker group, cancellation behavior, and whether control messages are supported. Keep serialized task payload contracts in `.Contracts` when they appear in module metadata, expose task identity constants on the payload type, then declare them through `ModuleDescriptor.Create(...).WithTask<TPayload>().Build()`.
+List task payloads and daemons, if any. State the `TaskNameAttribute` value, `TaskPayloadVersionAttribute` value, `TaskKindAttribute`, scope marker, worker group, cancellation behavior, and whether control messages are supported. Keep serialized task payload contracts in `.Contracts` when they appear in module metadata, expose task identity constants on the payload type, then declare them through `ModuleDescriptor.Create(...).WithTask<TPayload>().Build()`.
 If the module owns a projection rebuild task, state the projection name/version, source contract, writer, checkpoint store, cursor semantics, dry-run behavior, and whether retry resumes from the same run id. Prefer `Gma.Framework.ProjectionRebuild` for the task-neutral loop and `Gma.Framework.ProjectionRebuild.Tasks` only when adapting that loop to task progress/control. EF-backed persistence projects may reference `Gma.Framework.ProjectionRebuild.EntityFrameworkCore` for checkpoint state/store/mapping helpers, but contracts should reference only the backend-free `Gma.Framework.ProjectionRebuild` package when they expose rebuild/export contracts.
 Keep one handler class per file under `<Module>.Application/Handlers`, including command handlers, query handlers, domain-event projectors, and integration-event handlers.
 Confirm the application project does not reference module adapters or front doors such as `.Persistence`, `.Infrastructure`, `.Api`, `.AdminCli`, or `.AdminApi`.
@@ -105,8 +105,8 @@ Do not reference `Gma.Framework.Administration` from feature module application 
 Confirm that handlers use `ISystemClock` and `IIdGenerator` instead of direct system time or ID generation.
 Confirm that application DI registration extends `IServiceCollection`, not `IHostApplicationBuilder`.
 Confirm that application DI extension methods reject null receivers and call `AddApplicationServicesFromAssembly(typeof(DependencyInjection).Assembly)` for CQRS handlers, validators, and domain-event handlers.
-Confirm that published integration-event contracts expose `EventType`/`EventVersion` constants, use `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, tenant-owned events add `[TenantScoped]`, consumer handlers use `IntegrationEventHandlerAttribute`, and handlers are registered explicitly with `AddIntegrationEventHandler<TEvent,THandler>(consumerModule, producerModule)`.
-Confirm that task payload contracts use split task attributes, handlers are registered explicitly with `AddTaskHandler<TPayload,THandler>(moduleName)`, and attributes match the module's descriptor metadata, including kind, tenant scope, payload version, worker group, and control-message support.
+Confirm that published integration-event contracts expose `EventType`/`EventVersion` constants, use `IntegrationEventNameAttribute` and `IntegrationEventVersionAttribute`, scope-owned events add `[ScopeAware]`, consumer handlers use `IntegrationEventHandlerAttribute`, and handlers are registered explicitly with `AddIntegrationEventHandler<TEvent,THandler>(consumerModule, producerModule)`.
+Confirm that task payload contracts use split task attributes, handlers are registered explicitly with `AddTaskHandler<TPayload,THandler>(moduleName)`, and attributes match the module's descriptor metadata, including kind, scope behavior, payload version, worker group, and control-message support.
 Confirm that task payloads depend only on `Gma.Framework.Tasks`, `Gma.Framework.Tasks.Cqrs` when they dispatch application commands, `Gma.Framework.ProjectionRebuild.Tasks` when they adapt rebuilds to task progress/control, CQRS contracts, and module ports; they must not depend on scheduler packages, HTTP, CLI, or another module's internals. Long-running task payloads should poll `ITaskControlLoop` or use `TaskControlLoopExtensions` at safe checkpoints, mark acted-on control messages handled or failed, and throw `TaskRunCanceledException` for cooperative cancel/drain stops.
 If the module has recurring work, list each `ITaskScheduleProvider` schedule and its interval, tenant behavior, payload version, and dedupe key strategy. Schedules should enqueue task requests only. Prefer the default version-aware dedupe shape `schedule:<module>:<task>:<schedule>:v<payload-version>:<occurrence>` unless the module documents a safer custom key.
 If the module exposes task admin filters or docs, use `TaskRunStatusNames` wire names such as `retry-scheduled` and `cancellation-requested` rather than raw enum names.
@@ -119,8 +119,8 @@ Describe adapters and external systems.
 
 Describe schema, DbContext, migrations, repositories, local projections, and outbox/inbox tables.
 State the module name used by `IUnitOfWork`, `IOutboxWriter`, `IOutboxStore`, and `IInboxStore`.
-For tenant-owned persisted models, state whether each type inherits `TenantAggregateRoot<TId>`, inherits `TenantEntity<TId>`, or implements `ITenantScoped` directly. EF-backed tenant-aware modules should inherit `TenantAwareDbContext<TContext>` and call `ApplyTenantConventions(modelBuilder)` after module configurations are applied. Keep tenant-local uniqueness and read-path indexes in module configurations.
-Do not add shadow tenant columns through host scanning or broad reflection. The only tenant convention reflection allowed by default is inside shared EF helpers over the current module `ModelBuilder`.
+For scope-owned persisted models, state whether each type inherits `ScopedAggregateRoot<TId>`, inherits `ScopedEntity<TId>`, or implements `IScopedEntity` directly. EF-backed scope-aware modules should inherit `ScopeAwareDbContext<TContext>` and call `ApplyScopeConventions(modelBuilder)` after module configurations are applied. Keep tenant-local uniqueness and read-path indexes in module configurations when a tenant host supplies the scope.
+Do not add shadow tenant or scope columns through host scanning or broad reflection. The only scope convention reflection allowed by default is inside shared EF helpers over the current module `ModelBuilder`.
 If the module owns rebuildable projections, list the checkpoint table and key shape. Tenant-scoped rebuild checkpoints should include tenant id, projection name, run id, cursor, processed/written/skipped/failed counts, projection version, updated timestamp, and completion timestamp.
 For EF-backed checkpoint tables, prefer a concrete module checkpoint type inheriting `ProjectionRebuildCheckpointState`, `ConfigureProjectionRebuildCheckpointState(...)` in the entity configuration, and a thin module store inheriting `EfProjectionRebuildCheckpointStore<TDbContext,TCheckpointState>`.
 If the rebuild writer and checkpoint store share one DbContext, register a thin module transaction boundary over `EfProjectionRebuildTransactionBoundary<TDbContext>` so each batch and checkpoint save commit atomically. Do not register a boundary when the writer touches external systems or separate stores that cannot share the transaction.
@@ -139,12 +139,12 @@ Confirm that persisted enum numeric values are stable, public contract/domain-st
 | --- | --- | --- | --- |
 | `<EventName>` | `{application-namespace}.<module>.<event>.v1` | `1` | yes/no |
 
-Confirm public integration event contracts inherit `IntegrationEvent` from `Gma.Framework.Messaging`, pass the stable event name/version to the base constructor, and keep only payload-specific validation in the module contract type. Tenant-owned events should inherit `TenantIntegrationEvent` from `Gma.Framework.Tenancy.Messaging`, and hosts that publish or consume them should compose `AddTenantAwareMessaging()`.
+Confirm public integration event contracts inherit `IntegrationEvent` or `ScopedIntegrationEvent` from `Gma.Framework.Messaging`, pass the stable event name/version to the base constructor, and keep only payload-specific validation in the module contract type. Scope-owned events should carry `[ScopeAware]` and expose `ScopeId`; tenant-aware hosts that publish or consume them should compose `AddTenantAwareMessaging()` when consumer tenant context must be set.
 Confirm subject constants or accessors render through `IntegrationEventNaming` or module subject factory methods, with `gma` only as the default `ApplicationIdentity:Namespace`.
 
 ## Notifications
 
-List user-facing notification payloads or durable notification request events, names, versions, intended recipients, tenant scope, and whether delivery is best-effort only or backed by another durable fact.
+List user-facing notification payloads or durable notification request events, names, versions, intended recipients, scope behavior, and whether delivery is best-effort only or backed by another durable fact.
 
 | Notification | Name | Version | Recipient | Durable source |
 | --- | --- | --- | --- | --- |
@@ -178,7 +178,7 @@ List module meters, instruments, activity sources, structured log properties, an
 
 ## Caching
 
-List explicit cache-aside reads, logical keys, tags, TTL policy, and the commands/domain events that enqueue invalidation. State why each cached value is non-authoritative and whether it is tenant or global scoped. Confirm that the module references only `Gma.Framework.Caching` caching contracts. Tenant-owned cache keys should require `CachingCompositionFeatures.TenantScopeRequired(...)`; hosts satisfy that through `Gma.Framework.Tenancy.Caching`.
+List explicit cache-aside reads, logical keys, tags, TTL policy, and the commands/domain events that enqueue invalidation. State why each cached value is non-authoritative and whether it is scope or global scoped. Confirm that the module references only `Gma.Framework.Caching` caching contracts. Scope-owned cache keys should require `CachingCompositionFeatures.ScopeContextRequired(...)`; tenant hosts satisfy that through `Gma.Framework.Tenancy.Caching`.
 
 ## Extension Points
 

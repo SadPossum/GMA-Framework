@@ -37,6 +37,8 @@ public static class DependencyInjection
         builder.Services.TryAddSingleton<OutboxMetrics>();
         builder.Services.TryAddSingleton<InboxMetrics>();
         builder.Services.TryAddScoped<IOutboxWriterRegistry, OutboxWriterRegistry>();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IIntegrationEventScopeResolver, ScopedIntegrationEventScopeResolver>());
         builder.Services.TryAddSingleton<IEventBus, NullEventBus>();
 
         return builder;

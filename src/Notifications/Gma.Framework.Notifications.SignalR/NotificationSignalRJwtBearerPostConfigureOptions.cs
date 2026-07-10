@@ -4,11 +4,11 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Gma.Framework.Naming;
-using Gma.Framework.Tenancy;
+using Gma.Framework.Scoping;
 
 internal sealed class NotificationSignalRJwtBearerPostConfigureOptions(
     IOptions<NotificationSignalROptions> signalROptions,
-    IOptions<TenantOptions> tenantOptions) : IPostConfigureOptions<JwtBearerOptions>
+    IOptions<ScopeOptions> scopeOptions) : IPostConfigureOptions<JwtBearerOptions>
 {
     public void PostConfigure(string? name, JwtBearerOptions options)
     {
@@ -62,14 +62,14 @@ internal sealed class NotificationSignalRJwtBearerPostConfigureOptions(
                 return;
             }
 
-            if (!tenantOptions.Value.Enabled)
+            if (!scopeOptions.Value.Enabled)
             {
                 return;
             }
 
-            if (!TenantIds.TryNormalize(context.Principal.GetTenantId(), out _))
+            if (!ScopeIds.TryNormalize(context.Principal.GetScopeId(), out _))
             {
-                context.Fail("Notification tenant claim is required.");
+                context.Fail("Notification scope claim is required.");
             }
         };
     }

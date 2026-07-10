@@ -1,8 +1,8 @@
 namespace Gma.Framework.Tenancy.Messaging.Infrastructure;
 
 using Gma.Framework.Messaging;
+using Gma.Framework.Scoping;
 using Gma.Framework.Tenancy;
-using Gma.Framework.Tenancy.Messaging;
 
 internal sealed class TenantIntegrationEventProcessingContextContributor(
     ITenantContextAccessor tenantContext)
@@ -14,17 +14,17 @@ internal sealed class TenantIntegrationEventProcessingContextContributor(
         ArgumentNullException.ThrowIfNull(integrationEvent);
 
         tenantContext.ClearTenant();
-        if (!subscription.IsTenantScoped())
+        if (!subscription.IsScopeAware())
         {
             return;
         }
 
-        if (integrationEvent is not ITenantIntegrationEvent tenantIntegrationEvent)
+        if (integrationEvent is not IScopedIntegrationEvent scopedIntegrationEvent)
         {
             throw new InvalidOperationException(
-                $"Tenant-scoped subscription '{subscription.ConsumerModule}.{subscription.HandlerName}' requires event '{subscription.EventType.FullName}' to implement {nameof(ITenantIntegrationEvent)}.");
+                $"Scope-aware subscription '{subscription.ConsumerModule}.{subscription.HandlerName}' requires event '{subscription.EventType.FullName}' to implement {nameof(IScopedIntegrationEvent)}.");
         }
 
-        tenantContext.SetTenant(tenantIntegrationEvent.TenantId);
+        tenantContext.SetTenant(scopedIntegrationEvent.ScopeId);
     }
 }

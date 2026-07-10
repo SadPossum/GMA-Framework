@@ -68,7 +68,7 @@ public sealed class AdminOperationRunnerTests
         RecordingAuthorizationService authorization = new();
         RecordingAuditSink audit = new();
         FixedClock clock = new(new DateTimeOffset(2026, 7, 1, 12, 45, 0, TimeSpan.Zero));
-        EnabledTenantContext tenantContext = new() { InitialTenantId = "stale-tenant" };
+        EnabledTenantContext tenantContext = new() { InitialScopeId = "stale-tenant" };
         ServiceProvider services = CreateServices(authorization, audit, clock, tenantContext: tenantContext);
         IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
         int actionExecutions = 0;
@@ -77,7 +77,7 @@ public sealed class AdminOperationRunnerTests
             new AdminOperationContext(
                 AdminActor.System("actor"),
                 AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
-                new string('x', TenantIds.MaxLength + 1),
+                new string('x', ScopeIds.MaxLength + 1),
                 RequireTenant: false),
             _ =>
             {
@@ -297,17 +297,17 @@ public sealed class AdminOperationRunnerTests
 
     private sealed class EnabledTenantContext : ITenantContextAccessor
     {
-        private string? tenantId;
+        private string? scopeId;
 
-        public string? InitialTenantId
+        public string? InitialScopeId
         {
-            set => this.tenantId = value;
+            set => this.scopeId = value;
         }
 
         public bool IsEnabled => true;
-        public string? TenantId => this.tenantId;
-        public void SetTenant(string tenantId) => this.tenantId = tenantId;
-        public void ClearTenant() => this.tenantId = null;
+        public string? TenantId => this.scopeId;
+        public void SetTenant(string scopeId) => this.scopeId = scopeId;
+        public void ClearTenant() => this.scopeId = null;
     }
 
     private sealed class RecordingAuthorizationService : IAdminAuthorizationService
@@ -317,7 +317,7 @@ public sealed class AdminOperationRunnerTests
         public Task<AdminAuthorizationResult> AuthorizeAsync(
             AdminActor actor,
             AdminPermission permission,
-            string? tenantId,
+            string? scopeId,
             CancellationToken cancellationToken)
         {
             this.CallCount++;
@@ -330,7 +330,7 @@ public sealed class AdminOperationRunnerTests
         public Task<AdminAuthorizationResult> AuthorizeAsync(
             AdminActor actor,
             AdminPermission permission,
-            string? tenantId,
+            string? scopeId,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("rbac unavailable");
     }

@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Messaging\Gma.Framework.Messaging\Gma.Framework.Messaging.csproj" />
     <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\..\Scoping\Gma.Framework.Scoping\Gma.Framework.Scoping.csproj" />
     <ProjectReference Include="..\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
     <ProjectReference Include="..\Gma.Framework.Tenancy.Messaging\Gma.Framework.Tenancy.Messaging.csproj" />
   </ItemGroup>

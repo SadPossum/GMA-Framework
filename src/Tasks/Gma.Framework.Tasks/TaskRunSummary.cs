@@ -7,7 +7,7 @@ public sealed record TaskRunSummary(
     string WorkerGroup,
     int PayloadVersion,
     TaskRunStatus Status,
-    string? TenantId,
+    string? ScopeId,
     Guid? CorrelationId,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset ScheduledAtUtc,

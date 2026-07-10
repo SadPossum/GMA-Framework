@@ -2,7 +2,7 @@
 
 ## Decision
 
-Keep `Gma.Framework.AccessControl` as a tiny backend-agnostic subject package, not as a generic authorization framework.
+Keep `Gma.Framework.AccessControl` as a backend-agnostic access vocabulary and decision pipeline for coarse permission checks.
 
 The package owns only the common vocabulary needed to pass the current actor across module boundaries:
 
@@ -18,17 +18,27 @@ public enum AccessSubjectKind
 
 public sealed record AccessSubject(
     AccessSubjectKind Kind,
-    string Id,
-    string? TenantId);
+    string Id);
 ```
 
-It normalizes subject ids and tenant ids, rejects unknown subject kinds, and stays free of HTTP, EF, Auth, Administration, Tenancy runtime, NATS, Redis, and external policy engines.
+It normalizes subject ids, rejects unknown subject kinds, and stays free of HTTP, EF, Auth, Administration, Tenancy runtime, NATS, Redis, and external policy engines.
+
+The same package also owns the generic coarse authorization vocabulary:
+
+- `PermissionCode`;
+- `AccessScope` and `AccessScopeSegment`;
+- `AccessRequirement`;
+- `AccessDecision`;
+- `IAccessAuthorizationService`;
+- `IAccessDecisionProvider`.
+
+Permission metadata for module descriptors lives in `Gma.Framework.Permissions`. HTTP enforcement lives in `Gma.Framework.AccessControl.AspNetCore`. Tenant scope resolution lives in `Gma.Framework.Tenancy.AccessControl.AspNetCore`.
 
 ## Why
 
 The first access-policy slice proved that `AccessSubject` is useful: API endpoints, CLI/admin flows, workers, and tests can pass a stable actor object without leaking `ClaimsPrincipal`, auth schemes, or raw claim parsing into application handlers.
 
-The generic policy/evaluator layer did not earn its keep. In current modules it only wrapped simple tenant/user comparisons, while the important list/detail protection already comes from module-owned typed scopes that persistence must consume. The framework should stay small until repeated real modules prove a stronger common shape.
+The generic policy/evaluator layer only earns its keep for coarse permissioned operations: "can this subject perform permission P in scope X?" It must not replace module-owned business visibility rules. The important list/detail protection still comes from module-owned typed scopes that persistence must consume.
 
 ## Current Pattern
 
@@ -43,7 +53,7 @@ front door
   -> persistence translates scope into SQL/read-model filters
 ```
 
-For simple application-only checks that do not shape persistence, use direct code in the owning module. Do not introduce generic requirements or policy registrations until there is repeated real reuse.
+For simple application-only checks that do not shape persistence, use direct code in the owning module. Use generic access-control requirements for repeated management-style operations, API endpoint checks, admin authorization bridges, workers, or automation.
 
 ## Module Ownership
 
@@ -59,26 +69,28 @@ Shared code must not know product concepts such as friend, blocked user, manager
 
 ## Tenant Handling
 
-`AccessSubject.TenantId` should be set when the caller acts inside a tenant.
+`AccessSubject` is intentionally identity-only. Do not put tenant ids on it.
 
 Tenant isolation remains separate from resource visibility:
 
 - tenant filters prevent cross-tenant data leaks;
 - module visibility scopes decide which resources are visible inside an allowed tenant or across explicitly global/platform resources.
+- generic permission checks receive tenant context as an `AccessScope` such as `tenant:default`;
+- HTTP tenant-scope resolution is provided by `Gma.Framework.Tenancy.AccessControl.AspNetCore`, not by the access-control core.
 
 ## Follow-Up Direction
 
-The first slice stopped at `AccessSubject` because generic grants had not yet earned their keep. A later product-management use case did prove repeated need for permissioned actions outside admin-only surfaces. See [Generic Access Control And RBAC Refactor Task](generic-access-control-rbac-task.md) for the planned second-phase refactor.
+The first slice stopped at `AccessSubject` because generic grants had not yet earned their keep. A later product-management use case did prove repeated need for permissioned actions outside admin-only surfaces. See [Generic Access Control And RBAC Refactor Task](generic-access-control-rbac-task.md) for the implemented persisted RBAC module and framework bridge.
 
 ## Future Options
 
-Add a persisted `AccessControl` module only when several modules need the same object-sharing model.
+Add relationship/object-sharing models only when several modules need the same shape.
 
 Possible future model:
 
 ```text
-subject kind/id/tenant
-resource module/type/id/tenant
+subject kind/id
+resource module/type/id/scope
 relation or level
 created by/at
 expires at
@@ -98,7 +110,7 @@ External engines such as OPA, Cedar, OpenFGA, or SpiceDB remain optional adapter
 
 ## Tests
 
-- `Gma.Framework.AccessControl` tests cover subject normalization and rejection.
+- `Gma.Framework.AccessControl` tests cover subject, scope, decision, provider-order, and deny-by-default behavior.
 - Module tests cover each domain visibility policy or direct application access check.
 - Persistence tests prove typed scopes translate into query filters.
 - Architecture tests keep the shared subject package backend-free and keep external access adapters out of domain projects.

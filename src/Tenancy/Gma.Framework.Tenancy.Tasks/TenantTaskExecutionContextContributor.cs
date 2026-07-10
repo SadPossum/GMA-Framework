@@ -1,6 +1,7 @@
 namespace Gma.Framework.Tenancy.Tasks;
 
 using Gma.Framework.Tasks.Infrastructure;
+using Gma.Framework.Scoping;
 using Gma.Framework.Tenancy;
 
 internal sealed class TenantTaskExecutionContextContributor(ITenantContextAccessor tenantContext)
@@ -13,18 +14,18 @@ internal sealed class TenantTaskExecutionContextContributor(ITenantContextAccess
         ArgumentNullException.ThrowIfNull(context);
 
         tenantContext.ClearTenant();
-        if (!context.Registration.IsTenantScoped())
+        if (!context.Registration.IsScopeAware())
         {
             return ValueTask.FromResult(TaskExecutionContextPreparationResult.Success());
         }
 
-        if (string.IsNullOrWhiteSpace(context.Lease.TenantId))
+        if (string.IsNullOrWhiteSpace(context.Lease.ScopeId))
         {
             return ValueTask.FromResult(TaskExecutionContextPreparationResult.Failure(
-                $"Tenant-scoped task {context.Lease.ModuleName}.{context.Lease.TaskName} has no tenant id."));
+                $"Scope-aware task {context.Lease.ModuleName}.{context.Lease.TaskName} has no scope id."));
         }
 
-        tenantContext.SetTenant(context.Lease.TenantId);
+        tenantContext.SetTenant(context.Lease.ScopeId);
 
         return ValueTask.FromResult(TaskExecutionContextPreparationResult.Success());
     }

@@ -6,10 +6,10 @@ using Gma.Framework.Naming;
 
 internal static class NotificationSignalRGroupNames
 {
-    public static string ForUser(string applicationNamespace, string tenantId, string userId)
+    public static string ForUser(string applicationNamespace, string scopeId, string userId)
     {
         string normalizedNamespace = ApplicationNamespaces.Normalize(applicationNamespace);
-        string input = $"{tenantId}\u001f{userId}";
+        string input = $"{scopeId}\u001f{userId}";
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
 
         return $"{normalizedNamespace}:notifications:user:{Convert.ToHexString(hash).ToLowerInvariant()}";

@@ -18,8 +18,8 @@ public sealed record CacheKey
     public CacheScope Scope { get; }
     public IReadOnlyList<string> Segments { get; }
 
-    public static CacheKey Tenant(string module, string entry, params string[] segments) =>
-        new(module, entry, CacheScope.Tenant, segments);
+    public static CacheKey Scoped(string module, string entry, params string[] segments) =>
+        new(module, entry, CacheScope.Scope, segments);
 
     public static CacheKey Global(string module, string entry, params string[] segments) =>
         new(module, entry, CacheScope.Global, segments);

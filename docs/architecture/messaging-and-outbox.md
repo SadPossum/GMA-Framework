@@ -14,7 +14,7 @@ Messaging is behind abstractions. Domain and application code should never depen
 
 Public module integration events inherit `IntegrationEvent` from `Gma.Framework.Messaging`.
 The base owns event id, occurrence time, event name, and version validation. Module event types keep payload-specific fields and validation local to the owning `.Contracts` project.
-Tenant-owned events opt into `Gma.Framework.Tenancy.Messaging` by inheriting `TenantIntegrationEvent`; that contract bridge owns tenant id normalization without making base messaging or NATS depend on tenancy.
+Scope-owned events opt into generic isolation by inheriting `ScopedIntegrationEvent` or implementing `IScopedIntegrationEvent`; that contract owns scope id normalization without making base messaging or NATS depend on tenancy. Tenancy-specific contracts may still use `Gma.Framework.Tenancy.Messaging` as a bridge when their public language must be tenant-shaped.
 This keeps the skeleton compatible with common event metadata practices without forcing a full CloudEvents envelope into module payload classes.
 
 ## Runtime Adapter
@@ -29,7 +29,7 @@ HTTP hosts that need real publishing opt in by referencing `Gma.Framework.Messag
 
 ```csharp
 builder.AddMessagingInfrastructure();
-builder.AddTenantAwareMessaging(); // only for hosts/modules that use tenant-scoped integration events
+builder.AddTenantAwareMessaging(); // only for tenant-aware hosts that consume scope-aware integration events
 builder.AddConfiguredNatsJetStreamMessaging();
 ```
 
@@ -146,7 +146,7 @@ EF-backed modules should map inbox rows through `ConfigureInboxMessage(...)` so 
 - Use `IOutboxWriterRegistry` from application handlers; do not inject a bare `IOutboxWriter`.
 - Keep event names stable.
 - Version events explicitly.
-- Inherit tenant-owned public events from `TenantIntegrationEvent` and compose `Gma.Framework.Tenancy.Messaging.Infrastructure` in hosts that publish or consume them.
+- Inherit scope-owned public events from `ScopedIntegrationEvent` or implement `IScopedIntegrationEvent`, then compose `Gma.Framework.Tenancy.Messaging.Infrastructure` in tenant-aware hosts that publish or consume them.
 - Inherit tenant-free public events from `IntegrationEvent`; do not re-declare event id, occurrence time, event name, or version in every event.
 - Prefer additive event changes.
 - Do not expose internal domain entities as integration events.

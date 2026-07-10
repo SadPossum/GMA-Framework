@@ -45,7 +45,7 @@ This slice adds optional, front-door-focused user notifications and live streami
 - If `Notifications` is composed, history writer failures fail open and do not roll back committed source commands.
 - Notification streams advance by durable `StreamSequence`, not wall-clock timestamps.
 - Broadcast streams advance by their own durable `StreamSequence`; do not merge direct notification and broadcast sequence values client-side.
-- Platform broadcast entities are not `ITenantScoped`; visibility must stay in the broadcast repository so platform broadcasts can appear inside tenant-scoped feeds.
+- Platform broadcast entities are not `IScopedEntity`; visibility must stay in the broadcast repository so platform broadcasts can appear inside tenant-scoped feeds.
 - Non-tenant projects should omit `TenancyModule`; the shared local default tenant id still scopes tenant broadcasts and read receipts.
 - Payloads are bounded and serialized centrally.
 - Durable notification payload JSON is bounded to 32 KB in the event contract, domain value object, and EF model. Provider migrations must keep that limit visible.

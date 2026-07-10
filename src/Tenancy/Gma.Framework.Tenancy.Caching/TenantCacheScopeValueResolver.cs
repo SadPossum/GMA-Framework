@@ -11,7 +11,7 @@ internal sealed class TenantCacheScopeValueResolver(ITenantContext tenantContext
         scope switch
         {
             CacheScope.Global => "global",
-            CacheScope.Tenant => this.ResolveTenant(),
+            CacheScope.Scope => this.ResolveTenant(),
             _ => throw new InvalidOperationException($"Unsupported cache scope '{scope}'.")
         };
 

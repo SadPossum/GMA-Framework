@@ -6,12 +6,12 @@ using Microsoft.Extensions.Options;
 using Gma.Framework.Naming;
 using Gma.Framework.Notifications;
 using Gma.Framework.Runtime;
-using Gma.Framework.Tenancy;
+using Gma.Framework.Scoping;
 
 public sealed class UserNotificationsHub(
     IOptions<NotificationsOptions> notificationsOptions,
     IOptions<ApplicationIdentityOptions> applicationIdentity,
-    IOptions<TenantOptions> tenantOptions) : Hub
+    IOptions<ScopeOptions> scopeOptions) : Hub
 {
     public override async Task OnConnectedAsync()
     {
@@ -26,30 +26,30 @@ public sealed class UserNotificationsHub(
             this.RejectConnection("Notification user claim is required.");
         }
 
-        string? tenantId = this.ResolveTenantId();
-        if (string.IsNullOrWhiteSpace(tenantId))
+        string? scopeId = this.ResolveScopeId();
+        if (string.IsNullOrWhiteSpace(scopeId))
         {
-            this.RejectConnection("Notification tenant claim is required.");
+            this.RejectConnection("Notification scope claim is required.");
         }
 
         string groupName = NotificationSignalRGroupNames.ForUser(
             applicationIdentity.Value.EffectiveNamespace,
-            tenantId,
+            scopeId,
             userId);
         await this.Groups.AddToGroupAsync(this.Context.ConnectionId, groupName, this.Context.ConnectionAborted)
             .ConfigureAwait(false);
         await base.OnConnectedAsync().ConfigureAwait(false);
     }
 
-    private string? ResolveTenantId()
+    private string? ResolveScopeId()
     {
-        if (!tenantOptions.Value.Enabled)
+        if (!scopeOptions.Value.Enabled)
         {
-            return tenantOptions.Value.LocalDefaultTenantId;
+            return scopeOptions.Value.LocalDefaultScopeId;
         }
 
-        return TenantIds.TryNormalize(this.Context.User?.GetTenantId(), out string? tenantId)
-            ? tenantId
+        return ScopeIds.TryNormalize(this.Context.User?.GetScopeId(), out string? scopeId)
+            ? scopeId
             : null;
     }
 

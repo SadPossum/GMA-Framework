@@ -7,7 +7,7 @@ public sealed record TaskRunFilter
         string? taskName = null,
         string? workerGroup = null,
         TaskRunStatus? status = null,
-        string? tenantId = null,
+        string? scopeId = null,
         int page = 1,
         int pageSize = 50)
     {
@@ -23,9 +23,9 @@ public sealed record TaskRunFilter
         this.Status = status is null
             ? null
             : TaskRunStatusTransitions.RequireKnown(status.Value);
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TaskNames.NormalizeTenantId(tenantId, nameof(tenantId));
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
         this.Page = Math.Max(1, page);
         this.PageSize = Math.Clamp(pageSize, 1, 200);
     }
@@ -34,7 +34,7 @@ public sealed record TaskRunFilter
     public string? TaskName { get; }
     public string? WorkerGroup { get; }
     public TaskRunStatus? Status { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
     public int Page { get; }
     public int PageSize { get; }
     public int SkipCount => (this.Page - 1) * this.PageSize;

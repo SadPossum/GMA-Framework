@@ -75,7 +75,7 @@ public sealed class CachingTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             cache.GetOrCreateAsync(
-                CacheKey.Tenant("catalog", "product", "42"),
+                CacheKey.Scoped("catalog", "product", "42"),
                 _ => ValueTask.FromResult(42)).AsTask());
     }
 
@@ -91,7 +91,7 @@ public sealed class CachingTests
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             cache.GetOrCreateAsync(
-                CacheKey.Tenant("catalog", "product", "42"),
+                CacheKey.Scoped("catalog", "product", "42"),
                 _ => ValueTask.FromResult(42)).AsTask());
 
         Assert.Contains("Gma.Framework.Tenancy.Caching", exception.Message, StringComparison.Ordinal);
@@ -104,7 +104,7 @@ public sealed class CachingTests
         await using ServiceProvider provider = BuildProvider(tenantContext: tenant);
         using IServiceScope scope = provider.CreateScope();
         IApplicationCache cache = scope.ServiceProvider.GetRequiredService<IApplicationCache>();
-        CacheKey key = CacheKey.Tenant("catalog", "product", "42");
+        CacheKey key = CacheKey.Scoped("catalog", "product", "42");
         int calls = 0;
 
         int first = await cache.GetOrCreateAsync(key, _ => ValueTask.FromResult(++calls));
@@ -128,12 +128,12 @@ public sealed class CachingTests
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             cache.GetOrCreateAsync(
-                CacheKey.Tenant("catalog", "product", "42"),
+                CacheKey.Scoped("catalog", "product", "42"),
                 _ => ValueTask.FromResult(42)).AsTask());
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            cacheStore.RemoveAsync(CacheKey.Tenant("catalog", "product", "42"), CancellationToken.None).AsTask());
+            cacheStore.RemoveAsync(CacheKey.Scoped("catalog", "product", "42"), CancellationToken.None).AsTask());
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            cacheStore.RemoveByTagAsync(CacheTag.Tenant("catalog", "products"), CancellationToken.None).AsTask());
+            cacheStore.RemoveByTagAsync(CacheTag.Scoped("catalog", "products"), CancellationToken.None).AsTask());
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class CachingTests
             Options.Create(new CachingOptions { KeyPrefix = " GMA-DEV_1 " }),
             Options.Create(new ApplicationIdentityOptions()));
 
-        string physicalKey = formatter.Format(CacheKey.Tenant("catalog", "product", "42"));
+        string physicalKey = formatter.Format(CacheKey.Scoped("catalog", "product", "42"));
 
         Assert.Equal("gma-dev_1:redistests_1:catalog:tenant:alpha:product:42", physicalKey);
     }
@@ -159,7 +159,7 @@ public sealed class CachingTests
             Options.Create(new CachingOptions()),
             Options.Create(new ApplicationIdentityOptions { Namespace = "acme-orders" }));
 
-        string physicalKey = formatter.Format(CacheKey.Tenant("catalog", "product", "42"));
+        string physicalKey = formatter.Format(CacheKey.Scoped("catalog", "product", "42"));
 
         Assert.Equal("acme-orders:redistests:catalog:tenant:alpha:product:42", physicalKey);
     }
@@ -209,9 +209,9 @@ public sealed class CachingTests
         ICacheStore cacheStore = scope.ServiceProvider.GetRequiredService<ICacheStore>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            cacheStore.RemoveAsync(CacheKey.Tenant("catalog", "product", "42"), CancellationToken.None).AsTask());
+            cacheStore.RemoveAsync(CacheKey.Scoped("catalog", "product", "42"), CancellationToken.None).AsTask());
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            cacheStore.RemoveByTagAsync(CacheTag.Tenant("catalog", "products"), CancellationToken.None).AsTask());
+            cacheStore.RemoveByTagAsync(CacheTag.Scoped("catalog", "products"), CancellationToken.None).AsTask());
     }
 
     [Theory]
@@ -295,7 +295,7 @@ public sealed class CachingTests
         await using ServiceProvider provider = BuildProvider(tenantContext: tenant);
         using IServiceScope scope = provider.CreateScope();
         IApplicationCache cache = scope.ServiceProvider.GetRequiredService<IApplicationCache>();
-        CacheKey tenantKey = CacheKey.Tenant("catalog", "product", "42");
+        CacheKey tenantKey = CacheKey.Scoped("catalog", "product", "42");
         CacheKey globalKey = CacheKey.Global("catalog", "settings");
         int tenantCalls = 0;
         int globalCalls = 0;
@@ -339,7 +339,7 @@ public sealed class CachingTests
     public void Cache_keys_and_tags_normalize_and_validate_segments()
     {
         CacheKey key = CacheKey.Global("Catalog", "Product", " 42 ");
-        CacheTag tag = CacheTag.Tenant("Catalog", "Products", " Featured ");
+        CacheTag tag = CacheTag.Scoped("Catalog", "Products", " Featured ");
 
         Assert.Equal("catalog", key.Module);
         Assert.Equal("product", key.Entry);
@@ -768,7 +768,7 @@ public sealed class CachingTests
         IApplicationCache cache = scope.ServiceProvider.GetRequiredService<IApplicationCache>();
 
         await cache.GetOrCreateAsync(
-            CacheKey.Tenant("catalog", "product", "high-cardinality-key"),
+            CacheKey.Scoped("catalog", "product", "high-cardinality-key"),
             _ => ValueTask.FromResult(42));
 
         IReadOnlyDictionary<string, object?> tags = Assert.Single(measurements);
@@ -861,7 +861,7 @@ public sealed class CachingTests
             scope switch
             {
                 CacheScope.Global => "global",
-                CacheScope.Tenant => tenantScopeValue,
+                CacheScope.Scope => tenantScopeValue,
                 _ => throw new InvalidOperationException($"Unsupported cache scope '{scope}'.")
             };
     }

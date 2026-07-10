@@ -108,7 +108,7 @@ public sealed class ApplicationServiceCollectionExtensionsTests
 
     private sealed record ApplicationRegistrationIntegrationEvent(
         Guid EventId,
-        string TenantId,
+        string ScopeId,
         DateTimeOffset OccurredAtUtc,
         string EventName,
         int Version) : IIntegrationEvent;

@@ -19,6 +19,7 @@
     <File Path="docs/architecture/caching.md" />
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
     <File Path="docs/architecture/file-management.md" />
+    <File Path="docs/architecture/generic-access-control-rbac-task.md" />
     <File Path="docs/architecture/messaging-and-outbox.md" />
     <File Path="docs/architecture/messaging-consumers.md" />
     <File Path="docs/architecture/metadata-attribute-pipeline-task.md" />
@@ -75,6 +76,7 @@
   </Folder>
   <Folder Name="/src/Administration/">
     <Project Path="src/Administration/Gma.Framework.Administration.Api/Gma.Framework.Administration.Api.csproj" />
+    <Project Path="src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />
     <Project Path="src/Administration/Gma.Framework.Administration.Cli/Gma.Framework.Administration.Cli.csproj" />
     <Project Path="src/Administration/Gma.Framework.Administration/Gma.Framework.Administration.csproj" />
   </Folder>
@@ -142,6 +144,10 @@
   <Folder Name="/src/Pagination/">
     <Project Path="src/Pagination/Gma.Framework.Pagination/Gma.Framework.Pagination.csproj" />
   </Folder>
+  <Folder Name="/src/Scoping/">
+    <Project Path="src/Scoping/Gma.Framework.Scoping.Infrastructure/Gma.Framework.Scoping.Infrastructure.csproj" />
+    <Project Path="src/Scoping/Gma.Framework.Scoping/Gma.Framework.Scoping.csproj" />
+  </Folder>
   <Folder Name="/src/Persistence/">
     <Project Path="src/Persistence/Gma.Framework.Persistence.EntityFrameworkCore/Gma.Framework.Persistence.EntityFrameworkCore.csproj" />
   </Folder>
@@ -164,7 +170,8 @@
   </Folder>
   <Folder Name="/src/Security/">
     <Project Path="src/Security/Gma.Framework.AccessControl/Gma.Framework.AccessControl.csproj" />
-    <Project Path="src/Security/Gma.Framework.Authorization/Gma.Framework.Authorization.csproj" />
+    <Project Path="src/Security/Gma.Framework.AccessControl.AspNetCore/Gma.Framework.AccessControl.AspNetCore.csproj" />
+    <Project Path="src/Security/Gma.Framework.Permissions/Gma.Framework.Permissions.csproj" />
     <Project Path="src/Security/Gma.Framework.Security/Gma.Framework.Security.csproj" />
   </Folder>
   <Folder Name="/src/Tasks/">
@@ -173,12 +180,14 @@
     <Project Path="src/Tasks/Gma.Framework.Tasks/Gma.Framework.Tasks.csproj" />
   </Folder>
   <Folder Name="/src/Tenancy/">
+    <Project Path="src/Tenancy/Gma.Framework.Tenancy.AccessControl.AspNetCore/Gma.Framework.Tenancy.AccessControl.AspNetCore.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Api.Serilog/Gma.Framework.Tenancy.Api.Serilog.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Caching/Gma.Framework.Tenancy.Caching.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Cqrs/Gma.Framework.Tenancy.Cqrs.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Infrastructure/Gma.Framework.Tenancy.Infrastructure.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Messaging.Infrastructure/Gma.Framework.Tenancy.Messaging.Infrastructure.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Messaging/Gma.Framework.Tenancy.Messaging.csproj" />
+    <Project Path="src/Tenancy/Gma.Framework.Tenancy.Scoping/Gma.Framework.Tenancy.Scoping.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy.Tasks/Gma.Framework.Tenancy.Tasks.csproj" />
     <Project Path="src/Tenancy/Gma.Framework.Tenancy/Gma.Framework.Tenancy.csproj" />
   </Folder>

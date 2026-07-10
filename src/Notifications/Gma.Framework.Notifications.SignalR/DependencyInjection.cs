@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Gma.Framework.ModuleComposition;
 using Gma.Framework.Notifications;
+using Gma.Framework.Scoping;
 
 public static class DependencyInjection
 {
@@ -39,6 +40,9 @@ public static class DependencyInjection
         if (notificationsOptions.Enabled && signalROptions.Enabled)
         {
             builder.ProvideFeature(NotificationsCompositionFeatures.SignalRProvided("Gma.Framework.Notifications.SignalR"));
+            builder.RequireFeature(ScopeCompositionFeatures.ContextRequired(
+                "Gma.Framework.Notifications.SignalR",
+                "Register scoping infrastructure before enabling notification SignalR delivery."));
             builder.RequireFeature(NotificationsCompositionFeatures.PublisherRequired(
                 "Gma.Framework.Notifications.SignalR",
                 "Register Gma.Framework.Notifications.Infrastructure before enabling notification SignalR delivery."));

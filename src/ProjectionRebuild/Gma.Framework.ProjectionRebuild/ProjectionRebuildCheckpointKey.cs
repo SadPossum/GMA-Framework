@@ -8,20 +8,20 @@ public sealed record ProjectionRebuildCheckpointKey
         string moduleName,
         Guid runId,
         string projectionName,
-        string? tenantId)
+        string? scopeId)
     {
         this.ModuleName = SharedModuleNames.Normalize(moduleName, nameof(moduleName));
         this.RunId = runId == Guid.Empty
             ? throw new ArgumentException("Projection rebuild run id must not be empty.", nameof(runId))
             : runId;
         this.ProjectionName = ProjectionRebuildNames.NormalizeProjectionName(projectionName, nameof(projectionName));
-        this.TenantId = string.IsNullOrWhiteSpace(tenantId)
+        this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
-            : TenantIds.Normalize(tenantId);
+            : ScopeIds.Normalize(scopeId);
     }
 
     public string ModuleName { get; }
     public Guid RunId { get; }
     public string ProjectionName { get; }
-    public string? TenantId { get; }
+    public string? ScopeId { get; }
 }

@@ -15,7 +15,7 @@ public sealed class ProjectionRebuildRunner<TSnapshot>(
         IProjectionRebuildSource<TSnapshot> source,
         IProjectionRebuildWriter<TSnapshot> writer,
         ProjectionRebuildExecutionContext context,
-        bool tenantScoped,
+        bool scopeAware,
         IProjectionRebuildRunObserver? observer,
         CancellationToken cancellationToken)
     {
@@ -25,10 +25,10 @@ public sealed class ProjectionRebuildRunner<TSnapshot>(
         ArgumentNullException.ThrowIfNull(context);
         observer ??= ProjectionRebuildRunObserver.None;
 
-        if (tenantScoped && string.IsNullOrWhiteSpace(context.TenantId))
+        if (scopeAware && string.IsNullOrWhiteSpace(context.ScopeId))
         {
             throw new InvalidOperationException(
-                $"Tenant-scoped projection rebuild '{moduleName}.{request.ProjectionName}' has no tenant id.");
+                $"Scope-aware projection rebuild '{moduleName}.{request.ProjectionName}' has no scope id.");
         }
 
         IProjectionRebuildCheckpointStore store = checkpointStores.GetRequired(moduleName);
@@ -37,7 +37,7 @@ public sealed class ProjectionRebuildRunner<TSnapshot>(
             moduleName,
             context.RunId,
             request.ProjectionName,
-            tenantScoped ? context.TenantId : null);
+            scopeAware ? context.ScopeId : null);
 
         ProjectionRebuildCheckpoint? saved = request.Cursor is null
             ? await store.GetAsync(key, cancellationToken).ConfigureAwait(false)
@@ -72,7 +72,7 @@ public sealed class ProjectionRebuildRunner<TSnapshot>(
                         cancellationToken)
                     .ConfigureAwait(false);
 
-                return new ProjectionRebuildSummary(moduleName, request.ProjectionName, key.TenantId, request.DryRun, completed);
+                return new ProjectionRebuildSummary(moduleName, request.ProjectionName, key.ScopeId, request.DryRun, completed);
             }
 
             ProjectionRebuildCheckpoint visibleCheckpoint;
@@ -111,7 +111,7 @@ public sealed class ProjectionRebuildRunner<TSnapshot>(
                 return new ProjectionRebuildSummary(
                     moduleName,
                     request.ProjectionName,
-                    key.TenantId,
+                    key.ScopeId,
                     request.DryRun,
                     visibleCheckpoint);
             }

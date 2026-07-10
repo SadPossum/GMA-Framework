@@ -1,9 +1,8 @@
 namespace Gma.Framework.Tenancy.Messaging;
 
 using Gma.Framework.Messaging;
-using Gma.Framework.Naming;
 
-public abstract record TenantIntegrationEvent : IntegrationEvent, ITenantIntegrationEvent
+public abstract record TenantIntegrationEvent : ScopedIntegrationEvent, ITenantIntegrationEvent
 {
     protected TenantIntegrationEvent(
         Guid eventId,
@@ -11,8 +10,9 @@ public abstract record TenantIntegrationEvent : IntegrationEvent, ITenantIntegra
         DateTimeOffset occurredAtUtc,
         string eventName,
         int version)
-        : base(eventId, occurredAtUtc, eventName, version)
-        => this.TenantId = TenantIds.Normalize(tenantId);
+        : base(eventId, tenantId, occurredAtUtc, eventName, version)
+    {
+    }
 
-    public string TenantId { get; }
+    public string TenantId => this.ScopeId;
 }
