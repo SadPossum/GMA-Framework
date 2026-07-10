@@ -16,7 +16,7 @@ The framework and module extraction are implemented in the source-first skeleton
 - `Gma.Modules.AccessControl` owns persisted RBAC entities, SQL Server/PostgreSQL migrations, role/assignment application ports, bootstrap options, the persisted `IAccessDecisionProvider`, and the persisted `IAccessGrantScopeReader`.
 - `Gma.Modules.Administration` owns audit persistence and empty admin API/CLI shell modules. `Gma.Modules.AccessControl.AdminCli` and `.AdminApi` own role management/bootstrap front doors.
 - `Host.AdminCli`, `Host.AdminApi`, integration tests, solution layout, source roots, docs, and architecture guards compose AccessControl explicitly.
-- Concrete persisted permission grants require exact scope matches. The owner wildcard is the only current grant that uses global/ancestor scope matching until descriptor-driven per-permission inheritance is implemented.
+- Concrete persisted permission grants require exact scope matches unless their registered `ModulePermissionDescriptor` explicitly opts into ancestor and/or global scope grants. The owner wildcard retains explicit global/ancestor compatibility behavior.
 - Persisted permission checks prefilter by subject, relevant permission grants, and plausible request scopes in SQL before applying final scope-matching rules in memory.
 
 Remote packaging follow-up:
@@ -440,7 +440,7 @@ Compatibility rules:
 - Resolved: global and ancestor scope grants are explicit `AccessScopeMatchOptions`, not automatic defaults.
 - Resolved: wildcard owner grants stay as an Administration compatibility concern for now.
 - Resolved: admin-to-access-control authorization lives in `Gma.Framework.Administration.AccessControl`, not core `Gma.Framework.Administration`.
-- Resolved: persisted RBAC keeps concrete permission grants exact-scope by default; descriptor-driven inheritance remains a later extension point.
+- Resolved: persisted RBAC keeps concrete permission grants exact-scope by default and resolves explicit descriptor-driven inheritance consistently for point checks and grant-scope reads.
 - Resolved: endpoint helpers use explicit endpoint filters and metadata.
 - Resolved: Administration RBAC migrations are preserved as compatibility/no-op migrations while AccessControl owns new RBAC schema migrations.
 - Follow-up: generic decision audit remains deferred until a real non-admin audit use case appears.

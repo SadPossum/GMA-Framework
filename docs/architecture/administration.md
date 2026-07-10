@@ -271,7 +271,7 @@ HTTP request
 .\eng\run-admin.ps1 -- admin bootstrap --actor owner --yes
 .\eng\run-admin.ps1 -- admin roles create --actor owner --name support
 .\eng\run-admin.ps1 -- admin roles grant --actor owner --role support --permission auth.members.read
-.\eng\run-admin.ps1 -- admin roles assign --actor owner --target-actor support --role support --tenant default
+.\eng\run-admin.ps1 -- admin roles assign --actor owner --target-kind admin-actor --target-id support --role support --scope tenant:default
 .\eng\run-admin.ps1 -- admin roles list --actor owner
 ```
 
@@ -293,7 +293,10 @@ AccessControl:
 GET  /api/admin/roles
 POST /api/admin/roles
 POST /api/admin/roles/{roleName}/permissions
+DELETE /api/admin/roles/{roleName}/permissions/{permissionCode}
 POST /api/admin/roles/{roleName}/assignments
+GET  /api/admin/roles/{roleName}/assignments
+DELETE /api/admin/roles/{roleName}/assignments?subjectKind=<kind>&subjectId=<id>&scope=<scope>
 ```
 
 Auth:

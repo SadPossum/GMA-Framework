@@ -1,6 +1,7 @@
 namespace Gma.Framework.Tests.AccessControl;
 
 using Gma.Framework.AccessControl;
+using Gma.Framework.Modules;
 using Gma.Framework.Permissions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -30,6 +31,33 @@ public sealed class AccessControlTests
         Assert.Equal("notifications-worker", service.Id);
         Assert.Equal(AccessSubjectKind.System, system.Kind);
         Assert.Equal("platform", system.Id);
+    }
+
+    [Theory]
+    [InlineData("user", AccessSubjectKind.User)]
+    [InlineData(" Admin-Actor ", AccessSubjectKind.AdminActor)]
+    [InlineData("service", AccessSubjectKind.Service)]
+    [InlineData("SYSTEM", AccessSubjectKind.System)]
+    public void Access_subject_kind_names_round_trip_stable_public_names(string input, AccessSubjectKind expected)
+    {
+        Assert.True(AccessSubjectKindNames.TryParse(input, out AccessSubjectKind parsed));
+        Assert.Equal(expected, parsed);
+        Assert.Equal(expected, AccessSubjectKindNames.TryCreate(input, "subject-1", out AccessSubject? subject)
+            ? subject.Kind
+            : AccessSubjectKind.Unknown);
+        Assert.Equal(AccessSubjectKindNames.GetName(expected), AccessSubjectKindNames.GetName(parsed));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("administrator")]
+    [InlineData("unknown")]
+    public void Access_subject_kind_names_reject_unknown_public_names(string? input)
+    {
+        Assert.False(AccessSubjectKindNames.TryParse(input, out AccessSubjectKind kind));
+        Assert.Equal(AccessSubjectKind.Unknown, kind);
+        Assert.False(AccessSubjectKindNames.TryCreate(input, "subject-1", out _));
     }
 
     [Fact]
@@ -154,6 +182,55 @@ public sealed class AccessControlTests
             AccessScope.Global,
             property,
             new AccessScopeMatchOptions(AllowGlobalScopeGrant: true)));
+    }
+
+    [Fact]
+    public void Permission_descriptor_scope_policy_resolver_is_exact_by_default_and_opt_in_for_descendants()
+    {
+        ModuleDescriptor descriptor = ModuleDescriptor.Create("properties")
+            .WithPermission(new ModulePermissionDescriptor(
+                "properties.read",
+                "Read visible properties.",
+                PermissionScopeRequirement.Scoped,
+                PermissionScopeGrantPolicy.Descendants))
+            .Build();
+        ServiceProvider provider = new ServiceCollection()
+            .AddGmaAccessControlPermissionPolicies(descriptor)
+            .BuildServiceProvider();
+        IAccessScopeMatchOptionsResolver resolver = provider.GetRequiredService<IAccessScopeMatchOptionsResolver>();
+
+        AccessScopeMatchOptions registered = resolver.Resolve(PermissionCode.Create("properties.read"));
+        AccessScopeMatchOptions unregistered = resolver.Resolve(PermissionCode.Create("properties.write"));
+
+        Assert.True(registered.AllowAncestorScopeGrants);
+        Assert.False(registered.AllowGlobalScopeGrant);
+        Assert.False(unregistered.AllowAncestorScopeGrants);
+        Assert.False(unregistered.AllowGlobalScopeGrant);
+    }
+
+    [Fact]
+    public void Permission_descriptor_scope_policy_registration_is_idempotent_and_rejects_conflicts()
+    {
+        ModuleDescriptor descendants = ModuleDescriptor.Create("properties")
+            .WithPermission(new ModulePermissionDescriptor(
+                "properties.read",
+                "Read visible properties.",
+                PermissionScopeRequirement.Scoped,
+                PermissionScopeGrantPolicy.Descendants))
+            .Build();
+        ModuleDescriptor exact = ModuleDescriptor.Create("other-properties")
+            .WithPermission(new ModulePermissionDescriptor(
+                "properties.read",
+                "Read visible properties.",
+                PermissionScopeRequirement.Scoped))
+            .Build();
+        ServiceCollection services = new();
+
+        services.AddGmaAccessControlPermissionPolicies(descendants);
+        services.AddGmaAccessControlPermissionPolicies(descendants);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            services.AddGmaAccessControlPermissionPolicies(exact));
     }
 
     [Fact]

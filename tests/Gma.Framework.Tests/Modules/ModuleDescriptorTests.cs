@@ -177,7 +177,9 @@ public sealed class ModuleDescriptorTests
         Assert.Equal("catalog", descriptor.Schema);
         Assert.Equal("catalog-admin", descriptor.AdminSurfaceName);
         Assert.Equal(6, descriptor.Features.Count);
-        Assert.Equal("catalog.items.read", Assert.Single(descriptor.GetPermissions()).Code);
+        ModulePermissionDescriptor permission = Assert.Single(descriptor.GetPermissions());
+        Assert.Equal("catalog.items.read", permission.Code);
+        Assert.Equal(PermissionScopeGrantPolicy.Exact, permission.ScopeGrantPolicy);
         ModuleIntegrationEventDescriptor publishedEvent = Assert.Single(descriptor.GetPublishedEvents());
         Assert.Equal("catalog", publishedEvent.ModuleName);
         Assert.Equal("item-created", publishedEvent.EventType);
@@ -582,6 +584,19 @@ public sealed class ModuleDescriptorTests
                 "catalog.items.read",
                 "Read catalog items.",
                 scopeRequirement: PermissionScopeRequirement.Unknown));
+    }
+
+    [Fact]
+    public void Module_permission_descriptor_preserves_explicit_scope_grant_policy()
+    {
+        ModulePermissionDescriptor descriptor = new(
+            "properties.read",
+            "Read visible properties.",
+            scopeRequirement: PermissionScopeRequirement.Scoped,
+            scopeGrantPolicy: PermissionScopeGrantPolicy.Descendants);
+
+        Assert.True(descriptor.ScopeGrantPolicy.AllowAncestorScopeGrants);
+        Assert.False(descriptor.ScopeGrantPolicy.AllowGlobalScopeGrant);
     }
 
     private sealed record TestFeature : ModuleDescriptorFeature
