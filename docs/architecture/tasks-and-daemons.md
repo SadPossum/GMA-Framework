@@ -56,13 +56,17 @@ internal sealed class RebuildSearchTask : ITaskHandler<RebuildSearchPayload>
 
 `TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, optional scope id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch.
 
-Register payload handlers explicitly from the owning module application project:
+Keep payload handlers and their explicit registration extension in the owning module application project. Modules shared by API, admin, and worker hosts should separate normal application services from executable task handlers:
 
 ```csharp
-services.AddTaskHandler<GenerateReportTaskPayload, GenerateReportTaskHandler>(CatalogModuleMetadata.Name);
+public static IServiceCollection AddCatalogTaskHandlers(this IServiceCollection services)
+{
+    services.AddTaskHandler<GenerateReportTaskPayload, GenerateReportTaskHandler>(CatalogModuleMetadata.Name);
+    return services;
+}
 ```
 
-`AddTaskHandler<TPayload,THandler>(moduleName)` reads task-owned attributes and generic metadata contributors from the payload type. The older explicit overload remains available for unusual cases, but the attribute-backed overload is the default for module-owned tasks. Architecture tests compare registered handlers, payload attributes, and module descriptors so task docs, module metadata, and runtime registration drift together.
+The execution host calls `AddCatalogTaskHandlers()` only when it is configured to run Catalog tasks. A module used exclusively by a worker may keep task handler registration in its single application extension. `AddTaskHandler<TPayload,THandler>(moduleName)` reads task-owned attributes and generic metadata contributors from the payload type. The older explicit overload remains available for unusual cases, but the attribute-backed overload is the default for module-owned tasks. Architecture tests compare registered handlers, payload attributes, and module descriptors so task docs, module metadata, and runtime registration drift together.
 
 Projection rebuilds are a task use case, not a separate scheduler. Use `Gma.Framework.ProjectionRebuild` for the task-neutral batch/checkpoint loop and `Gma.Framework.ProjectionRebuild.Tasks` when a task handler needs to adapt rebuild progress/control to task runtime services. Keep the source contract, writer, cursor semantics, and checkpoint persistence in the producer/consumer modules that own the data. See [Projection Rebuild Tasks](projection-rebuild-tasks.md).
 
@@ -125,7 +129,8 @@ builder.AddTaskInfrastructure();
 builder.AddTaskRuntimePersistence();
 builder.AddTaskCqrs(); // only when registered task handlers use ITaskCommandDispatcher
 builder.AddTaskWorkerRuntime();
-builder.Services.AddTaskSamplesApplication(); // or your real task-owning modules
+builder.Services.AddTaskSamplesApplication();
+builder.Services.AddTaskSamplesTaskHandlers();
 ```
 
 `Host.Worker` is the default production process for these loops when HTTP isolation matters. It still keeps task execution opt-in:

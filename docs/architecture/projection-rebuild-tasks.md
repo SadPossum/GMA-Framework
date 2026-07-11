@@ -122,13 +122,19 @@ The task payload should expose task identity constants and carry `TaskNameAttrib
 
 ### Task Registration
 
-Task handlers must be registered explicitly from the owning module application registration:
-
-The preferred registration is the parameterless generic overload:
+Task handlers and their registration extension belong in the owning module application project. When the module is also composed into API or admin hosts, keep executable handlers behind a separate worker-facing extension:
 
 ```csharp
-services.AddTaskHandler<RebuildCatalogItemProjectionPayload, RebuildCatalogItemProjectionTask>();
+public static IServiceCollection AddCatalogTaskHandlers(this IServiceCollection services)
+{
+    services.AddProjectionRebuildTasks();
+    services.AddTaskHandler<RebuildCatalogItemProjectionPayload, RebuildCatalogItemProjectionTask>(
+        CatalogModuleMetadata.Name);
+    return services;
+}
 ```
+
+Only hosts that execute Catalog tasks call `AddCatalogTaskHandlers()`. Worker-only modules may keep this registration in their single application extension.
 
 A future constrained helper or source generator is acceptable only if it satisfies all of these conditions:
 

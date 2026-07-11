@@ -120,6 +120,7 @@ builder.Services.AddCatalogApplication();
 builder.AddCatalogPersistence();
 
 builder.Services.AddOrderingApplication();
+builder.Services.AddOrderingTaskHandlers();
 builder.AddOrderingPersistence();
 
 builder.Services.AddTaskRuntimeApplication();

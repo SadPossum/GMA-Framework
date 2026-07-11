@@ -426,6 +426,21 @@ public sealed class TaskRuntimeInfrastructureTests
         Assert.Equal(context, sink.Context);
     }
 
+    [Fact]
+    public void Task_infrastructure_registers_an_empty_handler_registry()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Logging.ClearProviders();
+
+        builder.AddTaskInfrastructure();
+
+        using IHost host = builder.Build();
+        ITaskHandlerRegistry registry = host.Services.GetRequiredService<ITaskHandlerRegistry>();
+
+        Assert.Empty(registry.Registrations);
+        Assert.Null(registry.Find("missing-module", "missing-task"));
+    }
+
     [Theory]
     [InlineData(0, 1000, 1000, 1000, 1000, 5000, "BatchSize")]
     [InlineData(1, 0, 1000, 1000, 1000, 5000, "PollInterval")]

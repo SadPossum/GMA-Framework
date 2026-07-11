@@ -24,6 +24,7 @@ public static class TaskWorkerRuntimeDependencyInjection
 
         builder.Services.AddSingleton<TaskInfrastructureRegistrationMarker>();
         builder.ProvideFeature(TasksCompositionFeatures.InfrastructureProvided("Gma.Framework.Tasks.Infrastructure"));
+        builder.Services.TryAddSingleton<ITaskHandlerRegistry, TaskHandlerRegistry>();
         builder.Services.TryAddScoped<ITaskControlLoop, TaskControlLoop>();
         builder.Services.TryAddSingleton<TaskMetricsSnapshotStore>();
         builder.Services.TryAddSingleton<TaskMetrics>();

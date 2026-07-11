@@ -320,7 +320,8 @@ Rules:
 
 - declare owned task and daemon metadata with split task attributes on the serialized payload contract, then reference it through `ModuleDescriptor.Create(...).WithTask<TPayload>().Build()`;
 - keep task payloads that are module metadata or externally enqueueable in the owning module `.Contracts` project;
-- register task handlers explicitly through the attribute-backed `AddTaskHandler<TPayload,THandler>(moduleName)` overload from the owning module application registration;
+- keep task handler implementations and their `IServiceCollection` registration extension in the owning module application project, and register them explicitly through the attribute-backed `AddTaskHandler<TPayload,THandler>(moduleName)` overload;
+- when a module is composed into both execution and non-execution hosts, expose a separate `Add<Module>TaskHandlers()` extension and call it only from hosts that execute those tasks; a worker-only module may keep handler registration in its single application extension;
 - keep payload code independent from scheduler packages, HTTP, CLI, and other module internals;
 - use `TaskExecutionContext` for run identity, tenant, node, worker id, worker group, attempt, correlation, and cancellation intent;
 - mark scope-aware task payloads with `ScopeAwareAttribute` from `Gma.Framework.Scoping` and compose `AddTenantTaskExecutionContext()` from `Gma.Framework.Tenancy.Tasks` only in tenant-aware worker hosts that need tenant context set before handlers run;
