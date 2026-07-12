@@ -2,11 +2,16 @@ namespace Gma.Framework.Messaging.Nats;
 
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using Gma.Framework.Messaging;
+using Gma.Framework.Runtime;
 
+[method: ActivatorUtilitiesConstructor]
 public sealed class NatsJetStreamEventBus(
     INatsConnection connection,
     NatsJetStreamStreamManager streamManager,
@@ -15,6 +20,24 @@ public sealed class NatsJetStreamEventBus(
     private readonly INatsConnection connection = connection ?? throw new ArgumentNullException(nameof(connection));
     private readonly NatsJetStreamStreamManager streamManager = streamManager ??
         throw new ArgumentNullException(nameof(streamManager));
+    private readonly ILogger<NatsJetStreamEventBus> logger = logger ??
+        throw new ArgumentNullException(nameof(logger));
+    private readonly NatsJetStreamStreamManager? ownedStreamManager;
+
+    public NatsJetStreamEventBus(
+        INatsConnection connection,
+        IOptions<NatsJetStreamOptions> options,
+        IOptions<ApplicationIdentityOptions> applicationIdentity,
+        ILogger<NatsJetStreamEventBus> logger)
+        : this(
+            connection,
+            new NatsJetStreamStreamManager(
+                connection,
+                options,
+                applicationIdentity,
+                NullLogger<NatsJetStreamStreamManager>.Instance),
+            logger)
+        => this.ownedStreamManager = this.streamManager;
 
     public async Task PublishAsync(OutboxMessageRecord message, CancellationToken cancellationToken)
     {
@@ -45,13 +68,13 @@ public sealed class NatsJetStreamEventBus(
     private static string CreateMessageId(Guid messageId) =>
         messageId.ToString("N");
 
-    public void Dispose() { }
+    public void Dispose() => this.ownedStreamManager?.Dispose();
 
     private void LogPublished(Guid eventId, string subject)
     {
         try
         {
-            logger.LogInformation("Published integration event {EventId} to {Subject}", eventId, subject);
+            this.logger.LogInformation("Published integration event {EventId} to {Subject}", eventId, subject);
         }
         catch (Exception)
         {
@@ -63,7 +86,7 @@ public sealed class NatsJetStreamEventBus(
     {
         try
         {
-            logger.LogInformation(
+            this.logger.LogInformation(
                 "NATS JetStream ignored duplicate integration event {EventId} on {Subject}",
                 eventId,
                 subject);
