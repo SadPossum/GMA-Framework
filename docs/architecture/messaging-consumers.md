@@ -46,6 +46,7 @@ Subscription metadata is validated when it is created: module names, event names
     "FetchBatchSize": 10,
     "PollInterval": "00:00:01",
     "AckWait": "00:00:30",
+    "AckProgressInterval": "00:00:10",
     "MaxDeliver": 5,
     "HandlerTimeout": "00:00:30",
     "NakDelay": "00:00:01"
@@ -57,7 +58,7 @@ Subscription metadata is validated when it is created: module names, event names
 Stream name is configured through `NatsJetStream` options and uses the same restricted portable character set as publishing: ASCII letters, digits, `-`, and `_`. If `NatsJetStream:StreamName` is blank, it is derived from `ApplicationIdentity:Namespace`.
 `DurablePrefix` is optional. When it is absent, the first segment of the physical durable consumer name is derived from `ApplicationIdentity:Namespace`. It is not a subject prefix.
 The runtime keeps NATS fetch expiration above the NATS client minimum even when `PollInterval` is configured below one second. Short poll intervals may still be useful for retry delays and tests, but the pull fetch window must remain valid for the client.
-Consumer runtime values are validated at startup. A configured `DurablePrefix` must be a lowercase kebab-case durable-name segment, `FetchBatchSize` must be between 1 and 500, and `PollInterval`, `AckWait`, `MaxDeliver`, `HandlerTimeout`, and `NakDelay` must be positive. Environment names used by consumer hosts must also normalize to a lowercase kebab-case durable-name segment; use values like `development`, `staging`, or `production`.
+Consumer runtime values are validated at startup. A configured `DurablePrefix` must be a lowercase kebab-case durable-name segment, `FetchBatchSize` must be between 1 and 500, and `PollInterval`, `AckWait`, `MaxDeliver`, `HandlerTimeout`, and `NakDelay` must be positive. `AckProgressInterval` is optional, defaults to one third of `AckWait`, and must be shorter than `AckWait` when configured. Environment names used by consumer hosts must also normalize to a lowercase kebab-case durable-name segment; use values like `development`, `staging`, or `production`.
 
 ## Inbox
 
@@ -65,6 +66,7 @@ Each module maps `InboxMessage` into its own schema. EF-backed modules should us
 On success, handler effects and the inbox processed marker commit in the same transaction.
 On failure, handler effects are rolled back before failure metadata is recorded.
 Handler timeout cancellation is treated as a failed attempt and is negatively acknowledged for retry.
+While inbox processing is active, the consumer sends periodic in-progress acknowledgements so handlers may safely run longer than the original `AckWait`. A transient progress-ack failure is logged and retried; the inbox transaction remains the idempotency boundary if the broker redelivers.
 Host shutdown cancellation still propagates so consumers can stop without writing misleading failure metadata.
 Inbox metadata limits are declared by `InboxMessage` and consumed by each module EF mapping. Handler names, subjects, event type names, generic message scope ids, worker ids, and last-error text are validated or bounded in shared infrastructure before persistence.
 

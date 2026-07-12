@@ -25,10 +25,10 @@ public sealed class EventBusTests
     [Fact]
     public async Task Nats_event_bus_rejects_null_message_before_using_connection()
     {
+        INatsConnection connection = CreateUnusedNatsConnection();
         var eventBus = new NatsJetStreamEventBus(
-            CreateUnusedNatsConnection(),
-            Options.Create(new NatsJetStreamOptions()),
-            Options.Create(new ApplicationIdentityOptions()),
+            connection,
+            CreateStreamManager(connection, new NatsJetStreamOptions()),
             NullLogger<NatsJetStreamEventBus>.Instance);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
@@ -36,20 +36,18 @@ public sealed class EventBusTests
     }
 
     [Fact]
-    public void Nats_event_bus_rejects_null_connection_after_stream_options_are_validated()
+    public void Nats_stream_manager_rejects_null_connection_and_invalid_stream_options()
     {
         Assert.Throws<ArgumentNullException>(() =>
-            new NatsJetStreamEventBus(
+            new NatsJetStreamStreamManager(
                 connection: null!,
                 Options.Create(new NatsJetStreamOptions()),
                 Options.Create(new ApplicationIdentityOptions()),
-                NullLogger<NatsJetStreamEventBus>.Instance));
-        Assert.Throws<ArgumentException>(() =>
-            new NatsJetStreamEventBus(
-                connection: null!,
-                Options.Create(new NatsJetStreamOptions { StreamName = "GMA.EVENTS" }),
-                Options.Create(new ApplicationIdentityOptions()),
-                NullLogger<NatsJetStreamEventBus>.Instance));
+                NullLogger<NatsJetStreamStreamManager>.Instance));
+
+        Assert.True(new NatsJetStreamOptionsValidator()
+            .Validate(null, new NatsJetStreamOptions { StreamName = "GMA.EVENTS" })
+            .Failed);
     }
 
     [Fact]
@@ -73,6 +71,15 @@ public sealed class EventBusTests
 
     private static INatsConnection CreateUnusedNatsConnection() =>
         DispatchProxy.Create<INatsConnection, UnusedNatsConnectionProxy>();
+
+    private static NatsJetStreamStreamManager CreateStreamManager(
+        INatsConnection connection,
+        NatsJetStreamOptions options) =>
+        new(
+            connection,
+            Options.Create(options),
+            Options.Create(new ApplicationIdentityOptions()),
+            NullLogger<NatsJetStreamStreamManager>.Instance);
 
     public class UnusedNatsConnectionProxy : DispatchProxy
     {

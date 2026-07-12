@@ -12,7 +12,7 @@ public abstract class EfInboxStore<TDbContext>(
     ISystemClock clock,
     IIdGenerator idGenerator,
     string moduleName)
-    : IInboxStore
+    : IInboxStore, IInboxCleanupStore
     where TDbContext : DbContext
 {
     private const string HandlerCanceledError = "Handler execution was canceled before completion.";
@@ -78,6 +78,31 @@ public abstract class EfInboxStore<TDbContext>(
             await this.RecordFailureAsync(message, workerId, error).ConfigureAwait(false);
             return InboxProcessResult.Failed(error);
         }
+    }
+
+    public async Task<int> DeleteProcessedBeforeAsync(
+        DateTimeOffset processedBeforeUtc,
+        int maxMessages,
+        CancellationToken cancellationToken)
+    {
+        if (processedBeforeUtc == default)
+        {
+            throw new ArgumentException(
+                $"{nameof(processedBeforeUtc)} must not be the default timestamp.",
+                nameof(processedBeforeUtc));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxMessages, 1);
+
+        return await dbContext.Set<InboxMessage>()
+            .Where(message =>
+                message.Status == InboxMessageStatus.Processed &&
+                message.ProcessedAtUtc != null &&
+                message.ProcessedAtUtc < processedBeforeUtc)
+            .OrderBy(message => message.ProcessedAtUtc)
+            .Take(maxMessages)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static async Task InvokeHandlerAsync(

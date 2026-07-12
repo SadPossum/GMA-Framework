@@ -36,64 +36,132 @@ internal sealed class TaskWorkerService(
             this.workerId,
             this.nodeId);
 
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                bool processedAny = false;
+        IReadOnlyList<string> workerGroups = currentOptions.EffectiveWorkerGroups;
+        List<Task> running = [];
+        int nextWorkerGroupIndex = 0;
 
-                foreach (string workerGroup in currentOptions.EffectiveWorkerGroups)
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                running.RemoveAll(task => task.IsCompleted);
+                int availableCapacity = currentOptions.EffectiveMaxConcurrency - running.Count;
+
+                for (int checkedGroups = 0;
+                     checkedGroups < workerGroups.Count && availableCapacity > 0;
+                     checkedGroups++)
                 {
-                    IReadOnlyList<TaskRunLease> leases = await this.ClaimAsync(
+                    string workerGroup = workerGroups[nextWorkerGroupIndex];
+                    nextWorkerGroupIndex = (nextWorkerGroupIndex + 1) % workerGroups.Count;
+                    int claimSize = Math.Min(currentOptions.EffectiveBatchSize, availableCapacity);
+                    IReadOnlyList<TaskRunLease> leases = await this.TryClaimAsync(
                             workerGroup,
+                            claimSize,
                             currentOptions,
                             stoppingToken)
                         .ConfigureAwait(false);
 
                     foreach (TaskRunLease lease in leases)
                     {
-                        processedAny = true;
                         TryRecordClaimed(metrics, lease);
+                        running.Add(this.ProcessLeaseSafelyAsync(lease, currentOptions, stoppingToken));
                     }
 
-                    await this.ProcessLeasesAsync(leases, currentOptions, stoppingToken).ConfigureAwait(false);
+                    availableCapacity -= leases.Count;
                 }
 
-                if (!processedAny)
+                if (running.Count == 0)
                 {
                     await Task.Delay(currentOptions.EffectivePollInterval, stoppingToken).ConfigureAwait(false);
+                    continue;
                 }
+
+                if (running.Count >= currentOptions.EffectiveMaxConcurrency)
+                {
+                    await Task.WhenAny(running).ConfigureAwait(false);
+                    continue;
+                }
+
+                Task pollDelay = Task.Delay(currentOptions.EffectivePollInterval, stoppingToken);
+                _ = await Task.WhenAny(running.Append(pollDelay)).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(exception, "Task worker runtime iteration failed; the worker will retry.");
-                await Task.Delay(currentOptions.EffectivePollInterval, stoppingToken).ConfigureAwait(false);
-            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            await Task.WhenAll(running).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
     }
 
-    private async Task<IReadOnlyList<TaskRunLease>> ClaimAsync(
+    private async Task<IReadOnlyList<TaskRunLease>> TryClaimAsync(
         string workerGroup,
+        int batchSize,
         TaskWorkerOptions currentOptions,
         CancellationToken cancellationToken)
     {
-        using IServiceScope scope = scopeFactory.CreateScope();
-        ITaskRunStore store = scope.ServiceProvider.GetRequiredService<ITaskRunStore>();
-        ISystemClock clock = scope.ServiceProvider.GetRequiredService<ISystemClock>();
+        try
+        {
+            using IServiceScope scope = scopeFactory.CreateScope();
+            ITaskRunStore store = scope.ServiceProvider.GetRequiredService<ITaskRunStore>();
+            ISystemClock clock = scope.ServiceProvider.GetRequiredService<ISystemClock>();
 
-        TaskWorkerClaim claim = new(
-            workerGroup,
-            this.workerId,
-            this.nodeId,
-            clock.UtcNow,
-            currentOptions.EffectiveBatchSize,
-            currentOptions.EffectiveLeaseDuration);
+            TaskWorkerClaim claim = new(
+                workerGroup,
+                this.workerId,
+                this.nodeId,
+                clock.UtcNow,
+                batchSize,
+                currentOptions.EffectiveLeaseDuration);
 
-        return await store.ClaimReadyAsync(claim, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<TaskRunLease> leases = await store.ClaimReadyAsync(claim, cancellationToken)
+                .ConfigureAwait(false);
+            if (leases.Count > batchSize)
+            {
+                logger.LogWarning(
+                    "Task run store returned {LeaseCount} leases for a claim limited to {BatchSize}; all claimed leases will run to preserve ownership.",
+                    leases.Count,
+                    batchSize);
+            }
+
+            return leases;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Task worker failed to claim work for group {WorkerGroup}; other groups will continue.",
+                workerGroup);
+            return [];
+        }
+    }
+
+    private async Task ProcessLeaseSafelyAsync(
+        TaskRunLease lease,
+        TaskWorkerOptions currentOptions,
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            await this.ProcessLeaseAsync(lease, currentOptions, stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Task run {RunId} for {Module}.{Task} failed outside handler execution; the lease will expire for retry.",
+                lease.RunId,
+                lease.ModuleName,
+                lease.TaskName);
+        }
     }
 
     private async Task ProcessLeaseAsync(
@@ -171,14 +239,27 @@ internal sealed class TaskWorkerService(
             using CancellationTokenSource timeout =
                 CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
             timeout.CancelAfter(currentOptions.EffectiveHandlerTimeout);
+            using CancellationTokenSource heartbeatStop = new();
+            Task heartbeat = this.RunAutomaticHeartbeatAsync(
+                context,
+                currentOptions.EffectiveHeartbeatInterval,
+                timeout,
+                heartbeatStop.Token);
 
-            await TaskHandlerInvoker.InvokeAsync(
-                    scope.ServiceProvider,
-                    registration,
-                    lease.PayloadJson,
-                    context,
-                    timeout.Token)
-                .ConfigureAwait(false);
+            try
+            {
+                await TaskHandlerInvoker.InvokeAsync(
+                        scope.ServiceProvider,
+                        registration,
+                        lease.PayloadJson,
+                        context,
+                        timeout.Token)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                await StopHeartbeatAsync(heartbeatStop, heartbeat).ConfigureAwait(false);
+            }
 
             await store.MarkSucceededAsync(context, clock.UtcNow, stoppingToken).ConfigureAwait(false);
             TryRecordCompleted(metrics, lease, "success", stopwatch.Elapsed);
@@ -219,6 +300,40 @@ internal sealed class TaskWorkerService(
         {
             await CleanupExecutionContextAsync(contextContributors, preparationContext).ConfigureAwait(false);
         }
+    }
+
+    private async Task RunAutomaticHeartbeatAsync(
+        TaskExecutionContext context,
+        TimeSpan heartbeatInterval,
+        CancellationTokenSource executionCancellation,
+        CancellationToken heartbeatStop)
+    {
+        using PeriodicTimer timer = new(heartbeatInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(heartbeatStop).ConfigureAwait(false))
+            {
+                using IServiceScope heartbeatScope = scopeFactory.CreateScope();
+                ITaskRunStore reporter = heartbeatScope.ServiceProvider.GetRequiredService<ITaskRunStore>();
+                ISystemClock heartbeatClock = heartbeatScope.ServiceProvider.GetRequiredService<ISystemClock>();
+                await reporter.ReportHeartbeatAsync(context, heartbeatClock.UtcNow, heartbeatStop)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (heartbeatStop.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            executionCancellation.Cancel();
+            throw new InvalidOperationException("Automatic task heartbeat failed.", exception);
+        }
+    }
+
+    private static async Task StopHeartbeatAsync(CancellationTokenSource heartbeatStop, Task heartbeat)
+    {
+        await heartbeatStop.CancelAsync().ConfigureAwait(false);
+        await heartbeat.ConfigureAwait(false);
     }
 
     private static async ValueTask<TaskExecutionContextPreparationResult> PrepareExecutionContextAsync(
@@ -267,48 +382,6 @@ internal sealed class TaskWorkerService(
                 // Context cleanup is best effort; worker leases still rely on persisted task state.
             }
         }
-    }
-
-    private async Task ProcessLeasesAsync(
-        IReadOnlyList<TaskRunLease> leases,
-        TaskWorkerOptions currentOptions,
-        CancellationToken stoppingToken)
-    {
-        if (leases.Count == 0)
-        {
-            return;
-        }
-
-        using SemaphoreSlim semaphore = new(currentOptions.EffectiveMaxConcurrency);
-        Task[] tasks = leases
-            .Select(async lease =>
-            {
-                await semaphore.WaitAsync(stoppingToken).ConfigureAwait(false);
-                try
-                {
-                    await this.ProcessLeaseAsync(lease, currentOptions, stoppingToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    logger.LogError(
-                        exception,
-                        "Task run {RunId} for {Module}.{Task} failed outside handler execution; the lease will expire for retry.",
-                        lease.RunId,
-                        lease.ModuleName,
-                        lease.TaskName);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            })
-            .ToArray();
-
-        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     private static string CreateWorkerId(TaskWorkerOptions options, IIdGenerator idGenerator) =>

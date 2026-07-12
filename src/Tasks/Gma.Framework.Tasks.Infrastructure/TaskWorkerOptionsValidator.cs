@@ -29,6 +29,13 @@ internal sealed class TaskWorkerOptionsValidator : IValidateOptions<TaskWorkerOp
             failures.Add($"{TaskWorkerOptions.SectionName}:LeaseDuration must be positive.");
         }
 
+        if (options.HeartbeatInterval is { } heartbeatInterval &&
+            (heartbeatInterval <= TimeSpan.Zero || heartbeatInterval >= options.LeaseDuration))
+        {
+            failures.Add(
+                $"{TaskWorkerOptions.SectionName}:HeartbeatInterval must be positive and shorter than LeaseDuration when configured.");
+        }
+
         if (options.HandlerTimeout <= TimeSpan.Zero)
         {
             failures.Add($"{TaskWorkerOptions.SectionName}:HandlerTimeout must be positive.");

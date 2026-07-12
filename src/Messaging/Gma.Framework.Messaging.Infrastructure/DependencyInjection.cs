@@ -17,6 +17,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(builder);
 
         ValidateOutboxOptions(builder.Configuration);
+        ValidateMessageJournalCleanupOptions(builder.Configuration);
 
         builder.AddRuntimeInfrastructure();
 
@@ -34,12 +35,23 @@ public static class DependencyInjection
             .ValidateOnStart();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<OutboxOptions>, OutboxOptionsValidator>());
+        builder.Services
+            .AddOptions<MessageJournalCleanupOptions>()
+            .Bind(builder.Configuration.GetSection(MessageJournalCleanupOptions.SectionName))
+            .ValidateOnStart();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<
+                IValidateOptions<MessageJournalCleanupOptions>,
+                MessageJournalCleanupOptionsValidator>());
         builder.Services.TryAddSingleton<OutboxMetrics>();
         builder.Services.TryAddSingleton<InboxMetrics>();
+        builder.Services.TryAddSingleton<MessageJournalMetrics>();
         builder.Services.TryAddScoped<IOutboxWriterRegistry, OutboxWriterRegistry>();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Scoped<IIntegrationEventScopeResolver, ScopedIntegrationEventScopeResolver>());
         builder.Services.TryAddSingleton<IEventBus, NullEventBus>();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, MessageJournalCleanupService>());
 
         return builder;
     }
@@ -68,6 +80,22 @@ public static class DependencyInjection
         if (result.Failed)
         {
             throw new OptionsValidationException(OutboxOptions.SectionName, typeof(OutboxOptions), result.Failures);
+        }
+    }
+
+    private static void ValidateMessageJournalCleanupOptions(IConfiguration configuration)
+    {
+        MessageJournalCleanupOptions options = configuration
+            .GetSection(MessageJournalCleanupOptions.SectionName)
+            .Get<MessageJournalCleanupOptions>() ?? new MessageJournalCleanupOptions();
+        ValidateOptionsResult result = new MessageJournalCleanupOptionsValidator().Validate(name: null, options);
+
+        if (result.Failed)
+        {
+            throw new OptionsValidationException(
+                MessageJournalCleanupOptions.SectionName,
+                typeof(MessageJournalCleanupOptions),
+                result.Failures);
         }
     }
 

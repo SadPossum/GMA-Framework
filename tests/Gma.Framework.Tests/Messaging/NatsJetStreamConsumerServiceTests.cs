@@ -98,6 +98,67 @@ public sealed class NatsJetStreamConsumerServiceTests
     }
 
     [Fact]
+    public void Consumer_options_derive_ack_progress_interval_from_ack_wait()
+    {
+        NatsConsumerOptions options = new() { AckWait = TimeSpan.FromSeconds(30) };
+
+        Assert.Equal(TimeSpan.FromSeconds(10), options.EffectiveAckProgressInterval);
+    }
+
+    [Fact]
+    public void Consumer_options_reject_ack_progress_interval_not_shorter_than_ack_wait()
+    {
+        NatsConsumerOptions options = new()
+        {
+            AckWait = TimeSpan.FromSeconds(10),
+            AckProgressInterval = TimeSpan.FromSeconds(10),
+        };
+
+        Assert.True(new NatsConsumerOptionsValidator().Validate(null, options).Failed);
+    }
+
+    [Fact]
+    public async Task Ack_progress_loop_extends_ownership_until_processing_stops()
+    {
+        using CancellationTokenSource stop = new();
+        int acknowledgements = 0;
+
+        await NatsJetStreamConsumerService.RunAckProgressAsync(
+            _ =>
+            {
+                if (Interlocked.Increment(ref acknowledgements) == 3)
+                {
+                    stop.Cancel();
+                }
+
+                return ValueTask.CompletedTask;
+            },
+            TimeSpan.FromMilliseconds(10),
+            _ => { },
+            stop.Token);
+
+        Assert.Equal(3, acknowledgements);
+    }
+
+    [Fact]
+    public void Jetstream_options_require_finite_stream_limits()
+    {
+        NatsJetStreamOptions options = new()
+        {
+            MaxAge = TimeSpan.Zero,
+            MaxBytes = 0,
+            MaxMessages = 0,
+        };
+
+        ValidateOptionsResult result = new NatsJetStreamOptionsValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("MaxAge", StringComparison.Ordinal));
+        Assert.Contains(result.Failures, failure => failure.Contains("MaxBytes", StringComparison.Ordinal));
+        Assert.Contains(result.Failures, failure => failure.Contains("MaxMessages", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Durable_name_is_deterministic_and_safe_for_nats()
     {
         IntegrationEventSubscription subscription =
@@ -147,18 +208,7 @@ public sealed class NatsJetStreamConsumerServiceTests
         services.AddMetrics();
         using ServiceProvider provider = services.BuildServiceProvider();
 
-        Assert.Throws<ArgumentException>(() =>
-            new NatsJetStreamEventBus(
-                connection: null!,
-                Options.Create(invalidOptions),
-                Options.Create(new ApplicationIdentityOptions()),
-                NullLogger<NatsJetStreamEventBus>.Instance));
-        Assert.Throws<ArgumentException>(() =>
-            CreateService(
-                provider,
-                new IntegrationEventSubscriptionRegistry([]),
-                new NatsConsumerOptions(),
-                invalidOptions));
+        Assert.True(new NatsJetStreamOptionsValidator().Validate(null, invalidOptions).Failed);
     }
 
     [Fact]
@@ -337,14 +387,12 @@ public sealed class NatsJetStreamConsumerServiceTests
     private static NatsJetStreamConsumerService CreateService(
         ServiceProvider provider,
         IIntegrationEventSubscriptionRegistry registry,
-        NatsConsumerOptions consumerOptions,
-        NatsJetStreamOptions? jetStreamOptions = null) =>
+        NatsConsumerOptions consumerOptions) =>
         new(
             provider,
             provider.GetRequiredService<IServiceScopeFactory>(),
             registry,
             Options.Create(consumerOptions),
-            Options.Create(jetStreamOptions ?? new NatsJetStreamOptions()),
             Options.Create(new ApplicationIdentityOptions()),
             new TestHostEnvironment(),
             new InboxMetrics(

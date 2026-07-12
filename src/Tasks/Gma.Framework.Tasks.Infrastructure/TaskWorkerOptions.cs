@@ -14,6 +14,7 @@ public sealed class TaskWorkerOptions
     public int MaxConcurrency { get; set; } = 1;
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(1);
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan? HeartbeatInterval { get; set; }
     public TimeSpan HandlerTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
     public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromMinutes(5);
@@ -28,6 +29,8 @@ public sealed class TaskWorkerOptions
     public int EffectiveMaxConcurrency => Math.Clamp(this.MaxConcurrency, 1, 100);
     public TimeSpan EffectivePollInterval => this.PollInterval <= TimeSpan.Zero ? TimeSpan.FromSeconds(1) : this.PollInterval;
     public TimeSpan EffectiveLeaseDuration => this.LeaseDuration <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : this.LeaseDuration;
+    public TimeSpan EffectiveHeartbeatInterval => this.HeartbeatInterval ??
+        TimeSpan.FromTicks(Math.Max(1, this.EffectiveLeaseDuration.Ticks / 3));
     public TimeSpan EffectiveHandlerTimeout => this.HandlerTimeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : this.HandlerTimeout;
     public TimeSpan EffectiveRetryBaseDelay => this.RetryBaseDelay <= TimeSpan.Zero ? TimeSpan.FromSeconds(2) : this.RetryBaseDelay;
     public TimeSpan EffectiveRetryMaxDelay => this.RetryMaxDelay <= TimeSpan.Zero ? TimeSpan.FromMinutes(5) : this.RetryMaxDelay;

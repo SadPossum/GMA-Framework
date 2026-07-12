@@ -52,6 +52,7 @@ public static class MessagingEntityTypeBuilderExtensions
         builder.Property(message => message.LockedBy).HasMaxLength(InboxMessage.LockedByMaxLength);
         builder.Property(message => message.LastError).HasMaxLength(InboxMessage.LastErrorMaxLength);
         builder.HasIndex(message => new { message.Handler, message.Status });
+        builder.HasIndex(message => new { message.Status, message.ProcessedAtUtc });
 
         return builder;
     }

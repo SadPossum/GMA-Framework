@@ -495,6 +495,37 @@ public sealed class TaskRuntimeInfrastructureTests
         Assert.Contains(result.Failures, failure => failure.Contains("MetricsSamplerPollInterval", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1000)]
+    [InlineData(1500)]
+    public void Task_worker_options_validator_rejects_unsafe_explicit_heartbeat_intervals(
+        int heartbeatMilliseconds)
+    {
+        TaskWorkerOptions options = new()
+        {
+            LeaseDuration = TimeSpan.FromSeconds(1),
+            HeartbeatInterval = TimeSpan.FromMilliseconds(heartbeatMilliseconds),
+        };
+
+        ValidateOptionsResult result = new TaskWorkerOptionsValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("HeartbeatInterval", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Task_worker_options_derive_heartbeat_interval_from_lease_duration()
+    {
+        TaskWorkerOptions options = new()
+        {
+            LeaseDuration = TimeSpan.FromSeconds(30),
+        };
+
+        Assert.Equal(TimeSpan.FromSeconds(10), options.EffectiveHeartbeatInterval);
+    }
+
     [Fact]
     public void Task_run_scheduler_options_validator_rejects_invalid_options()
     {

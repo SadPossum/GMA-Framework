@@ -9,7 +9,7 @@ public abstract class EfOutboxStore<TDbContext>(
     TDbContext dbContext,
     IOptions<OutboxOptions> options,
     string moduleName)
-    : IOutboxStore, IOutboxBacklogReader
+    : IOutboxStore, IOutboxBacklogReader, IOutboxCleanupStore
     where TDbContext : DbContext
 {
     public string ModuleName { get; } = IntegrationEventNaming.NormalizeModuleName(moduleName);
@@ -123,6 +123,23 @@ public abstract class EfOutboxStore<TDbContext>(
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<int> DeleteProcessedBeforeAsync(
+        DateTimeOffset processedBeforeUtc,
+        int maxMessages,
+        CancellationToken cancellationToken)
+    {
+        ValidateCleanupArguments(processedBeforeUtc, maxMessages);
+
+        return await dbContext.Set<OutboxMessage>()
+            .Where(message =>
+                message.ProcessedAtUtc != null &&
+                message.ProcessedAtUtc < processedBeforeUtc)
+            .OrderBy(message => message.ProcessedAtUtc)
+            .Take(maxMessages)
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     private static OutboxMessageRecord ToRecord(OutboxMessage message) =>
         new(
             message.Id,
@@ -132,4 +149,16 @@ public abstract class EfOutboxStore<TDbContext>(
             message.ScopeId,
             message.OccurredAtUtc,
             message.Payload);
+
+    private static void ValidateCleanupArguments(DateTimeOffset processedBeforeUtc, int maxMessages)
+    {
+        if (processedBeforeUtc == default)
+        {
+            throw new ArgumentException(
+                $"{nameof(processedBeforeUtc)} must not be the default timestamp.",
+                nameof(processedBeforeUtc));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxMessages, 1);
+    }
 }

@@ -103,17 +103,50 @@ Command handler
 
 Outbox runtime values are validated at startup. `BatchSize`, `PollIntervalMilliseconds`, `LockDurationMilliseconds`, and `MaxAttempts` must be positive.
 
+## Message Journal Retention
+
+Processed outbox and inbox rows can be removed by the generic, disabled-by-default cleanup service:
+
+```json
+{
+  "MessageJournalCleanup": {
+    "Enabled": false,
+    "CleanupProcessedOutbox": true,
+    "CleanupProcessedInbox": true,
+    "ProcessedOutboxRetention": "7.00:00:00",
+    "ProcessedInboxRetention": "14.00:00:00",
+    "BrokerReplayHorizon": "7.00:00:00",
+    "CleanupInterval": "01:00:00",
+    "BatchSize": 500,
+    "MaxBatchesPerStorePerCycle": 10
+  }
+}
+```
+
+Cleanup remains module-owned: `EfOutboxStore<TDbContext>` and `EfInboxStore<TDbContext>` implement bounded cleanup contracts against each module's own tables. The hosted service coordinates those stores but never owns a shared journal database.
+
+Only successfully processed rows are eligible. Pending, retrying, exhausted, processing, and failed rows remain available for recovery and operator investigation. Inbox retention must be at least the configured broker replay horizon so a replay cannot outlive its deduplication record. Every cycle is bounded by batch size and maximum batches per store, and one module store failure does not stop cleanup for other modules.
+
 NATS stream options:
 
 ```json
 {
   "NatsJetStream": {
-    "Enabled": false
+    "Enabled": false,
+    "ManagementMode": "Managed",
+    "Storage": "File",
+    "MaxAge": "7.00:00:00",
+    "MaxBytes": 1073741824,
+    "MaxMessages": 10000000,
+    "Replicas": 1,
+    "DuplicateWindow": "00:02:00"
   }
 }
 ```
 
 `StreamName` is optional. When it is absent, infrastructure derives a stream name from `ApplicationIdentity:Namespace`, for example `gma` becomes `GMA_EVENTS` and `acme-orders` becomes `ACME_ORDERS_EVENTS`. Override `NatsJetStream:StreamName` only when an existing broker naming policy requires it. The skeleton intentionally accepts only ASCII letters, digits, `-`, and `_` for stream names. That follows the portable subset of [NATS JetStream naming guidance](https://docs.nats.io/nats-concepts/jetstream/streams): stream names must not contain whitespace, `.`, `*`, `>`, path separators, or non-printable characters.
+
+`ManagementMode=Managed` makes GMA create or update the stream to the configured finite limits. `ManagementMode=External` never mutates the stream; startup reads it and fails if subjects, retention, storage, replica count, or duplicate window drift from configuration. Production deployments should normally use file storage and a replica count appropriate to the NATS cluster. `MaxAge`, `MaxBytes`, and `MaxMessages` are required positive bounds in both modes.
 
 ## Claiming and Retry
 

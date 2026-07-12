@@ -18,7 +18,6 @@ internal sealed class NatsJetStreamConsumerService(
     IServiceScopeFactory scopeFactory,
     IIntegrationEventSubscriptionRegistry subscriptions,
     IOptions<NatsConsumerOptions> options,
-    IOptions<NatsJetStreamOptions> jetStreamOptions,
     IOptions<ApplicationIdentityOptions> applicationIdentity,
     IHostEnvironment environment,
     InboxMetrics metrics,
@@ -26,10 +25,7 @@ internal sealed class NatsJetStreamConsumerService(
     : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly SemaphoreSlim streamSetupLock = new(1, 1);
     private readonly string applicationNamespace = applicationIdentity.Value.EffectiveNamespace;
-    private readonly string streamName = jetStreamOptions.Value.EffectiveStreamName(applicationIdentity.Value.EffectiveNamespace);
-    private volatile bool streamReady;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,11 +44,12 @@ internal sealed class NatsJetStreamConsumerService(
         this.ValidateInboxStores();
 
         INatsConnection connection = services.GetRequiredService<INatsConnection>();
+        NatsJetStreamStreamManager streamManager = services.GetRequiredService<NatsJetStreamStreamManager>();
         NatsJSContext jetStream = new(connection);
-        await this.EnsureStreamAsync(jetStream, stoppingToken).ConfigureAwait(false);
+        await streamManager.EnsureReadyAsync(stoppingToken).ConfigureAwait(false);
 
         Task[] workers = subscriptions.Subscriptions
-            .Select(subscription => this.RunSubscriptionAsync(jetStream, subscription, stoppingToken))
+            .Select(subscription => this.RunSubscriptionAsync(jetStream, streamManager, subscription, stoppingToken))
             .ToArray();
 
         await Task.WhenAll(workers).ConfigureAwait(false);
@@ -60,6 +57,7 @@ internal sealed class NatsJetStreamConsumerService(
 
     private async Task RunSubscriptionAsync(
         NatsJSContext jetStream,
+        NatsJetStreamStreamManager streamManager,
         IntegrationEventSubscription subscription,
         CancellationToken stoppingToken)
     {
@@ -74,7 +72,7 @@ internal sealed class NatsJetStreamConsumerService(
         };
 
         INatsJSConsumer consumer = await jetStream
-            .CreateOrUpdateConsumerAsync(this.streamName, consumerConfig, stoppingToken)
+            .CreateOrUpdateConsumerAsync(streamManager.StreamName, consumerConfig, stoppingToken)
             .ConfigureAwait(false);
 
         this.LogConsumerStarted(durableName, subject);
@@ -181,12 +179,23 @@ internal sealed class NatsJetStreamConsumerService(
         handlerTimeout.CancelAfter(options.Value.EffectiveHandlerTimeout);
         long startedAt = Stopwatch.GetTimestamp();
 
-        InboxProcessResult result = await inboxStore
-            .ProcessAsync(
-                inboxMessage,
-                _ => InvokeHandlerAsync(scope.ServiceProvider, subscription, integrationEvent, handlerTimeout.Token),
-                stoppingToken)
-            .ConfigureAwait(false);
+        using CancellationTokenSource progressStop = new();
+        Task progress = this.RunAckProgressAsync(message, progressStop.Token);
+        InboxProcessResult result;
+        try
+        {
+            result = await inboxStore
+                .ProcessAsync(
+                    inboxMessage,
+                    _ => InvokeHandlerAsync(scope.ServiceProvider, subscription, integrationEvent, handlerTimeout.Token),
+                    stoppingToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await progressStop.CancelAsync().ConfigureAwait(false);
+            await progress.ConfigureAwait(false);
+        }
         this.TryRecordInboxProcessed(subscription, result.Status, Stopwatch.GetElapsedTime(startedAt));
 
         if (result.Status is InboxProcessStatus.Processed or InboxProcessStatus.Duplicate)
@@ -203,6 +212,50 @@ internal sealed class NatsJetStreamConsumerService(
 
         await message.NakAsync(new AckOpts { NakDelay = options.Value.EffectiveNakDelay }, stoppingToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task RunAckProgressAsync(INatsJSMsg<string> message, CancellationToken cancellationToken)
+    {
+        await RunAckProgressAsync(
+                token => message.AckProgressAsync(cancellationToken: token),
+                options.Value.EffectiveAckProgressInterval,
+                this.LogAckProgressFailure,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static async Task RunAckProgressAsync(
+        Func<CancellationToken, ValueTask> acknowledgeProgress,
+        TimeSpan interval,
+        Action<Exception> logFailure,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(acknowledgeProgress);
+        ArgumentNullException.ThrowIfNull(logFailure);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+
+        using PeriodicTimer timer = new(interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                try
+                {
+                    await acknowledgeProgress(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logFailure(exception);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     internal static async Task InvokeHandlerAsync(
@@ -334,39 +387,6 @@ internal sealed class NatsJetStreamConsumerService(
 
     private sealed record InboxStoreRegistration(string ModuleName, IInboxStore Store);
 
-    private async Task EnsureStreamAsync(NatsJSContext jetStream, CancellationToken cancellationToken)
-    {
-        if (this.streamReady)
-        {
-            return;
-        }
-
-        await this.streamSetupLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
-        {
-            if (this.streamReady)
-            {
-                return;
-            }
-
-            await jetStream.CreateStreamAsync(
-                    new StreamConfig(this.streamName, [NatsJetStreamOptions.CreateSubjectWildcard(this.applicationNamespace)]),
-                    cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            this.streamReady = true;
-        }
-        catch (NatsJSApiException exception) when (IsAlreadyExists(exception))
-        {
-            this.LogStreamAlreadyExists(exception);
-            this.streamReady = true;
-        }
-        finally
-        {
-            this.streamSetupLock.Release();
-        }
-    }
-
     private string GetDurableName(IntegrationEventSubscription subscription)
     {
         return CreateDurableName(options.Value.EffectiveDurablePrefix(this.applicationNamespace), environment.EnvironmentName, subscription);
@@ -382,15 +402,6 @@ internal sealed class NatsJetStreamConsumerService(
         ArgumentNullException.ThrowIfNull(subscription);
 
         return NatsConsumerDurableName.Create(durablePrefix, environmentName, subscription);
-    }
-
-    private static bool IsAlreadyExists(NatsJSApiException exception)
-    {
-        string description = exception.Error.Description ?? string.Empty;
-
-        return description.Contains("already", StringComparison.OrdinalIgnoreCase) &&
-               (description.Contains("exist", StringComparison.OrdinalIgnoreCase) ||
-                description.Contains("in use", StringComparison.OrdinalIgnoreCase));
     }
 
     private void LogConsumersDisabled()
@@ -504,20 +515,15 @@ internal sealed class NatsJetStreamConsumerService(
         }
     }
 
-    private void LogStreamAlreadyExists(NatsJSApiException exception)
+    private void LogAckProgressFailure(Exception exception)
     {
         try
         {
-            logger.LogDebug(exception, "NATS stream {StreamName} already exists.", this.streamName);
+            logger.LogWarning(exception, "Failed to extend NATS message acknowledgement wait.");
         }
         catch (Exception)
         {
         }
     }
 
-    public override void Dispose()
-    {
-        this.streamSetupLock.Dispose();
-        base.Dispose();
-    }
 }

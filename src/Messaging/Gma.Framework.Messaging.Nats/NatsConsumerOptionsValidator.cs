@@ -28,6 +28,13 @@ internal sealed class NatsConsumerOptionsValidator : IValidateOptions<NatsConsum
             return ValidateOptionsResult.Fail($"{NatsConsumerOptions.SectionName}:AckWait must be positive.");
         }
 
+        if (options.AckProgressInterval is { } ackProgressInterval &&
+            (ackProgressInterval <= TimeSpan.Zero || ackProgressInterval >= options.AckWait))
+        {
+            return ValidateOptionsResult.Fail(
+                $"{NatsConsumerOptions.SectionName}:AckProgressInterval must be positive and shorter than AckWait when configured.");
+        }
+
         if (options.MaxDeliver <= 0)
         {
             return ValidateOptionsResult.Fail($"{NatsConsumerOptions.SectionName}:MaxDeliver must be positive.");

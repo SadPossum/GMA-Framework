@@ -18,6 +18,7 @@ public static class ObservabilityInstrumentNames
     public const string OutboxOldestPendingAge = ApplicationNamespaces.Default + ".outbox.oldest_pending.age";
     public const string InboxMessages = ApplicationNamespaces.Default + ".inbox.messages";
     public const string InboxProcessDuration = ApplicationNamespaces.Default + ".inbox.process.duration";
+    public const string MessageJournalDeleted = ApplicationNamespaces.Default + ".message_journal.deleted";
 
     public const string CacheRequests = ApplicationNamespaces.Default + ".cache.requests";
     public const string CacheDuration = ApplicationNamespaces.Default + ".cache.duration";
@@ -73,6 +74,9 @@ public static class ObservabilityInstrumentNames
 
     public static string InboxProcessDurationFor(string applicationNamespace) =>
         Create(applicationNamespace, "inbox.process.duration");
+
+    public static string MessageJournalDeletedFor(string applicationNamespace) =>
+        Create(applicationNamespace, "message_journal.deleted");
 
     public static string CacheRequestsFor(string applicationNamespace) =>
         Create(applicationNamespace, "cache.requests");

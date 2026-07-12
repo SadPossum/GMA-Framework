@@ -108,7 +108,7 @@ Cancellation is best-effort and lease-aware:
 - leased or running runs move to `CancellationRequested`;
 - if a cancellation-requested worker disappears, the expired lease can be reclaimed and the replacement worker marks the run `Canceled` without invoking the payload handler.
 
-Heartbeat/progress renews an owned lease when the execution context came from a persisted `TaskRunLease`. This keeps long-running work from being reclaimed solely because it outlived the original claim window. Manually-created execution contexts do not renew leases unless they opt into a positive lease-extension window.
+The worker automatically heartbeats every running handler from an independent service scope. `Tasks:Worker:HeartbeatInterval` may override the default one-third-of-lease interval, but must remain positive and shorter than `LeaseDuration`. Handler progress reports also renew the owned lease and add operator-visible state; progress reporting is not required for lease safety. If automatic heartbeat persistence fails, the worker cancels that handler because it can no longer prove exclusive lease ownership. Manually-created execution contexts do not renew leases unless they opt into a positive lease-extension window.
 
 Concrete runtimes persist these concepts in an optional runtime module or adapter. Module application code should not persist task rows directly.
 

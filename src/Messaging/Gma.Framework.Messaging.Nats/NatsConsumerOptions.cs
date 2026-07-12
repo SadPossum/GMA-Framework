@@ -9,6 +9,7 @@ public sealed class NatsConsumerOptions
     public int FetchBatchSize { get; set; } = 10;
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(1);
     public TimeSpan AckWait { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan? AckProgressInterval { get; set; }
     public int MaxDeliver { get; set; } = 5;
     public TimeSpan HandlerTimeout { get; set; } = TimeSpan.FromSeconds(30);
     public TimeSpan NakDelay { get; set; } = TimeSpan.FromSeconds(1);
@@ -21,6 +22,8 @@ public sealed class NatsConsumerOptions
             ? TimeSpan.FromMilliseconds(1100)
             : this.EffectivePollInterval;
     public TimeSpan EffectiveAckWait => this.AckWait <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : this.AckWait;
+    public TimeSpan EffectiveAckProgressInterval => this.AckProgressInterval ??
+        TimeSpan.FromTicks(Math.Max(1, this.EffectiveAckWait.Ticks / 3));
     public TimeSpan EffectiveHandlerTimeout => this.HandlerTimeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(30) : this.HandlerTimeout;
     public TimeSpan EffectiveNakDelay => this.NakDelay <= TimeSpan.Zero ? TimeSpan.FromSeconds(1) : this.NakDelay;
     public string EffectiveDurablePrefix(string applicationNamespace) =>

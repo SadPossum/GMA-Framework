@@ -59,6 +59,7 @@ public static class DependencyInjection
             .ValidateOnStart();
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IValidateOptions<NatsConsumerOptions>, NatsConsumerOptionsValidator>());
+        builder.Services.TryAddSingleton<NatsJetStreamStreamManager>();
     }
 
     private static void ValidateNatsOptions(IConfiguration configuration)

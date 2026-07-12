@@ -28,7 +28,7 @@ Required production configuration:
 - `Auth:RefreshTokens:ActivePepperId` plus `Auth:RefreshTokens:Peppers:<id>` (or legacy `Auth:RefreshTokens:Pepper` for a one-key deployment)
 - `Auth:RefreshTokenLifetimeDays`
 
-Administration bootstrap, tenancy, admin API, outbox, NATS JetStream, NATS consumer, notifications, caching, Redis, observability, JWT, and refresh-token settings are validated at startup. Persistence settings are validated when a persisted module is composed. Treat validation failures as deployment misconfiguration rather than runtime warnings.
+Administration bootstrap, tenancy, admin API, outbox, message journal cleanup, NATS JetStream, NATS consumer, notifications, caching, Redis, observability, JWT, and refresh-token settings are validated at startup. Persistence settings are validated when a persisted module is composed. Treat validation failures as deployment misconfiguration rather than runtime warnings.
 
 Recommended production configuration:
 
@@ -36,7 +36,13 @@ Recommended production configuration:
 - `Outbox:PollIntervalMilliseconds`
 - `Outbox:LockDurationMilliseconds`
 - `Outbox:MaxAttempts`
+- `MessageJournalCleanup:Enabled` only on the host responsible for journal retention
+- `MessageJournalCleanup:ProcessedOutboxRetention`
+- `MessageJournalCleanup:ProcessedInboxRetention` greater than or equal to `MessageJournalCleanup:BrokerReplayHorizon`
+- `MessageJournalCleanup:BatchSize` and `MessageJournalCleanup:MaxBatchesPerStorePerCycle`
 - `NatsJetStream:Enabled`
+- `NatsJetStream:ManagementMode`, finite `MaxAge`, `MaxBytes`, and `MaxMessages`
+- `NatsJetStream:Storage` and a cluster-appropriate `Replicas` value
 - optional `NatsJetStream:StreamName` only when broker naming must differ from `ApplicationIdentity:Namespace`
 - `ConnectionStrings:nats` when JetStream publishing is enabled
 - `NatsConsumers:Enabled` only for hosts that explicitly register consumers
@@ -44,6 +50,7 @@ Recommended production configuration:
 - `NatsConsumers:FetchBatchSize`
 - `NatsConsumers:PollInterval`
 - `NatsConsumers:AckWait`
+- `NatsConsumers:AckProgressInterval` shorter than `NatsConsumers:AckWait`
 - `NatsConsumers:MaxDeliver`
 - `NatsConsumers:HandlerTimeout`
 - `NatsConsumers:NakDelay`
