@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Gma.Framework.Messaging;
 using Gma.Framework.Messaging.Infrastructure;
 using Gma.Framework.ModuleComposition;
+using NATS.Client.Core;
 
 public static class DependencyInjection
 {
@@ -18,7 +20,11 @@ public static class DependencyInjection
         ValidateNatsOptions(builder.Configuration);
         builder.AddMessagingInfrastructure();
         AddNatsOptionServices(builder);
-        builder.Services.Replace(ServiceDescriptor.Singleton<IEventBus, NatsJetStreamEventBus>());
+        builder.Services.Replace(ServiceDescriptor.Singleton<IEventBus>(provider =>
+            new NatsJetStreamEventBus(
+                provider.GetRequiredService<INatsConnection>(),
+                provider.GetRequiredService<NatsJetStreamStreamManager>(),
+                provider.GetRequiredService<ILogger<NatsJetStreamEventBus>>())));
         builder.ProvideFeature(MessagingCompositionFeatures.EventBusProvided("Gma.Framework.Messaging.Nats"));
         builder.ProvideFeature(MessagingCompositionFeatures.NatsPublishingProvided("Gma.Framework.Messaging.Nats"));
         builder.AddOutboxPublishing();

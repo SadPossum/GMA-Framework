@@ -103,7 +103,7 @@ public sealed class NatsAspireAdapterTests
 
         Assert.Single(builder.Services, descriptor =>
             descriptor.ServiceType == typeof(IEventBus) &&
-            descriptor.ImplementationType == typeof(NatsJetStreamEventBus));
+            descriptor.ImplementationFactory is not null);
         Assert.Single(builder.Services, descriptor =>
             descriptor.ServiceType == typeof(IHostedService) &&
             descriptor.ImplementationType == typeof(OutboxPublisherService));

@@ -4,7 +4,6 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.DependencyInjection;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -19,7 +18,6 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
     private readonly ILogger<NatsJetStreamEventBus> logger;
     private readonly NatsJetStreamStreamManager? ownedStreamManager;
 
-    [ActivatorUtilitiesConstructor]
     public NatsJetStreamEventBus(
         INatsConnection connection,
         NatsJetStreamStreamManager streamManager,
