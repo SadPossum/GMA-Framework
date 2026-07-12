@@ -11,18 +11,24 @@ using NATS.Client.JetStream.Models;
 using Gma.Framework.Messaging;
 using Gma.Framework.Runtime;
 
-[method: ActivatorUtilitiesConstructor]
-public sealed class NatsJetStreamEventBus(
-    INatsConnection connection,
-    NatsJetStreamStreamManager streamManager,
-    ILogger<NatsJetStreamEventBus> logger) : IEventBus, IDisposable
+#pragma warning disable IDE0290 // Explicit constructor selects the shared-manager DI path over the compatibility overload.
+public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
 {
-    private readonly INatsConnection connection = connection ?? throw new ArgumentNullException(nameof(connection));
-    private readonly NatsJetStreamStreamManager streamManager = streamManager ??
-        throw new ArgumentNullException(nameof(streamManager));
-    private readonly ILogger<NatsJetStreamEventBus> logger = logger ??
-        throw new ArgumentNullException(nameof(logger));
+    private readonly INatsConnection connection;
+    private readonly NatsJetStreamStreamManager streamManager;
+    private readonly ILogger<NatsJetStreamEventBus> logger;
     private readonly NatsJetStreamStreamManager? ownedStreamManager;
+
+    [ActivatorUtilitiesConstructor]
+    public NatsJetStreamEventBus(
+        INatsConnection connection,
+        NatsJetStreamStreamManager streamManager,
+        ILogger<NatsJetStreamEventBus> logger)
+    {
+        this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        this.streamManager = streamManager ?? throw new ArgumentNullException(nameof(streamManager));
+        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     public NatsJetStreamEventBus(
         INatsConnection connection,
@@ -97,3 +103,4 @@ public sealed class NatsJetStreamEventBus(
         }
     }
 }
+#pragma warning restore IDE0290
