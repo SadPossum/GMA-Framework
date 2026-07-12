@@ -15,6 +15,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Metadata Attribute Pipeline Refactor Task](architecture/metadata-attribute-pipeline-task.md)
 - [Messaging and Outbox](architecture/messaging-and-outbox.md)
 - [Messaging Consumers](architecture/messaging-consumers.md)
+- [Durable Runtime Hardening Task](architecture/durable-runtime-hardening-task.md)
 - [Background Worker Host Task](architecture/background-worker-host-task.md)
 - [File Management](architecture/file-management.md)
 - [Tasks and Daemons](architecture/tasks-and-daemons.md)

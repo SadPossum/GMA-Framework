@@ -18,6 +18,7 @@
     <File Path="docs/architecture/background-worker-host-task.md" />
     <File Path="docs/architecture/caching.md" />
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
+    <File Path="docs/architecture/durable-runtime-hardening-task.md" />
     <File Path="docs/architecture/file-management.md" />
     <File Path="docs/architecture/generic-access-control-rbac-task.md" />
     <File Path="docs/architecture/messaging-and-outbox.md" />

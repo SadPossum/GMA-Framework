@@ -202,7 +202,9 @@ public sealed class SharedInfrastructureRegistrationTests
         builder.AddNatsJetStreamMessaging();
         builder.AddNatsJetStreamMessaging();
 
-        Assert.Single(builder.Services, HasService<IEventBus, NatsJetStreamEventBus>());
+        Assert.Single(builder.Services, descriptor =>
+            descriptor.ServiceType == typeof(IEventBus) &&
+            descriptor.ImplementationFactory is not null);
         Assert.Single(builder.Services, HasService<IHostedService, OutboxPublisherService>());
     }
 
