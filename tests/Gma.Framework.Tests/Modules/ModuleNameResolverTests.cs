@@ -12,6 +12,8 @@ public sealed class ModuleNameResolverTests
     [InlineData("HTTPApi.Application", "http-api")]
     [InlineData("Gma.Framework.Tests", "framework")]
     [InlineData("Gma.Modules.CustomerSupport.Application", "customer-support")]
+    [InlineData("BunkFy.Modules.Reservations.Application", "reservations")]
+    [InlineData("Contoso.Platform.Modules.Inventory.Application", "inventory")]
     public void Resolves_assembly_prefix_to_kebab_case_module_name(
         string assemblyName,
         string expectedModuleName)

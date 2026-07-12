@@ -18,10 +18,12 @@ public static class ModuleNameResolver
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
 
         string[] segments = assemblyName.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        int modulesSegmentIndex = Array.FindIndex(segments, segment =>
+            string.Equals(segment, "Modules", StringComparison.Ordinal));
         string prefix = segments is ["Gma", "Framework", ..]
             ? "Framework"
-            : segments is ["Gma", "Modules", var moduleName, ..]
-                ? moduleName
+            : modulesSegmentIndex >= 0 && modulesSegmentIndex + 1 < segments.Length
+                ? segments[modulesSegmentIndex + 1]
                 : segments[0];
 
         return SharedNameSegments.NormalizeKebabSegment(ToKebabCase(prefix), "module name", nameof(assemblyName));
