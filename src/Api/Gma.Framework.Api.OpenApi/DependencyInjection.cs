@@ -2,7 +2,9 @@ namespace Gma.Framework.Api.OpenApi;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 public static class DependencyInjection
 {
@@ -15,6 +17,9 @@ public static class DependencyInjection
 
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+        builder.Services.Replace(ServiceDescriptor.Transient<
+            ISerializerDataContractResolver,
+            GmaOpenApiDataContractResolver>());
 
         return builder;
     }
