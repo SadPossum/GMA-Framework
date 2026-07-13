@@ -76,41 +76,63 @@ public static class UserNotificationSseEndpointRouteBuilderExtensions
         NotificationSseOptions options,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await using IUserNotificationSubscription subscription = feed.Subscribe(target, cancellationToken);
+        using CancellationTokenSource streamCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        await using IUserNotificationSubscription subscription = feed.Subscribe(target, streamCancellation.Token);
         await using IAsyncEnumerator<UserNotificationMessage> notifications =
-            subscription.ReadAllAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+            subscription.ReadAllAsync(streamCancellation.Token).GetAsyncEnumerator(streamCancellation.Token);
         using PeriodicTimer heartbeat = new(options.HeartbeatInterval);
 
         Task<bool> notificationTask = notifications.MoveNextAsync().AsTask();
-        Task<bool> heartbeatTask = heartbeat.WaitForNextTickAsync(cancellationToken).AsTask();
+        Task<bool> heartbeatTask = heartbeat.WaitForNextTickAsync(streamCancellation.Token).AsTask();
 
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            Task completed = await Task.WhenAny(notificationTask, heartbeatTask).ConfigureAwait(false);
-
-            if (completed == notificationTask)
+            while (!streamCancellation.IsCancellationRequested)
             {
-                if (!await notificationTask.ConfigureAwait(false))
+                Task completed = await Task.WhenAny(notificationTask, heartbeatTask).ConfigureAwait(false);
+
+                if (completed == notificationTask)
+                {
+                    if (!await AwaitNextAsync(notificationTask, streamCancellation.Token).ConfigureAwait(false))
+                    {
+                        yield break;
+                    }
+
+                    yield return new SseItem<NotificationSseItem>(
+                        NotificationSseItem.FromNotification(notifications.Current),
+                        options.NotificationEventType);
+                    notificationTask = notifications.MoveNextAsync().AsTask();
+                    continue;
+                }
+
+                if (!await AwaitNextAsync(heartbeatTask, streamCancellation.Token).ConfigureAwait(false))
                 {
                     yield break;
                 }
 
                 yield return new SseItem<NotificationSseItem>(
-                    NotificationSseItem.FromNotification(notifications.Current),
-                    options.NotificationEventType);
-                notificationTask = notifications.MoveNextAsync().AsTask();
-                continue;
+                    NotificationSseItem.Heartbeat(),
+                    "heartbeat");
+                heartbeatTask = heartbeat.WaitForNextTickAsync(streamCancellation.Token).AsTask();
             }
+        }
+        finally
+        {
+            await streamCancellation.CancelAsync().ConfigureAwait(false);
+            _ = await AwaitNextAsync(notificationTask, streamCancellation.Token).ConfigureAwait(false);
+        }
+    }
 
-            if (!await heartbeatTask.ConfigureAwait(false))
-            {
-                yield break;
-            }
-
-            yield return new SseItem<NotificationSseItem>(
-                NotificationSseItem.Heartbeat(),
-                "heartbeat");
-            heartbeatTask = heartbeat.WaitForNextTickAsync(cancellationToken).AsTask();
+    private static async Task<bool> AwaitNextAsync(Task<bool> task, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
         }
     }
 
