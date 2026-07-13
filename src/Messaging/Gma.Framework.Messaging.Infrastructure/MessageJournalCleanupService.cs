@@ -1,6 +1,7 @@
 namespace Gma.Framework.Messaging.Infrastructure;
 
 using Gma.Framework.Messaging;
+using Gma.Framework.Runtime.Maintenance;
 using Gma.Framework.Runtime.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -87,21 +88,12 @@ internal sealed class MessageJournalCleanupService(
         int deletedTotal = 0;
         try
         {
-            for (int batch = 0; batch < currentOptions.MaxBatchesPerStorePerCycle; batch++)
-            {
-                int deleted = await deleteBatch(currentOptions.BatchSize, cancellationToken).ConfigureAwait(false);
-                if (deleted < 0 || deleted > currentOptions.BatchSize)
-                {
-                    throw new InvalidOperationException(
-                        $"Message journal cleanup store '{moduleName}' returned invalid batch count {deleted}.");
-                }
-
-                deletedTotal += deleted;
-                if (deleted < currentOptions.BatchSize)
-                {
-                    break;
-                }
-            }
+            deletedTotal = await BoundedBatchProcessor.ExecuteAsync(
+                    currentOptions.BatchSize,
+                    currentOptions.MaxBatchesPerStorePerCycle,
+                    deleteBatch,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             if (deletedTotal > 0)
             {

@@ -297,6 +297,15 @@ Default:
       "RetryBaseSeconds": 5,
       "RetryMaxMinutes": 30,
       "AttemptRetentionDays": 90
+    },
+    "Retention": {
+      "Enabled": false,
+      "ReadHistoryDays": 90,
+      "UnreadHistoryDays": 365,
+      "BroadcastDays": 365,
+      "BatchSize": 500,
+      "MaxBatchesPerCategoryPerCycle": 4,
+      "IntervalMinutes": 60
     }
   }
 }
@@ -307,6 +316,8 @@ Configuration validation fails startup for invalid paths, event names, method na
 `Notifications:DurableStreams` belongs to the optional persisted `Notifications` module. `BatchSize` controls how many committed history or broadcast rows each stream poll reads, and `PollInterval` controls the polling cadence. The batch size must stay between 1 and 100; the poll interval must stay between 250 milliseconds and 1 minute.
 
 `Notifications:Delivery` also belongs to the optional module. It controls durable worker capacity, leases, retry bounds, and attempt retention. Invalid values fail startup. Set `Enabled=false` in processes that should expose history/admin APIs without running a delivery worker.
+
+`Notifications:Retention` is disabled until the product chooses data-retention policy. When enabled, cleanup is bounded by both batch size and maximum batches per category per cycle so a large backlog cannot monopolize the host.
 
 ## Metrics
 

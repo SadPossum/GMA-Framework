@@ -1,7 +1,8 @@
 namespace Gma.Framework.Messaging.Infrastructure;
 
-using Gma.Framework.Runtime.Workers;
 using Gma.Framework.Messaging;
+using Gma.Framework.Runtime.Resilience;
+using Gma.Framework.Runtime.Workers;
 
 public class OutboxMessage
 {
@@ -129,10 +130,11 @@ public class OutboxMessage
     }
 
     private static TimeSpan GetRetryDelay(int attempts)
-    {
-        int seconds = Math.Min(300, (int)Math.Pow(2, Math.Min(attempts, 8)));
-        return TimeSpan.FromSeconds(seconds);
-    }
+        => BoundedExponentialBackoff.Calculate(
+            checked(attempts + 1),
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromMinutes(5),
+            maximumExponent: 8);
 
     private static DateTimeOffset RequireTimestamp(DateTimeOffset value, string parameterName) =>
         value == default

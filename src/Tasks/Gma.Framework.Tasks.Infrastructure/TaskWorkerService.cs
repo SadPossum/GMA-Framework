@@ -1,15 +1,16 @@
 namespace Gma.Framework.Tasks.Infrastructure;
 
 using System.Diagnostics;
+using Gma.Framework.Observability.Infrastructure;
+using Gma.Framework.Runtime.Identity;
+using Gma.Framework.Runtime.Resilience;
+using Gma.Framework.Runtime.Time;
+using Gma.Framework.Runtime.Workers;
+using Gma.Framework.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Gma.Framework.Runtime.Identity;
-using Gma.Framework.Tasks;
-using Gma.Framework.Runtime.Time;
-using Gma.Framework.Observability.Infrastructure;
-using Gma.Framework.Runtime.Workers;
 
 internal sealed class TaskWorkerService(
     IServiceScopeFactory scopeFactory,
@@ -395,13 +396,11 @@ internal sealed class TaskWorkerService(
             : TaskNames.NormalizeWorkerId(options.NodeId, nameof(options.NodeId));
 
     private static TimeSpan GetRetryDelay(int attempt, TaskWorkerOptions options)
-    {
-        double multiplier = Math.Pow(2, Math.Max(0, Math.Min(attempt - 1, 8)));
-        TimeSpan delay = TimeSpan.FromMilliseconds(options.EffectiveRetryBaseDelay.TotalMilliseconds * multiplier);
-        return delay <= options.EffectiveRetryMaxDelay
-            ? delay
-            : options.EffectiveRetryMaxDelay;
-    }
+        => BoundedExponentialBackoff.Calculate(
+            attempt,
+            options.EffectiveRetryBaseDelay,
+            options.EffectiveRetryMaxDelay,
+            maximumExponent: 8);
 
     private static string GetErrorMessage(Exception exception)
     {
