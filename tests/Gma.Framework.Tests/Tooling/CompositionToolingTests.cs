@@ -113,6 +113,16 @@ public sealed class CompositionToolingTests
         Assert.DoesNotContain("Sort-Object", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Solution_sync_preserves_module_role_folders()
+    {
+        string source = ReadTool("sync-solution.ps1");
+
+        Assert.Contains("function Get-GmaModuleProjectRole", source, StringComparison.Ordinal);
+        Assert.Contains("/src/Modules/$($segments[2])/src/$role/", source, StringComparison.Ordinal);
+        Assert.Contains("/gma/modules/$($segments[2])/src/$role/", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 

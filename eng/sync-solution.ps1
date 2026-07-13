@@ -65,14 +65,37 @@ function Get-GmaOrdinalSortedStrings {
     return $sorted
 }
 
+function Get-GmaModuleProjectRole {
+    param([Parameter(Mandatory = $true)][string] $ProjectDirectoryName)
+
+    switch -Regex ($ProjectDirectoryName) {
+        '\.Admin(?:\.|Api$|Cli$)' { return 'Admin' }
+        '\.Api$' { return 'Api' }
+        '\.Application$' { return 'Application' }
+        '\.Contracts$' { return 'Contracts' }
+        '\.Domain$' { return 'Domain' }
+        '\.Infrastructure(?:\.|$)' { return 'Infrastructure' }
+        '\.Persistence(?:\.|$)' { return 'Persistence' }
+        default { return $ProjectDirectoryName.Split('.')[-1] }
+    }
+}
+
 function Get-GmaProjectSolutionFolder {
     param([Parameter(Mandatory = $true)][string] $RelativePath)
 
     $normalizedPath = $RelativePath.Replace('\', '/')
     $segments = $normalizedPath.Split('/')
     if ($segments.Count -ge 3 -and $segments[0] -eq 'src' -and $segments[1] -eq 'Modules') {
-        $suffix = if ($segments.Count -ge 4 -and $segments[3] -eq 'tests') { '/tests' } else { '' }
-        return "/src/Modules/$($segments[2])$suffix/"
+        if ($segments.Count -ge 4 -and $segments[3] -eq 'tests') {
+            return "/src/Modules/$($segments[2])/tests/"
+        }
+
+        if ($segments.Count -ge 4) {
+            $role = Get-GmaModuleProjectRole -ProjectDirectoryName $segments[3]
+            return "/src/Modules/$($segments[2])/src/$role/"
+        }
+
+        return "/src/Modules/$($segments[2])/"
     }
 
     if ($segments.Count -ge 2 -and $segments[0] -eq 'src' -and $segments[1] -eq 'Adapters') {
@@ -98,6 +121,19 @@ function Get-GmaProjectSolutionFolder {
 
     if ($segments[0] -eq 'tests') {
         return '/tests/'
+    }
+
+    if ($segments.Count -ge 3 -and $segments[0] -eq 'gma' -and $segments[1] -eq 'modules') {
+        if ($segments.Count -ge 4 -and $segments[3] -eq 'tests') {
+            return "/gma/modules/$($segments[2])/tests/"
+        }
+
+        if ($segments.Count -ge 5 -and $segments[3] -eq 'src') {
+            $role = Get-GmaModuleProjectRole -ProjectDirectoryName $segments[4]
+            return "/gma/modules/$($segments[2])/src/$role/"
+        }
+
+        return "/gma/modules/$($segments[2])/"
     }
 
     if ($segments[0] -eq 'gma') {
