@@ -8,6 +8,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 
 - [Architecture Overview](architecture/overview.md)
 - [Module System](architecture/module-system.md)
+- [Composition Tooling](architecture/composition-tooling.md)
 - [Scoping And Tenancy](architecture/scoping-and-tenancy.md)
 - [Module Composition Features And Profiles Task](architecture/module-composition-features-task.md)
 - [CQRS and Domain Events](architecture/cqrs-and-domain-events.md)

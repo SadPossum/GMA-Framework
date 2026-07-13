@@ -13,6 +13,13 @@ param(
     [switch] $Cache,
     [switch] $RegisterInHost,
 
+    [ValidatePattern('^$|^[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)*$')]
+    [string] $ProjectPrefix = '',
+
+    [string] $PublicApiHostProject = 'src\Hosts\Host.Api\Host.Api.csproj',
+    [string] $PublicApiHostProgram = 'src\Hosts\Host.Api\Program.cs',
+    [string] $PublicApiHostRegistrationMarker = '// module-scaffold:public-api-modules',
+
     [Parameter(Mandatory = $true)]
     [string] $RepositoryRoot,
 
@@ -132,6 +139,12 @@ if ($SqlServerMigrations -or $PostgreSqlMigrations -or $Inbox -or $Outbox) {
 
 $moduleRoot = Join-GmaPath "src\Modules\$Name"
 $moduleName = ConvertTo-GmaKebabCase -Value $Name
+$projectName = if ([string]::IsNullOrWhiteSpace($ProjectPrefix)) {
+    $Name
+}
+else {
+    "$ProjectPrefix.$Name"
+}
 
 if (Test-Path -LiteralPath $moduleRoot) {
     throw "Module '$Name' already exists at '$moduleRoot'."
@@ -169,14 +182,14 @@ function Add-GmaProject {
 
 New-Item -ItemType Directory -Force -Path $moduleRoot | Out-Null
 
-$contractsProject = Join-Path $moduleRoot "$Name.Contracts\$Name.Contracts.csproj"
-$domainProject = Join-Path $moduleRoot "$Name.Domain\$Name.Domain.csproj"
-$applicationProject = Join-Path $moduleRoot "$Name.Application\$Name.Application.csproj"
-$apiProject = Join-Path $moduleRoot "$Name.Api\$Name.Api.csproj"
-$persistenceProject = Join-Path $moduleRoot "$Name.Persistence\$Name.Persistence.csproj"
-$adminContractsProject = Join-Path $moduleRoot "$Name.Admin.Contracts\$Name.Admin.Contracts.csproj"
-$adminCliProject = Join-Path $moduleRoot "$Name.AdminCli\$Name.AdminCli.csproj"
-$adminApiProject = Join-Path $moduleRoot "$Name.AdminApi\$Name.AdminApi.csproj"
+$contractsProject = Join-Path $moduleRoot "$projectName.Contracts\$projectName.Contracts.csproj"
+$domainProject = Join-Path $moduleRoot "$projectName.Domain\$projectName.Domain.csproj"
+$applicationProject = Join-Path $moduleRoot "$projectName.Application\$projectName.Application.csproj"
+$apiProject = Join-Path $moduleRoot "$projectName.Api\$projectName.Api.csproj"
+$persistenceProject = Join-Path $moduleRoot "$projectName.Persistence\$projectName.Persistence.csproj"
+$adminContractsProject = Join-Path $moduleRoot "$projectName.Admin.Contracts\$projectName.Admin.Contracts.csproj"
+$adminCliProject = Join-Path $moduleRoot "$projectName.AdminCli\$projectName.AdminCli.csproj"
+$adminApiProject = Join-Path $moduleRoot "$projectName.AdminApi\$projectName.AdminApi.csproj"
 $metadataSchemaLine = if ($Persistence) {
     "    public const string Schema = `"$moduleName`";"
 }
@@ -236,8 +249,8 @@ $($contractsProjectReferences -join "`r`n")
 </Project>
 "@
 
-Write-GmaFile (Join-Path $moduleRoot "$Name.Contracts\Metadata\${Name}ModuleMetadata.cs") @"
-namespace $Name.Contracts;
+Write-GmaFile (Join-Path $moduleRoot "$projectName.Contracts\Metadata\${Name}ModuleMetadata.cs") @"
+namespace $projectName.Contracts;
 
 $($metadataUsings -join "`r`n")
 
@@ -252,8 +265,8 @@ $($metadataCacheLines -join "`r`n")
 "@
 
 if ($AdminCli -or $AdminApi) {
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Contracts\Metadata\${Name}AdminPermissionCodes.cs") @"
-namespace $Name.Contracts;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Contracts\Metadata\${Name}AdminPermissionCodes.cs") @"
+namespace $projectName.Contracts;
 
 public static class ${Name}AdminPermissionCodes
 {
@@ -272,8 +285,8 @@ Write-GmaFile $domainProject @"
 "@
 
 $applicationReferences = @(
-    "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
-    "    <ProjectReference Include=`"..\$Name.Domain\$Name.Domain.csproj`" />",
+    "    <ProjectReference Include=`"..\$projectName.Contracts\$projectName.Contracts.csproj`" />",
+    "    <ProjectReference Include=`"..\$projectName.Domain\$projectName.Domain.csproj`" />",
     '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
     '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Composition\Gma.Framework.Application.Composition.csproj" />',
     '    <ProjectReference Include="$(GmaFrameworkRoot)Results\Gma.Framework.Results\Gma.Framework.Results.csproj" />'
@@ -299,8 +312,8 @@ $($applicationReferences -join "`r`n")
 </Project>
 "@
 
-Write-GmaFile (Join-Path $moduleRoot "$Name.Application\DependencyInjection.cs") @"
-namespace $Name.Application;
+Write-GmaFile (Join-Path $moduleRoot "$projectName.Application\DependencyInjection.cs") @"
+namespace $projectName.Application;
 
 $($applicationUsings | Sort-Object | Get-Unique | Out-String)public static class DependencyInjection
 {
@@ -316,10 +329,10 @@ $($applicationUsings | Sort-Object | Get-Unique | Out-String)public static class
 "@
 
 if ($Cache) {
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Application\${Name}Cache.cs") @"
-namespace $Name.Application;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Application\${Name}Cache.cs") @"
+namespace $projectName.Application;
 
-using $Name.Contracts;
+using $projectName.Contracts;
 using Gma.Framework.Caching;
 
 internal static class ${Name}Cache
@@ -337,14 +350,14 @@ internal static class ${Name}Cache
 }
 
 $apiReferences = @(
-    "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
-    "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
+    "    <ProjectReference Include=`"..\$projectName.Application\$projectName.Application.csproj`" />",
+    "    <ProjectReference Include=`"..\$projectName.Contracts\$projectName.Contracts.csproj`" />",
     '    <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />'
 )
 
 $apiUsings = @(
-    "using $Name.Application;",
-    "using $Name.Contracts;",
+    "using $projectName.Application;",
+    "using $projectName.Contracts;",
     'using Microsoft.AspNetCore.Builder;',
     'using Microsoft.AspNetCore.Http;',
     'using Microsoft.AspNetCore.Routing;',
@@ -357,8 +370,8 @@ $apiUsings = @(
 $apiServices = @("        builder.Services.Add${Name}Application();")
 
 if ($Persistence) {
-    $apiReferences += "    <ProjectReference Include=`"..\$Name.Persistence\$Name.Persistence.csproj`" />"
-    $apiUsings += "using $Name.Persistence;"
+    $apiReferences += "    <ProjectReference Include=`"..\$projectName.Persistence\$projectName.Persistence.csproj`" />"
+    $apiUsings += "using $projectName.Persistence;"
     $apiServices += "        builder.Add${Name}Persistence();"
 }
 
@@ -373,8 +386,8 @@ $($apiReferences -join "`r`n")
 </Project>
 "@
 
-Write-GmaFile (Join-Path $moduleRoot "$Name.Api\${Name}Module.cs") @"
-namespace $Name.Api;
+Write-GmaFile (Join-Path $moduleRoot "$projectName.Api\${Name}Module.cs") @"
+namespace $projectName.Api;
 
 $($apiUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}Module : IModule
 {
@@ -415,9 +428,9 @@ if ($Persistence) {
     }
 
     $persistenceProjectReferences = @(
-        "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Domain\$Name.Domain.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Contracts\$projectName.Contracts.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Application\$projectName.Application.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Domain\$projectName.Domain.csproj`" />",
         '    <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Domain\Gma.Framework.Domain\Gma.Framework.Domain.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Persistence\Gma.Framework.Persistence.EntityFrameworkCore\Gma.Framework.Persistence.EntityFrameworkCore.csproj" />',
@@ -443,8 +456,8 @@ $($persistenceProjectReferences -join "`r`n")
 </Project>
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}DbContext.cs") @"
-namespace $Name.Persistence;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}DbContext.cs") @"
+namespace $projectName.Persistence;
 
 $($dbContextUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}DbContext(DbContextOptions<${Name}DbContext> options, IScopeContext scopeContext)
     : ScopeAwareDbContext<${Name}DbContext>(options, scopeContext)
@@ -460,22 +473,22 @@ $($dbSets -join "`r`n")
 }
 "@
 
-Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}Migrations.cs") @"
-namespace $Name.Persistence;
+Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}Migrations.cs") @"
+namespace $projectName.Persistence;
 
-using $Name.Contracts;
+using $projectName.Contracts;
 
 public static class ${Name}Migrations
 {
     public const string Schema = ${Name}ModuleMetadata.Schema;
     public const string HistoryTable = "__ef_migrations_history";
-    public const string SqlServerAssembly = "$Name.Persistence.SqlServerMigrations";
-    public const string PostgreSqlAssembly = "$Name.Persistence.PostgreSqlMigrations";
+    public const string SqlServerAssembly = "$projectName.Persistence.SqlServerMigrations";
+    public const string PostgreSqlAssembly = "$projectName.Persistence.PostgreSqlMigrations";
 }
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}UnitOfWork.cs") @"
-namespace $Name.Persistence;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}UnitOfWork.cs") @"
+namespace $projectName.Persistence;
 
 using Gma.Framework.Application.Events;
 using Gma.Framework.Persistence.EntityFrameworkCore;
@@ -519,8 +532,8 @@ internal sealed class ${Name}UnitOfWork(${Name}DbContext dbContext, IDomainEvent
         $persistenceServices += "        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped<IInboxStore, ${Name}InboxStore>());"
     }
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\DependencyInjection.cs") @"
-namespace $Name.Persistence;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\DependencyInjection.cs") @"
+namespace $projectName.Persistence;
 
 $($persistenceUsings | Sort-Object | Get-Unique | Out-String)public static class DependencyInjection
 {
@@ -536,8 +549,8 @@ $($persistenceServices -join "`r`n")
 "@
 
     if ($Outbox) {
-        Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}OutboxWriter.cs") @"
-namespace $Name.Persistence;
+        Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}OutboxWriter.cs") @"
+namespace $projectName.Persistence;
 
 using Microsoft.Extensions.Options;
 using Gma.Framework.Messaging.Infrastructure;
@@ -551,8 +564,8 @@ internal sealed class ${Name}OutboxWriter(
     : EfOutboxWriter<${Name}DbContext>(dbContext, clock, applicationIdentity, ${Name}Migrations.Schema);
 "@
 
-        Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}OutboxStore.cs") @"
-namespace $Name.Persistence;
+        Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}OutboxStore.cs") @"
+namespace $projectName.Persistence;
 
 using Microsoft.Extensions.Options;
 using Gma.Framework.Messaging.Infrastructure;
@@ -561,8 +574,8 @@ internal sealed class ${Name}OutboxStore(${Name}DbContext dbContext, IOptions<Ou
     : EfOutboxStore<${Name}DbContext>(dbContext, options, ${Name}Migrations.Schema);
 "@
 
-        Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\Configurations\OutboxMessageConfiguration.cs") @"
-namespace $Name.Persistence.Configurations;
+        Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\Configurations\OutboxMessageConfiguration.cs") @"
+namespace $projectName.Persistence.Configurations;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -578,8 +591,8 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
     }
 
     if ($Inbox) {
-        Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\${Name}InboxStore.cs") @"
-namespace $Name.Persistence;
+        Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}InboxStore.cs") @"
+namespace $projectName.Persistence;
 
 using Gma.Framework.Messaging.Infrastructure;
 using Gma.Framework.Runtime.Identity;
@@ -589,8 +602,8 @@ internal sealed class ${Name}InboxStore(${Name}DbContext dbContext, ISystemClock
     : EfInboxStore<${Name}DbContext>(dbContext, clock, idGenerator, ${Name}Migrations.Schema);
 "@
 
-        Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence\Configurations\InboxMessageConfiguration.cs") @"
-namespace $Name.Persistence.Configurations;
+        Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\Configurations\InboxMessageConfiguration.cs") @"
+namespace $projectName.Persistence.Configurations;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -607,7 +620,7 @@ internal sealed class InboxMessageConfiguration : IEntityTypeConfiguration<Inbox
 }
 
 if ($SqlServerMigrations) {
-    $project = Join-Path $moduleRoot "$Name.Persistence.SqlServerMigrations\$Name.Persistence.SqlServerMigrations.csproj"
+    $project = Join-Path $moduleRoot "$projectName.Persistence.SqlServerMigrations\$projectName.Persistence.SqlServerMigrations.csproj"
     Write-GmaFile $project @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -620,15 +633,15 @@ if ($SqlServerMigrations) {
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\$Name.Persistence\$Name.Persistence.csproj" />
+    <ProjectReference Include="..\$projectName.Persistence\$projectName.Persistence.csproj" />
   </ItemGroup>
 </Project>
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence.SqlServerMigrations\${Name}SqlServerDesignTimeDbContextFactory.cs") @"
-namespace $Name.Persistence.SqlServerMigrations;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence.SqlServerMigrations\${Name}SqlServerDesignTimeDbContextFactory.cs") @"
+namespace $projectName.Persistence.SqlServerMigrations;
 
-using $Name.Persistence;
+using $projectName.Persistence;
 using Microsoft.EntityFrameworkCore.Design;
 using Gma.Framework.Persistence.EntityFrameworkCore;
 
@@ -647,7 +660,7 @@ public sealed class ${Name}SqlServerDesignTimeDbContextFactory : IDesignTimeDbCo
 }
 
 if ($PostgreSqlMigrations) {
-    $project = Join-Path $moduleRoot "$Name.Persistence.PostgreSqlMigrations\$Name.Persistence.PostgreSqlMigrations.csproj"
+    $project = Join-Path $moduleRoot "$projectName.Persistence.PostgreSqlMigrations\$projectName.Persistence.PostgreSqlMigrations.csproj"
     Write-GmaFile $project @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -660,15 +673,15 @@ if ($PostgreSqlMigrations) {
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\$Name.Persistence\$Name.Persistence.csproj" />
+    <ProjectReference Include="..\$projectName.Persistence\$projectName.Persistence.csproj" />
   </ItemGroup>
 </Project>
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Persistence.PostgreSqlMigrations\${Name}PostgreSqlDesignTimeDbContextFactory.cs") @"
-namespace $Name.Persistence.PostgreSqlMigrations;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence.PostgreSqlMigrations\${Name}PostgreSqlDesignTimeDbContextFactory.cs") @"
+namespace $projectName.Persistence.PostgreSqlMigrations;
 
-using $Name.Persistence;
+using $projectName.Persistence;
 using Microsoft.EntityFrameworkCore.Design;
 using Gma.Framework.Persistence.EntityFrameworkCore;
 
@@ -690,16 +703,16 @@ if ($AdminCli -or $AdminApi) {
 Write-GmaFile $adminContractsProject @"
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\$Name.Contracts\$Name.Contracts.csproj" />
+    <ProjectReference Include="..\$projectName.Contracts\$projectName.Contracts.csproj" />
     <ProjectReference Include="`$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />
   </ItemGroup>
 </Project>
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Admin.Contracts\Permissions\${Name}AdminPermissions.cs") @"
-namespace $Name.Admin.Contracts;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Admin.Contracts\Permissions\${Name}AdminPermissions.cs") @"
+namespace $projectName.Admin.Contracts;
 
-using $Name.Contracts;
+using $projectName.Contracts;
 using Gma.Framework.Administration;
 
 public static class ${Name}AdminPermissions
@@ -708,8 +721,8 @@ public static class ${Name}AdminPermissions
 }
 "@
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.Admin.Contracts\Operations\${Name}AdminOperationNames.cs") @"
-namespace $Name.Admin.Contracts;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.Admin.Contracts\Operations\${Name}AdminOperationNames.cs") @"
+namespace $projectName.Admin.Contracts;
 
 public static class ${Name}AdminOperationNames
 {
@@ -719,16 +732,16 @@ public static class ${Name}AdminOperationNames
 
 if ($AdminCli) {
     $adminCliReferences = @(
-        "    <ProjectReference Include=`"..\$Name.Admin.Contracts\$Name.Admin.Contracts.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Admin.Contracts\$projectName.Admin.Contracts.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Application\$projectName.Application.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Contracts\$projectName.Contracts.csproj`" />",
         '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Cli\Gma.Framework.Administration.Cli.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />'
     )
     $adminCliServices = @("        builder.Services.Add${Name}Application();")
 
     if ($Persistence) {
-        $adminCliReferences += "    <ProjectReference Include=`"..\$Name.Persistence\$Name.Persistence.csproj`" />"
+        $adminCliReferences += "    <ProjectReference Include=`"..\$projectName.Persistence\$projectName.Persistence.csproj`" />"
         $adminCliServices += "        builder.Add${Name}Persistence();"
     }
 
@@ -744,8 +757,8 @@ $($adminCliReferences -join "`r`n")
 "@
 
     $adminCliUsings = @(
-        "using $Name.Application;",
-        "using $Name.Contracts;",
+        "using $projectName.Application;",
+        "using $projectName.Contracts;",
         'using Microsoft.Extensions.DependencyInjection;',
         'using Microsoft.Extensions.Hosting;',
         'using Gma.Framework.Administration;',
@@ -753,11 +766,11 @@ $($adminCliReferences -join "`r`n")
         'using System.CommandLine;'
     )
     if ($Persistence) {
-        $adminCliUsings += "using $Name.Persistence;"
+        $adminCliUsings += "using $projectName.Persistence;"
     }
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.AdminCli\${Name}AdminCliModule.cs") @"
-namespace $Name.AdminCli;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.AdminCli\${Name}AdminCliModule.cs") @"
+namespace $projectName.AdminCli;
 
 $($adminCliUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}AdminCliModule : IAdminCliModule
 {
@@ -779,9 +792,9 @@ $($adminCliServices -join "`r`n")
 
 if ($AdminApi) {
     $adminApiReferences = @(
-        "    <ProjectReference Include=`"..\$Name.Admin.Contracts\$Name.Admin.Contracts.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Application\$Name.Application.csproj`" />",
-        "    <ProjectReference Include=`"..\$Name.Contracts\$Name.Contracts.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Admin.Contracts\$projectName.Admin.Contracts.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Application\$projectName.Application.csproj`" />",
+        "    <ProjectReference Include=`"..\$projectName.Contracts\$projectName.Contracts.csproj`" />",
         '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration.Api\Gma.Framework.Administration.Api.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Administration\Gma.Framework.Administration\Gma.Framework.Administration.csproj" />',
         '    <ProjectReference Include="$(GmaFrameworkRoot)Api\Gma.Framework.Api\Gma.Framework.Api.csproj" />'
@@ -789,7 +802,7 @@ if ($AdminApi) {
     $adminApiServices = @("        builder.Services.Add${Name}Application();")
 
     if ($Persistence) {
-        $adminApiReferences += "    <ProjectReference Include=`"..\$Name.Persistence\$Name.Persistence.csproj`" />"
+        $adminApiReferences += "    <ProjectReference Include=`"..\$projectName.Persistence\$projectName.Persistence.csproj`" />"
         $adminApiServices += "        builder.Add${Name}Persistence();"
     }
 
@@ -805,8 +818,8 @@ $($adminApiReferences -join "`r`n")
 "@
 
     $adminApiUsings = @(
-        "using $Name.Application;",
-        "using $Name.Contracts;",
+        "using $projectName.Application;",
+        "using $projectName.Contracts;",
         'using Microsoft.AspNetCore.Builder;',
         'using Microsoft.AspNetCore.Http;',
         'using Microsoft.AspNetCore.Routing;',
@@ -816,11 +829,11 @@ $($adminApiReferences -join "`r`n")
         'using Gma.Framework.Api.Observability;'
     )
     if ($Persistence) {
-        $adminApiUsings += "using $Name.Persistence;"
+        $adminApiUsings += "using $projectName.Persistence;"
     }
 
-    Write-GmaFile (Join-Path $moduleRoot "$Name.AdminApi\${Name}AdminApiModule.cs") @"
-namespace $Name.AdminApi;
+    Write-GmaFile (Join-Path $moduleRoot "$projectName.AdminApi\${Name}AdminApiModule.cs") @"
+namespace $projectName.AdminApi;
 
 $($adminApiUsings | Sort-Object | Get-Unique | Out-String)public sealed class ${Name}AdminApiModule : IAdminApiModule
 {
@@ -850,11 +863,11 @@ if ($Persistence) {
 }
 
 if ($SqlServerMigrations) {
-    Add-GmaProject (Join-Path $moduleRoot "$Name.Persistence.SqlServerMigrations\$Name.Persistence.SqlServerMigrations.csproj")
+    Add-GmaProject (Join-Path $moduleRoot "$projectName.Persistence.SqlServerMigrations\$projectName.Persistence.SqlServerMigrations.csproj")
 }
 
 if ($PostgreSqlMigrations) {
-    Add-GmaProject (Join-Path $moduleRoot "$Name.Persistence.PostgreSqlMigrations\$Name.Persistence.PostgreSqlMigrations.csproj")
+    Add-GmaProject (Join-Path $moduleRoot "$projectName.Persistence.PostgreSqlMigrations\$projectName.Persistence.PostgreSqlMigrations.csproj")
 }
 
 if ($AdminCli -or $AdminApi) {
@@ -870,14 +883,28 @@ if ($AdminApi) {
 }
 
 if ($RegisterInHost) {
-    $hostProject = Join-GmaPath 'src\Hosts\Host.Api\Host.Api.csproj'
+    if ([string]::IsNullOrWhiteSpace($PublicApiHostProject) -or
+        [string]::IsNullOrWhiteSpace($PublicApiHostProgram) -or
+        [string]::IsNullOrWhiteSpace($PublicApiHostRegistrationMarker)) {
+        throw 'Public API host project, program, and registration marker are required when RegisterInHost is enabled.'
+    }
+
+    $hostProject = Join-GmaPath $PublicApiHostProject
+    if (-not (Test-Path -LiteralPath $hostProject -PathType Leaf)) {
+        throw "Public API host project was not found at '$hostProject'."
+    }
+
     Invoke-GmaDotNet -Arguments @('add', $hostProject, 'reference', $apiProject)
 
-    $programPath = Join-GmaPath 'src\Hosts\Host.Api\Program.cs'
+    $programPath = Join-GmaPath $PublicApiHostProgram
+    if (-not (Test-Path -LiteralPath $programPath -PathType Leaf)) {
+        throw "Public API host program was not found at '$programPath'."
+    }
+
     $program = Get-Content -LiteralPath $programPath -Raw
-    $moduleUsing = "using $Name.Api;"
+    $moduleUsing = "using $projectName.Api;"
     $moduleRegistration = "builder.AddModule<${Name}Module>();"
-    $hostRegistrationAnchor = '// module-scaffold:public-api-modules'
+    $hostRegistrationAnchor = $PublicApiHostRegistrationMarker
 
     if (-not $program.Contains($moduleUsing)) {
         $program = "$moduleUsing`r`n$program"

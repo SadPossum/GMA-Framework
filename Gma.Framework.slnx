@@ -18,6 +18,7 @@
     <File Path="docs/architecture/background-worker-host-task.md" />
     <File Path="docs/architecture/caching.md" />
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
+    <File Path="docs/architecture/composition-tooling.md" />
     <File Path="docs/architecture/durable-runtime-hardening-task.md" />
     <File Path="docs/architecture/file-management.md" />
     <File Path="docs/architecture/generic-access-control-rbac-task.md" />
@@ -58,8 +59,15 @@
     <File Path="docs/templates/module.md" />
   </Folder>
   <Folder Name="/eng/">
+    <File Path="eng/add-migration.ps1" />
     <File Path="eng/bootstrap-source-roots.ps1" />
+    <File Path="eng/check-migrations.ps1" />
+    <File Path="eng/check-source-packages.ps1" />
+    <File Path="eng/check-submodule-heads.ps1" />
+    <File Path="eng/composition-common.ps1" />
+    <File Path="eng/export-source-set.ps1" />
     <File Path="eng/new-module.ps1" />
+    <File Path="eng/sync-solution.ps1" />
   </Folder>
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/validate.yml" />
