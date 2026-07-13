@@ -104,6 +104,15 @@ public sealed class CompositionToolingTests
         Assert.DoesNotContain("$project.FullName -match", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Solution_sync_uses_runtime_independent_ordinal_ordering()
+    {
+        string source = ReadTool("sync-solution.ps1");
+
+        Assert.Contains("$sorted.Sort([System.StringComparer]::Ordinal)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sort-Object", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 

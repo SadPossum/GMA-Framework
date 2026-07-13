@@ -53,6 +53,18 @@ function Add-GmaSolutionEntry {
     }
 }
 
+function Get-GmaOrdinalSortedStrings {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]] $Values)
+
+    $sorted = [System.Collections.Generic.List[string]]::new()
+    foreach ($value in $Values) {
+        [void]$sorted.Add($value)
+    }
+
+    $sorted.Sort([System.StringComparer]::Ordinal)
+    return $sorted
+}
+
 function Get-GmaProjectSolutionFolder {
     param([Parameter(Mandatory = $true)][string] $RelativePath)
 
@@ -106,7 +118,7 @@ function ConvertTo-GmaSolutionXml {
 
     Add-Type -AssemblyName System.Xml.Linq
     $solutionElement = [System.Xml.Linq.XElement]::new([System.Xml.Linq.XName]::Get('Solution'))
-    foreach ($folderName in $Folders.Keys | Sort-Object) {
+    foreach ($folderName in (Get-GmaOrdinalSortedStrings -Values @($Folders.Keys))) {
         $folder = $Folders[$folderName]
         if ($folder.Projects.Count -eq 0 -and $folder.Files.Count -eq 0) {
             continue
@@ -114,13 +126,13 @@ function ConvertTo-GmaSolutionXml {
 
         $folderElement = [System.Xml.Linq.XElement]::new([System.Xml.Linq.XName]::Get('Folder'))
         $folderElement.SetAttributeValue([System.Xml.Linq.XName]::Get('Name'), $folderName)
-        foreach ($file in $folder.Files | Sort-Object) {
+        foreach ($file in (Get-GmaOrdinalSortedStrings -Values @($folder.Files))) {
             $fileElement = [System.Xml.Linq.XElement]::new([System.Xml.Linq.XName]::Get('File'))
             $fileElement.SetAttributeValue([System.Xml.Linq.XName]::Get('Path'), $file)
             $folderElement.Add($fileElement)
         }
 
-        foreach ($project in $folder.Projects | Sort-Object) {
+        foreach ($project in (Get-GmaOrdinalSortedStrings -Values @($folder.Projects))) {
             $projectElement = [System.Xml.Linq.XElement]::new([System.Xml.Linq.XName]::Get('Project'))
             $projectElement.SetAttributeValue([System.Xml.Linq.XName]::Get('Path'), $project)
             $folderElement.Add($projectElement)
