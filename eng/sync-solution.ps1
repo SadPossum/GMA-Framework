@@ -110,6 +110,14 @@ function Get-GmaProjectSolutionFolder {
         return '/src/Shared/'
     }
 
+    if ($segments.Count -ge 2 -and $segments[0] -eq 'src' -and $segments[1] -eq 'Extensions') {
+        if ($segments.Count -ge 3 -and $segments[2] -eq 'tests') {
+            return '/src/Extensions/tests/'
+        }
+
+        return '/src/Extensions/'
+    }
+
     if ($segments.Count -ge 2 -and $segments[0] -eq 'src' -and
         ($segments[1] -eq 'Hosts' -or $segments[1] -match $HostProjectPattern)) {
         return '/src/Hosts/'

@@ -123,6 +123,15 @@ public sealed class CompositionToolingTests
         Assert.Contains("/gma/modules/$($segments[2])/src/$role/", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Solution_sync_keeps_product_extensions_discoverable()
+    {
+        string source = ReadTool("sync-solution.ps1");
+
+        Assert.Contains("return '/src/Extensions/'", source, StringComparison.Ordinal);
+        Assert.Contains("return '/src/Extensions/tests/'", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 
