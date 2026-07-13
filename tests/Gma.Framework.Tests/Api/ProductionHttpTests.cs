@@ -91,6 +91,17 @@ public sealed class ProductionHttpTests
     }
 
     [Fact]
+    public void Default_sensitive_rate_limit_covers_all_authentication_entry_points()
+    {
+        string[] prefixes = new ProductionHttpOptions().RateLimiting.SensitivePathPrefixes;
+
+        Assert.Contains("/api/auth/browser", prefixes, StringComparer.Ordinal);
+        Assert.Contains("/api/auth/password", prefixes, StringComparer.Ordinal);
+        Assert.Contains("/api/auth/external", prefixes, StringComparer.Ordinal);
+        Assert.Contains("/api/auth/email-verification", prefixes, StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void Readiness_registration_is_tagged_separately_from_liveness()
     {
         ServiceCollection services = new();

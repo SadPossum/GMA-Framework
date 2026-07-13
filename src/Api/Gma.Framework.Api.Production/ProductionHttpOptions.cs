@@ -70,6 +70,10 @@ public sealed class RateLimitingSettings
     [
         "/api/auth/register",
         "/api/auth/login",
-        "/api/auth/refresh"
+        "/api/auth/refresh",
+        "/api/auth/browser",
+        "/api/auth/password",
+        "/api/auth/external",
+        "/api/auth/email-verification"
     ];
 }
