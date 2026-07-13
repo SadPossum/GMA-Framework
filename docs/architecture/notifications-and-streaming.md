@@ -14,6 +14,9 @@ Modules may depend on the contracts in `Gma.Framework.Notifications` for best-ef
 - `IUserNotificationHistoryWriter`
 - `UserNotificationTarget`
 - `NotificationPublishOptions`
+- `NotificationTags`
+- `NotificationDeliveryPolicy`
+- structured sink delivery requests/results and `NotificationSinkDeliveryMode`
 - notification metadata attributes
 - module descriptor notification metadata
 
@@ -40,7 +43,10 @@ The host selects delivery adapters.
 
 ```text
 Gma.Framework.Notifications
-  notification contracts, notification payload metadata, publisher/request abstractions, and notification options
+  notification contracts, tag/policy vocabulary, structured sink outcomes, publisher/request abstractions, and notification options
+
+Gma.Framework.Email
+  provider-neutral email request/result and sender abstraction; no SMTP or vendor implementation
 
 Gma.Framework.Notifications.Infrastructure
   publisher runtime, scoped request queue, serialization, metrics, fail-open history writer and sink dispatch
@@ -64,7 +70,7 @@ Gma.Framework.Notifications.SignalR
   authenticated SignalR hub and group delivery
 
 Notifications
-  optional persisted history/read-state module and module-owned durable request event
+  optional persisted history/read-state module, tag catalog, preferences, durable routing/jobs/attempts, and module-owned durable request events
 ```
 
 `Host.Api` composes the pieces explicitly:
@@ -113,16 +119,17 @@ await notificationRequests.EnqueueAsync(
     new CatalogItemUpdatedNotification(item.ItemId, item.Sku, item.Name, item.Status),
     new NotificationPublishOptions(
         title: "Catalog item updated",
-        severity: NotificationSeverity.Info),
+        severity: NotificationSeverity.Info,
+        tags: [NotificationTags.Web, "domain:catalog-updates"]),
     cancellationToken);
 ```
 
 This prevents a user from seeing "item updated" before the database commit succeeds. The scoped queue is not itself durable. If the optional `Notifications` module is composed, history is stored when the post-commit publish request reaches `IUserNotificationPublisher`; if a process dies after the source commit but before the queue flushes, no history row is created.
 
-For guaranteed history creation, publish `UserNotificationRequestedIntegrationEvent` from the source module's outbox. The event contract lives in `Gma.Modules.Notifications.Contracts`, while the physical subject remains producer-scoped:
+For guaranteed history and adapter delivery planning, publish `UserNotificationRequestedIntegrationEventV2` from the source module's outbox. The event contract lives in `Gma.Modules.Notifications.Contracts`, while the physical subject remains producer-scoped:
 
 ```text
-{application-namespace}.{producer-module}.user-notification-requested.v1
+{application-namespace}.{producer-module}.user-notification-requested.v2
 ```
 
 The optional `Notifications` module can consume that event through its own inbox and write history in the `notifications` schema, but it does not subscribe to any producer by default. A host/example that wants durable notification request ingestion composes the producer binding explicitly:
@@ -178,7 +185,24 @@ Admin history streams use:
 
 When `afterSequence` is omitted, the stream starts after the current maximum durable sequence and behaves like a live stream. When supplied, the stream replays committed rows with a greater sequence. If the initial cursor lookup fails, the endpoint returns the application error. If a later poll fails after the response has started, the module logs the error and closes the stream so clients can reconnect/back off instead of sitting on a silent broken feed.
 
-The module can be fed either by the shared best-effort publisher or by module-owned durable request events consumed through NATS/inbox. Prefer the durable event path for notifications that must survive source-process crashes.
+The module can be fed either by the shared best-effort publisher or by module-owned durable request events consumed through NATS/inbox. Both paths project through the V2 tag/preference/routing planner. Prefer the durable event path for notifications that must survive source-process crashes. V1 events remain consumable as web-inbox compatibility requests while producers migrate.
+
+## Tags, Preferences, And Durable Delivery
+
+The shared framework validates only the small vocabulary needed before a module is composed:
+
+- `delivery:*` tags identify delivery intent (`delivery:web`, `delivery:email`, `delivery:push`, `delivery:sms`);
+- `domain:*` tags identify product meaning;
+- `respect-preferences` applies user/product preference evaluation;
+- `mandatory` bypasses user preference suppression but never bypasses an operator-deactivated tag.
+
+`IUserNotificationPublisher` invokes sinks that opt into `BestEffort`. The Notifications durable worker invokes sinks that opt into `Durable`. Adapters must declare their provider name and supported delivery tags. Explicit modes prevent an email/push adapter from being invoked once during live publishing and again from the durable job accidentally.
+
+Best-effort sinks are also gated through any composed `IUserNotificationDeliveryPolicyEvaluator` implementations. Every evaluator must allow at least one matching delivery tag before that sink is invoked, and evaluator failures fail closed for that tag. The optional Notifications module supplies a persisted-plan evaluator so user preference suppression applies consistently to live SignalR/realtime delivery as well as durable jobs. A framework-only host with no evaluator keeps the original best-effort behavior.
+
+The optional module owns the durable catalog, tenant/user preferences, routes, delivery jobs, leases, retry policy, immutable attempts, receipts, operator retry, retention, and metrics. Planning writes terminal `suppressed`/`unroutable` jobs instead of silently dropping intent. Delivery is at least once; adapters receive a stable delivery id and must use it for provider idempotency.
+
+Destination lookup remains adapter-time. The module does not store email addresses, device tokens, vendor credentials, or provider secrets. `Gma.Framework.Email` supplies only a transport-neutral `IEmailSender`; the optional Notifications email adapter additionally requires an application-owned user-to-address resolver.
 
 ## Broadcast Notifications
 
@@ -262,6 +286,17 @@ Default:
     "DurableStreams": {
       "BatchSize": 25,
       "PollInterval": "00:00:01"
+    },
+    "Delivery": {
+      "Enabled": true,
+      "BatchSize": 50,
+      "MaxConcurrency": 8,
+      "PollIntervalSeconds": 5,
+      "LeaseSeconds": 60,
+      "MaxAttempts": 8,
+      "RetryBaseSeconds": 5,
+      "RetryMaxMinutes": 30,
+      "AttemptRetentionDays": 90
     }
   }
 }
@@ -270,6 +305,8 @@ Default:
 Configuration validation fails startup for invalid paths, event names, method names, queue sizes, payload limits, or heartbeat intervals. Runtime delivery failures fail open.
 
 `Notifications:DurableStreams` belongs to the optional persisted `Notifications` module. `BatchSize` controls how many committed history or broadcast rows each stream poll reads, and `PollInterval` controls the polling cadence. The batch size must stay between 1 and 100; the poll interval must stay between 250 milliseconds and 1 minute.
+
+`Notifications:Delivery` also belongs to the optional module. It controls durable worker capacity, leases, retry bounds, and attempt retention. Invalid values fail startup. Set `Enabled=false` in processes that should expose history/admin APIs without running a delivery worker.
 
 ## Metrics
 
@@ -282,7 +319,7 @@ Metric tags stay bounded:
 - `provider`
 - `result`
 
-Tenant ids, user ids, notification ids, and payload fields must not be metric tags. They may be included in structured logs when needed for troubleshooting.
+Tenant ids, user ids, notification ids, destinations, and payload fields must not be metric tags. Delivery logs avoid content and destination data; persisted failure data uses bounded semantic codes rather than exception text.
 
 ## Multi-Instance Behavior
 
@@ -303,6 +340,8 @@ Add unit tests for:
 - persisted history writer fail-open behavior.
 - stream cursor behavior through durable `StreamSequence`.
 - broadcast audience visibility and per-recipient read receipts.
+- tag normalization, policy, preferences, route ambiguity, inactive-tag safety, and V1 compatibility.
+- durable delivery success, retries, exhausted jobs, immutable attempts, receipts, exception sanitization, and adapter idempotency keys.
 
 Add integration tests for:
 
@@ -310,5 +349,7 @@ Add integration tests for:
 - scope mismatch rejection;
 - authenticated SignalR delivery.
 - Notifications inbox consumption from a real published request event when a runtime composes the module consumer.
+- user preference and admin tag/route/delivery authorization surfaces.
+- provider-specific V2 migrations and legacy web-tag backfill.
 
 Architecture tests must continue proving that modules do not reference front-door notification adapters or SignalR packages directly.

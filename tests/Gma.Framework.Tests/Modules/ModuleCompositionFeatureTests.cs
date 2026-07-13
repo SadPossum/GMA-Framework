@@ -1,6 +1,5 @@
 namespace Gma.Framework.Tests;
 
-using Microsoft.Extensions.Hosting;
 using Gma.Framework.Caching;
 using Gma.Framework.Caching.Cqrs;
 using Gma.Framework.Messaging;
@@ -20,6 +19,7 @@ using Gma.Framework.Tenancy.Caching;
 using Gma.Framework.Tenancy.Infrastructure;
 using Gma.Framework.Tenancy.Scoping;
 using Gma.Framework.Tenancy.Tasks;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -190,7 +190,7 @@ public sealed class ModuleCompositionFeatureTests
             requires: [new RequiredCompositionFeature(new CompositionFeatureId("tenancy.context"), "auth/scope-aware")]));
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
-            () => builder.ValidateModuleComposition());
+            builder.ValidateModuleComposition);
 
         Assert.Contains("tenancy.context", exception.Message, StringComparison.Ordinal);
     }
@@ -205,6 +205,9 @@ public sealed class ModuleCompositionFeatureTests
         Assert.Equal("messaging.event-bus", MessagingCompositionFeatures.EventBus.Value);
         Assert.Equal("notifications.history", NotificationsCompositionFeatures.History.Value);
         Assert.Equal("notifications.signalr", NotificationsCompositionFeatures.SignalR.Value);
+        Assert.Equal("notifications.preferences", NotificationsCompositionFeatures.Preferences.Value);
+        Assert.Equal("notifications.routing", NotificationsCompositionFeatures.Routing.Value);
+        Assert.Equal("notifications.durable-delivery", NotificationsCompositionFeatures.DurableDelivery.Value);
         Assert.Equal("tasks.run-store", TasksCompositionFeatures.RunStore.Value);
         Assert.Equal("tasks.scope-context", TasksCompositionFeatures.ScopeContext.Value);
         Assert.Equal("tasks.worker", TasksCompositionFeatures.Worker.Value);
@@ -257,7 +260,7 @@ public sealed class ModuleCompositionFeatureTests
         builder.AddTenantCaching();
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
-            () => builder.ValidateModuleComposition());
+            builder.ValidateModuleComposition);
 
         Assert.Contains("tenancy.context", exception.Message, StringComparison.Ordinal);
         Assert.Contains("ITenantContext", exception.Message, StringComparison.Ordinal);
@@ -271,7 +274,7 @@ public sealed class ModuleCompositionFeatureTests
         builder.AddOutboxPublishing();
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
-            () => builder.ValidateModuleComposition());
+            builder.ValidateModuleComposition);
 
         Assert.Contains("messaging.event-bus", exception.Message, StringComparison.Ordinal);
         Assert.Contains("concrete messaging adapter", exception.Message, StringComparison.Ordinal);
@@ -285,7 +288,7 @@ public sealed class ModuleCompositionFeatureTests
         builder.AddTaskWorkerRuntime();
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
-            () => builder.ValidateModuleComposition());
+            builder.ValidateModuleComposition);
 
         Assert.Contains("tasks.run-store", exception.Message, StringComparison.Ordinal);
         Assert.Contains("Gma.Modules.TaskRuntime.Persistence", exception.Message, StringComparison.Ordinal);
@@ -301,7 +304,7 @@ public sealed class ModuleCompositionFeatureTests
         builder.AddUserNotificationServerSentEvents();
 
         ModuleCompositionValidationException exception = Assert.Throws<ModuleCompositionValidationException>(
-            () => builder.ValidateModuleComposition());
+            builder.ValidateModuleComposition);
 
         Assert.Contains("notifications.live-feed", exception.Message, StringComparison.Ordinal);
         Assert.Contains("notification SSE streaming", exception.Message, StringComparison.Ordinal);

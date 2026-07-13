@@ -83,6 +83,7 @@ Gma.Framework.Caching.Redis
 Gma.Framework.Cqrs
 Gma.Framework.Cqrs.Infrastructure
 Gma.Framework.Domain
+Gma.Framework.Email
 Gma.Framework.FileManagement
 Gma.Framework.FileManagement.LocalStorage
 Gma.Framework.FileManagement.Minio

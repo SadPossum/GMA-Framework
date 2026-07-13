@@ -16,7 +16,9 @@ public sealed record UserNotificationMessage
         string? body,
         NotificationSeverity severity,
         DateTimeOffset occurredAtUtc,
-        JsonElement payload)
+        JsonElement payload,
+        IReadOnlyList<string>? tags = null,
+        NotificationDeliveryPolicy deliveryPolicy = NotificationDeliveryPolicy.RespectPreferences)
     {
         if (id == Guid.Empty)
         {
@@ -36,6 +38,8 @@ public sealed record UserNotificationMessage
         this.Severity = NotificationSeverities.Normalize(severity, nameof(severity));
         this.OccurredAtUtc = occurredAtUtc;
         this.Payload = payload.Clone();
+        this.Tags = NotificationTags.Copy(tags);
+        this.DeliveryPolicy = NotificationDeliveryPolicies.Normalize(deliveryPolicy);
     }
 
     public Guid Id { get; }
@@ -49,4 +53,6 @@ public sealed record UserNotificationMessage
     public NotificationSeverity Severity { get; }
     public DateTimeOffset OccurredAtUtc { get; }
     public JsonElement Payload { get; }
+    public IReadOnlyList<string> Tags { get; }
+    public NotificationDeliveryPolicy DeliveryPolicy { get; }
 }

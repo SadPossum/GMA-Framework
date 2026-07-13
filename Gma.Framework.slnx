@@ -12,6 +12,7 @@
     <File Path="docs/adr/0010-projection-rebuild-tasks.md" />
     <File Path="docs/adr/0011-optional-user-notifications-and-streaming.md" />
     <File Path="docs/adr/0012-optional-notifications-module.md" />
+    <File Path="docs/adr/0013-tagged-durable-notification-delivery.md" />
     <File Path="docs/architecture/administration.md" />
     <File Path="docs/architecture/audit-follow-up-notes.md" />
     <File Path="docs/architecture/audit-hardening-notes.md" />
@@ -145,6 +146,9 @@
     <Project Path="src/Notifications/Gma.Framework.Notifications.Infrastructure/Gma.Framework.Notifications.Infrastructure.csproj" />
     <Project Path="src/Notifications/Gma.Framework.Notifications.SignalR/Gma.Framework.Notifications.SignalR.csproj" />
     <Project Path="src/Notifications/Gma.Framework.Notifications/Gma.Framework.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/src/Email/">
+    <Project Path="src/Email/Gma.Framework.Email/Gma.Framework.Email.csproj" />
   </Folder>
   <Folder Name="/src/Numerics/">
     <Project Path="src/Numerics/Gma.Framework.Numerics/Gma.Framework.Numerics.csproj" />

@@ -10,13 +10,17 @@ public sealed record NotificationPublishOptions
         string? body = null,
         NotificationSeverity severity = NotificationSeverity.Info,
         Guid? id = null,
-        DateTimeOffset? occurredAtUtc = null)
+        DateTimeOffset? occurredAtUtc = null,
+        IReadOnlyCollection<string>? tags = null,
+        NotificationDeliveryPolicy deliveryPolicy = NotificationDeliveryPolicy.RespectPreferences)
     {
         this.Title = NormalizeText(title, TitleMaxLength, nameof(title), required: true)!;
         this.Body = NormalizeText(body, BodyMaxLength, nameof(body), required: false);
         this.Severity = NotificationSeverities.Normalize(severity, nameof(severity));
         this.Id = id;
         this.OccurredAtUtc = occurredAtUtc;
+        this.Tags = NotificationTags.Copy(tags);
+        this.DeliveryPolicy = NotificationDeliveryPolicies.Normalize(deliveryPolicy);
     }
 
     public string Title { get; }
@@ -24,6 +28,8 @@ public sealed record NotificationPublishOptions
     public NotificationSeverity Severity { get; }
     public Guid? Id { get; }
     public DateTimeOffset? OccurredAtUtc { get; }
+    public IReadOnlyList<string> Tags { get; }
+    public NotificationDeliveryPolicy DeliveryPolicy { get; }
 
     private static string? NormalizeText(string? value, int maxLength, string parameterName, bool required)
     {

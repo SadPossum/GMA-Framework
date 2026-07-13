@@ -4,6 +4,8 @@
 
 Accepted.
 
+Extended by [ADR 0013](0013-tagged-durable-notification-delivery.md) for tags, preferences, adapter routing, durable delivery jobs, attempts, and receipts.
+
 ## Context
 
 The shared notification stack provides front-door live delivery through SSE and SignalR. That is useful for connected clients, but many products also need notification history, unread state, and a way for users to recover messages they missed while offline.

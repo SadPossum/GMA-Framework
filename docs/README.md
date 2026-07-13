@@ -74,6 +74,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [0010 Projection Rebuild Tasks](adr/0010-projection-rebuild-tasks.md)
 - [0011 Optional User Notifications and Streaming](adr/0011-optional-user-notifications-and-streaming.md)
 - [0012 Optional Notifications Module](adr/0012-optional-notifications-module.md)
+- [0013 Tagged Durable Notification Delivery](adr/0013-tagged-durable-notification-delivery.md)
 
 ## Documentation Rules
 

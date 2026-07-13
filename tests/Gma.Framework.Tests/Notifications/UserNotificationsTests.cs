@@ -1,13 +1,10 @@
 namespace Gma.Framework.Tests.Notifications;
 
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 using Gma.Framework.Cqrs;
 using Gma.Framework.Cqrs.Infrastructure;
 using Gma.Framework.Cqrs.UnitOfWork;
+using Gma.Framework.Email;
 using Gma.Framework.Modules;
 using Gma.Framework.Notifications;
 using Gma.Framework.Notifications.Api;
@@ -15,11 +12,26 @@ using Gma.Framework.Notifications.Cqrs;
 using Gma.Framework.Notifications.Infrastructure;
 using Gma.Framework.Realtime.Notifications;
 using Gma.Framework.Results;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 [Trait("Category", "Unit")]
 public sealed class UserNotificationsTests
 {
+    [Fact]
+    public void Email_send_request_requires_a_recipient_address()
+    {
+        Assert.Throws<ArgumentException>(() => new EmailSendRequest(
+            " ",
+            "Security alert",
+            "A new session was created.",
+            htmlBody: null,
+            idempotencyKey: "notification:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    }
+
     [Fact]
     public async Task Publisher_delivers_attributed_payload_to_matching_user_subscription()
     {
@@ -44,6 +56,8 @@ public sealed class UserNotificationsTests
         Assert.Equal("Report ready", message.Title);
         Assert.Equal(NotificationSeverity.Success, message.Severity);
         Assert.Equal("ready", message.Payload.GetProperty("value").GetString());
+        Assert.Equal([NotificationTags.Web], message.Tags);
+        Assert.Equal(NotificationDeliveryPolicy.RespectPreferences, message.DeliveryPolicy);
     }
 
     [Fact]
@@ -129,6 +143,113 @@ public sealed class UserNotificationsTests
             UserNotificationTarget.User("tenant-a", "user-a"),
             new SampleNotificationPayload("safe"),
             new NotificationPublishOptions("Safe"));
+    }
+
+    [Fact]
+    public async Task Publisher_routes_only_to_sinks_supporting_requested_delivery_tags()
+    {
+        RecordingNotificationSink email = new("email-recorder", NotificationTags.Email);
+        RecordingNotificationSink web = new("web-recorder", NotificationTags.Web);
+        using IHost host = BuildHost(
+            enabled: true,
+            configureServices: services =>
+            {
+                services.AddSingleton<IUserNotificationSink>(email);
+                services.AddSingleton<IUserNotificationSink>(web);
+            });
+        IUserNotificationPublisher publisher = host.Services.GetRequiredService<IUserNotificationPublisher>();
+
+        await publisher.PublishAsync(
+            SampleModule.Name,
+            UserNotificationTarget.User("tenant-a", "user-a"),
+            new SampleNotificationPayload("email-only"),
+            new NotificationPublishOptions(
+                "Email only",
+                tags: [NotificationTags.Email, "domain:security"],
+                deliveryPolicy: NotificationDeliveryPolicy.Mandatory));
+
+        UserNotificationMessage delivered = Assert.Single(email.Messages);
+        Assert.Empty(web.Messages);
+        Assert.Contains(NotificationTags.Email, delivered.Tags);
+        Assert.Contains("domain:security", delivered.Tags);
+        Assert.Equal(NotificationDeliveryPolicy.Mandatory, delivered.DeliveryPolicy);
+    }
+
+    [Fact]
+    public async Task Publisher_does_not_invoke_durable_only_adapters_inline()
+    {
+        RecordingNotificationSink durableEmail = new(
+            "email-durable",
+            NotificationTags.Email,
+            NotificationSinkDeliveryMode.Durable);
+        using IHost host = BuildHost(
+            enabled: true,
+            configureServices: services => services.AddSingleton<IUserNotificationSink>(durableEmail));
+        IUserNotificationPublisher publisher = host.Services.GetRequiredService<IUserNotificationPublisher>();
+
+        await publisher.PublishAsync(
+            SampleModule.Name,
+            UserNotificationTarget.User("tenant-a", "user-a"),
+            new SampleNotificationPayload("durable"),
+            new NotificationPublishOptions("Durable", tags: [NotificationTags.Email]));
+
+        Assert.Empty(durableEmail.Messages);
+    }
+
+    [Fact]
+    public async Task Publisher_fails_closed_when_delivery_policy_suppresses_a_best_effort_tag()
+    {
+        RecordingNotificationSink web = new("web-recorder", NotificationTags.Web);
+        using IHost host = BuildHost(
+            enabled: true,
+            configureServices: services =>
+            {
+                services.AddSingleton<IUserNotificationSink>(web);
+                services.AddSingleton<IUserNotificationDeliveryPolicyEvaluator>(new DenyTagPolicy(NotificationTags.Web));
+            });
+        IUserNotificationPublisher publisher = host.Services.GetRequiredService<IUserNotificationPublisher>();
+
+        await publisher.PublishAsync(
+            SampleModule.Name,
+            UserNotificationTarget.User("tenant-a", "user-a"),
+            new SampleNotificationPayload("suppressed"),
+            new NotificationPublishOptions("Suppressed"));
+
+        Assert.Empty(web.Messages);
+    }
+
+    [Theory]
+    [InlineData("email")]
+    [InlineData("delivery:")]
+    [InlineData(":email")]
+    [InlineData("delivery:email:primary")]
+    public void Notification_tags_require_normalized_namespaced_values(string tag)
+    {
+        Assert.Throws<ArgumentException>(() => NotificationTags.Normalize(tag));
+    }
+
+    [Fact]
+    public void Notification_tags_are_normalized_deduplicated_and_bounded()
+    {
+        IReadOnlyList<string> tags = NotificationTags.Copy(
+            ["delivery:Email", "domain:security", NotificationTags.Email]);
+
+        Assert.Equal(["delivery:email", "domain:security"], tags);
+        Assert.Throws<ArgumentException>(() => NotificationTags.Copy(
+            Enumerable.Range(0, NotificationTags.MaxCount + 1).Select(index => $"domain:tag-{index}")));
+    }
+
+    [Fact]
+    public void Delivery_results_validate_safe_codes_and_receipts()
+    {
+        NotificationSinkDeliveryResult delivered = NotificationSinkDeliveryResult.Delivered("provider-123");
+        NotificationSinkDeliveryResult retry = NotificationSinkDeliveryResult.Retry("rate-limited");
+
+        Assert.Equal(NotificationSinkDeliveryOutcome.Delivered, delivered.Outcome);
+        Assert.Equal("provider-123", delivered.ProviderMessageId);
+        Assert.Equal(NotificationSinkDeliveryOutcome.Retry, retry.Outcome);
+        Assert.Equal("rate-limited", retry.Code);
+        Assert.Throws<ArgumentException>(() => NotificationSinkDeliveryResult.Retry("Rate limited"));
     }
 
     [Fact]
@@ -374,6 +495,43 @@ public sealed class UserNotificationsTests
         Assert.Throws<JsonException>(() => JsonSerializer.Serialize(NotificationSseItemKind.Unknown, options));
     }
 
+    [Fact]
+    public void User_notification_message_json_round_trips_delivery_metadata()
+    {
+        JsonSerializerOptions options = new(JsonSerializerDefaults.Web);
+        UserNotificationMessage expected = new(
+            Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+            "sample",
+            "sample.event",
+            2,
+            "tenant-a",
+            "user-a",
+            "Sample",
+            "Body",
+            NotificationSeverity.Warning,
+            new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero),
+            JsonSerializer.SerializeToElement(new { value = "sample" }, options),
+            [NotificationTags.Email, "domain:security"],
+            NotificationDeliveryPolicy.Mandatory);
+
+        string json = JsonSerializer.Serialize(expected, options);
+        UserNotificationMessage actual = JsonSerializer.Deserialize<UserNotificationMessage>(json, options)!;
+
+        Assert.Equal(expected.Id, actual.Id);
+        Assert.Equal(expected.Module, actual.Module);
+        Assert.Equal(expected.Name, actual.Name);
+        Assert.Equal(expected.Version, actual.Version);
+        Assert.Equal(expected.ScopeId, actual.ScopeId);
+        Assert.Equal(expected.UserId, actual.UserId);
+        Assert.Equal(expected.Title, actual.Title);
+        Assert.Equal(expected.Body, actual.Body);
+        Assert.Equal(expected.Severity, actual.Severity);
+        Assert.Equal(expected.OccurredAtUtc, actual.OccurredAtUtc);
+        Assert.Equal(expected.DeliveryPolicy, actual.DeliveryPolicy);
+        Assert.Equal(expected.Tags, actual.Tags);
+        Assert.Equal(expected.Payload.GetRawText(), actual.Payload.GetRawText());
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("sample..event")]
@@ -448,9 +606,42 @@ public sealed class UserNotificationsTests
     private sealed class ThrowingNotificationSink : IUserNotificationSink
     {
         public string ProviderName => "throwing";
+        public IReadOnlyCollection<string> DeliveryTags { get; } = [NotificationTags.Web];
+        public NotificationSinkDeliveryMode DeliveryModes => NotificationSinkDeliveryMode.BestEffort;
 
-        public ValueTask DeliverAsync(UserNotificationMessage message, CancellationToken cancellationToken) =>
+        public ValueTask<NotificationSinkDeliveryResult> DeliverAsync(
+            NotificationSinkDeliveryRequest request,
+            CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Sink failed.");
+    }
+
+    private sealed class RecordingNotificationSink(
+        string providerName,
+        string deliveryTag,
+        NotificationSinkDeliveryMode deliveryModes = NotificationSinkDeliveryMode.BestEffort) : IUserNotificationSink
+    {
+        public string ProviderName { get; } = providerName;
+        public IReadOnlyCollection<string> DeliveryTags { get; } = [deliveryTag];
+        public NotificationSinkDeliveryMode DeliveryModes { get; } = deliveryModes;
+        public List<UserNotificationMessage> Messages { get; } = [];
+
+        public ValueTask<NotificationSinkDeliveryResult> DeliverAsync(
+            NotificationSinkDeliveryRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            this.Messages.Add(request.Message);
+            return ValueTask.FromResult(NotificationSinkDeliveryResult.Delivered());
+        }
+    }
+
+    private sealed class DenyTagPolicy(string deniedTag) : IUserNotificationDeliveryPolicyEvaluator
+    {
+        public ValueTask<bool> ShouldDeliverAsync(
+            UserNotificationMessage message,
+            string deliveryTag,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(!string.Equals(deniedTag, deliveryTag, StringComparison.Ordinal));
     }
 
     private sealed class RecordingHistoryWriter : IUserNotificationHistoryWriter

@@ -7,14 +7,21 @@ internal sealed class UserNotificationRealtimeSink(
     IRealtimeSink<UserNotificationMessage> sink) : IUserNotificationSink
 {
     public string ProviderName => sink.ProviderName;
+    public IReadOnlyCollection<string> DeliveryTags { get; } = [NotificationTags.Web];
+    public NotificationSinkDeliveryMode DeliveryModes => NotificationSinkDeliveryMode.BestEffort;
 
-    public ValueTask DeliverAsync(UserNotificationMessage message, CancellationToken cancellationToken)
+    public async ValueTask<NotificationSinkDeliveryResult> DeliverAsync(
+        NotificationSinkDeliveryRequest request,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(request);
+        UserNotificationMessage message = request.Message;
 
-        return sink.DeliverAsync(
+        await sink.DeliverAsync(
             UserNotificationRealtimeChannels.ForMessage(message),
             message,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+        return NotificationSinkDeliveryResult.Delivered();
     }
 }

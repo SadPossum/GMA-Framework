@@ -28,6 +28,11 @@ public static class ObservabilityInstrumentNames
     public const string NotificationsPublished = ApplicationNamespaces.Default + ".notifications.published";
     public const string NotificationsDelivered = ApplicationNamespaces.Default + ".notifications.delivered";
     public const string NotificationsDeliveryDuration = ApplicationNamespaces.Default + ".notifications.delivery.duration";
+    public const string NotificationsDurableDeliveryAttempts = ApplicationNamespaces.Default + ".notifications.durable_delivery.attempts";
+    public const string NotificationsDurableDeliveryDuration = ApplicationNamespaces.Default + ".notifications.durable_delivery.duration";
+    public const string NotificationsDurableDeliveryBacklog = ApplicationNamespaces.Default + ".notifications.durable_delivery.backlog";
+    public const string NotificationsDurableDeliveryExhausted = ApplicationNamespaces.Default + ".notifications.durable_delivery.exhausted";
+    public const string NotificationsDurableDeliveryOldestPendingAge = ApplicationNamespaces.Default + ".notifications.durable_delivery.oldest_pending.age";
 
     public const string TaskClaimed = ApplicationNamespaces.Default + ".tasks.claimed";
     public const string TaskCompleted = ApplicationNamespaces.Default + ".tasks.completed";
@@ -98,6 +103,21 @@ public static class ObservabilityInstrumentNames
 
     public static string NotificationsDeliveryDurationFor(string applicationNamespace) =>
         Create(applicationNamespace, "notifications.delivery.duration");
+
+    public static string NotificationsDurableDeliveryAttemptsFor(string applicationNamespace) =>
+        Create(applicationNamespace, "notifications.durable_delivery.attempts");
+
+    public static string NotificationsDurableDeliveryDurationFor(string applicationNamespace) =>
+        Create(applicationNamespace, "notifications.durable_delivery.duration");
+
+    public static string NotificationsDurableDeliveryBacklogFor(string applicationNamespace) =>
+        Create(applicationNamespace, "notifications.durable_delivery.backlog");
+
+    public static string NotificationsDurableDeliveryExhaustedFor(string applicationNamespace) =>
+        Create(applicationNamespace, "notifications.durable_delivery.exhausted");
+
+    public static string NotificationsDurableDeliveryOldestPendingAgeFor(string applicationNamespace) =>
+        Create(applicationNamespace, "notifications.durable_delivery.oldest_pending.age");
 
     public static string TaskClaimedFor(string applicationNamespace) =>
         Create(applicationNamespace, "tasks.claimed");

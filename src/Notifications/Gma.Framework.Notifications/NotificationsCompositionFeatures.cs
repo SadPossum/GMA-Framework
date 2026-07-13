@@ -12,6 +12,9 @@ public static class NotificationsCompositionFeatures
     public static readonly CompositionFeatureId SignalR = new("notifications.signalr");
     public static readonly CompositionFeatureId History = new("notifications.history");
     public static readonly CompositionFeatureId Broadcasts = new("notifications.broadcasts");
+    public static readonly CompositionFeatureId Preferences = new("notifications.preferences");
+    public static readonly CompositionFeatureId Routing = new("notifications.routing");
+    public static readonly CompositionFeatureId DurableDelivery = new("notifications.durable-delivery");
 
     public static ProvidedCompositionFeature PublisherProvided(string provider) =>
         new(Publisher, provider, "User notification publisher services are registered.");
@@ -37,6 +40,15 @@ public static class NotificationsCompositionFeatures
     public static ProvidedCompositionFeature BroadcastsProvided(string provider) =>
         new(Broadcasts, provider, "Durable notification broadcast module is selected.");
 
+    public static ProvidedCompositionFeature PreferencesProvided(string provider) =>
+        new(Preferences, provider, "Stored per-user notification tag preferences are available.");
+
+    public static ProvidedCompositionFeature RoutingProvided(string provider) =>
+        new(Routing, provider, "Stored notification tag definitions and delivery routes are available.");
+
+    public static ProvidedCompositionFeature DurableDeliveryProvided(string provider) =>
+        new(DurableDelivery, provider, "Durable tagged notification delivery jobs and attempt receipts are available.");
+
     public static RequiredCompositionFeature PublisherRequired(string owner, string? reason = null, bool optional = false) =>
         new(Publisher, owner, optional, reason);
 
@@ -60,4 +72,13 @@ public static class NotificationsCompositionFeatures
 
     public static RequiredCompositionFeature BroadcastsRequired(string owner, string? reason = null, bool optional = false) =>
         new(Broadcasts, owner, optional, reason);
+
+    public static RequiredCompositionFeature PreferencesRequired(string owner, string? reason = null, bool optional = false) =>
+        new(Preferences, owner, optional, reason);
+
+    public static RequiredCompositionFeature RoutingRequired(string owner, string? reason = null, bool optional = false) =>
+        new(Routing, owner, optional, reason);
+
+    public static RequiredCompositionFeature DurableDeliveryRequired(string owner, string? reason = null, bool optional = false) =>
+        new(DurableDelivery, owner, optional, reason);
 }

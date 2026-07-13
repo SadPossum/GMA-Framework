@@ -2,16 +2,17 @@ namespace Gma.Framework.Notifications.Infrastructure;
 
 using System.Diagnostics;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Gma.Framework.Naming;
 using Gma.Framework.Notifications;
 using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Runtime.Time;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 internal sealed class UserNotificationPublisher(
     IEnumerable<IUserNotificationSink> sinks,
     IEnumerable<IUserNotificationHistoryWriter> historyWriters,
+    IEnumerable<IUserNotificationDeliveryPolicyEvaluator> deliveryPolicyEvaluators,
     IIdGenerator idGenerator,
     ISystemClock clock,
     IOptions<NotificationsOptions> options,
@@ -21,6 +22,7 @@ internal sealed class UserNotificationPublisher(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IUserNotificationSink[] sinks = sinks.ToArray();
     private readonly IUserNotificationHistoryWriter[] historyWriters = historyWriters.ToArray();
+    private readonly IUserNotificationDeliveryPolicyEvaluator[] deliveryPolicyEvaluators = deliveryPolicyEvaluators.ToArray();
 
     public async ValueTask PublishAsync<TPayload>(
         string moduleName,
@@ -57,7 +59,9 @@ internal sealed class UserNotificationPublisher(
             publishOptions.Body,
             publishOptions.Severity,
             publishOptions.OccurredAtUtc ?? clock.UtcNow,
-            payloadElement);
+            payloadElement,
+            publishOptions.Tags,
+            publishOptions.DeliveryPolicy);
 
         await this.SaveHistoryAsync(message, cancellationToken).ConfigureAwait(false);
         await this.PublishMessageAsync(message, cancellationToken).ConfigureAwait(false);
@@ -102,13 +106,49 @@ internal sealed class UserNotificationPublisher(
 
         metrics.RecordPublished(message.Module, message.Name, "success");
 
-        foreach (IUserNotificationSink sink in this.sinks)
+        string[] requestedDeliveryTags = NotificationTags.GetDeliveryTags(message.Tags).ToArray();
+        foreach (IUserNotificationSink sink in this.sinks.Where(candidate =>
+                     candidate.DeliveryModes.HasFlag(NotificationSinkDeliveryMode.BestEffort)))
         {
+            string[] matchingTags = GetMatchingDeliveryTags(sink, requestedDeliveryTags);
+            if (matchingTags.Length == 0)
+            {
+                continue;
+            }
+
+            if (!await this.ShouldDeliverAsync(message, sink, matchingTags, cancellationToken).ConfigureAwait(false))
+            {
+                metrics.RecordDelivery(message.Module, message.Name, sink.ProviderName, "bypass", TimeSpan.Zero);
+                continue;
+            }
+
             Stopwatch stopwatch = Stopwatch.StartNew();
             try
             {
-                await sink.DeliverAsync(message, cancellationToken).ConfigureAwait(false);
-                metrics.RecordDelivery(message.Module, message.Name, sink.ProviderName, "success", stopwatch.Elapsed);
+                NotificationSinkDeliveryResult result = await sink
+                    .DeliverAsync(NotificationSinkDeliveryRequest.BestEffort(message), cancellationToken)
+                    .ConfigureAwait(false);
+                string metricResult = result.Outcome switch
+                {
+                    NotificationSinkDeliveryOutcome.Delivered => "success",
+                    NotificationSinkDeliveryOutcome.Skipped => "bypass",
+                    NotificationSinkDeliveryOutcome.Retry => "retry",
+                    NotificationSinkDeliveryOutcome.Rejected => "rejected",
+                    _ => "failure"
+                };
+                metrics.RecordDelivery(message.Module, message.Name, sink.ProviderName, metricResult, stopwatch.Elapsed);
+
+                if (result.Outcome is NotificationSinkDeliveryOutcome.Retry or NotificationSinkDeliveryOutcome.Rejected)
+                {
+                    logger.LogWarning(
+                        "User notification {NotificationId} delivery through {NotificationProvider} returned {DeliveryOutcome} with code {DeliveryCode} for module {Module} and notification {NotificationName}.",
+                        message.Id,
+                        sink.ProviderName,
+                        result.Outcome,
+                        result.Code,
+                        message.Module,
+                        message.Name);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -128,6 +168,70 @@ internal sealed class UserNotificationPublisher(
                     message.UserId);
             }
         }
+    }
+
+    private async ValueTask<bool> ShouldDeliverAsync(
+        UserNotificationMessage message,
+        IUserNotificationSink sink,
+        IReadOnlyCollection<string> matchingTags,
+        CancellationToken cancellationToken)
+    {
+        foreach (string deliveryTag in matchingTags)
+        {
+            bool allowed = true;
+            foreach (IUserNotificationDeliveryPolicyEvaluator evaluator in this.deliveryPolicyEvaluators)
+            {
+                try
+                {
+                    if (!await evaluator
+                            .ShouldDeliverAsync(message, deliveryTag, cancellationToken)
+                            .ConfigureAwait(false))
+                    {
+                        allowed = false;
+                        break;
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    allowed = false;
+                    logger.LogWarning(
+                        "User notification {NotificationId} delivery policy for {NotificationProvider} and {DeliveryTag} failed closed with {ExceptionType}.",
+                        message.Id,
+                        sink.ProviderName,
+                        deliveryTag,
+                        exception.GetType().Name);
+                    break;
+                }
+            }
+
+            if (allowed)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string[] GetMatchingDeliveryTags(
+        IUserNotificationSink sink,
+        IReadOnlyCollection<string> requestedDeliveryTags)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        string[] supported = NotificationTags.GetDeliveryTags(sink.DeliveryTags).ToArray();
+        if (supported.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Notification sink '{sink.ProviderName}' must declare at least one delivery tag.");
+        }
+
+        return requestedDeliveryTags
+            .Where(requested => supported.Contains(requested, StringComparer.Ordinal))
+            .ToArray();
     }
 
     private static JsonElement SerializePayload<TPayload>(TPayload payload, int maximumPayloadBytes)

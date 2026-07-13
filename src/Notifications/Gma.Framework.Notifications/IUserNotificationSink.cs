@@ -3,6 +3,10 @@ namespace Gma.Framework.Notifications;
 public interface IUserNotificationSink
 {
     string ProviderName { get; }
+    IReadOnlyCollection<string> DeliveryTags { get; }
+    NotificationSinkDeliveryMode DeliveryModes { get; }
 
-    ValueTask DeliverAsync(UserNotificationMessage message, CancellationToken cancellationToken);
+    ValueTask<NotificationSinkDeliveryResult> DeliverAsync(
+        NotificationSinkDeliveryRequest request,
+        CancellationToken cancellationToken);
 }
