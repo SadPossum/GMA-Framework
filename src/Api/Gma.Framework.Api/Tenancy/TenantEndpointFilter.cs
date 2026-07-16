@@ -56,19 +56,24 @@ internal sealed class TenantEndpointFilter : IEndpointFilter
 
         tenantContext.SetTenant(tenantId);
 
-        IEnumerable<ITenantEndpointAccessPolicy> accessPolicies =
-            context.HttpContext.RequestServices.GetServices<ITenantEndpointAccessPolicy>();
-        foreach (ITenantEndpointAccessPolicy accessPolicy in accessPolicies)
+        bool independentlyAuthenticated = context.HttpContext.GetEndpoint()?.Metadata
+            .GetMetadata<IndependentTenantEndpointAuthenticationMetadata>() is not null;
+        if (!independentlyAuthenticated)
         {
-            TenantEndpointAccessDecision decision = await accessPolicy
-                .AuthorizeAsync(context.HttpContext, tenantId, context.HttpContext.RequestAborted)
-                .ConfigureAwait(false);
-            if (!decision.IsAllowed)
+            IEnumerable<ITenantEndpointAccessPolicy> accessPolicies =
+                context.HttpContext.RequestServices.GetServices<ITenantEndpointAccessPolicy>();
+            foreach (ITenantEndpointAccessPolicy accessPolicy in accessPolicies)
             {
-                return Results.Problem(
-                    title: decision.ErrorCode,
-                    detail: decision.ErrorMessage,
-                    statusCode: decision.StatusCode);
+                TenantEndpointAccessDecision decision = await accessPolicy
+                    .AuthorizeAsync(context.HttpContext, tenantId, context.HttpContext.RequestAborted)
+                    .ConfigureAwait(false);
+                if (!decision.IsAllowed)
+                {
+                    return Results.Problem(
+                        title: decision.ErrorCode,
+                        detail: decision.ErrorMessage,
+                        statusCode: decision.StatusCode);
+                }
             }
         }
 

@@ -20,6 +20,13 @@ public sealed class TenantEndpointFilterTests
     }
 
     [Fact]
+    public void Independently_authenticated_tenant_endpoint_rejects_null_builder()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            TenantEndpointRouteBuilderExtensions.RequireTenantWithIndependentAuthentication(null!));
+    }
+
+    [Fact]
     public async Task Missing_tenant_header_returns_required_problem()
     {
         HttpContext httpContext = CreateHttpContext();
@@ -123,6 +130,30 @@ public sealed class TenantEndpointFilterTests
         Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
         Assert.Equal("TenantAccess.Denied", problem.ProblemDetails.Title);
         Assert.False(nextInvoked);
+    }
+
+    [Fact]
+    public async Task Independently_authenticated_endpoint_skips_access_policies_after_tenant_resolution()
+    {
+        RecordingTenantContext tenantContext = new();
+        RecordingTenantAccessPolicy accessPolicy = new(
+            TenantEndpointAccessDecision.Denied("TenantAccess.Denied", "Tenant access is denied."));
+        HttpContext httpContext = CreateHttpContext(tenantContext, accessPolicy);
+        httpContext.Request.Headers["X-Tenant-Id"] = "tenant-a";
+        httpContext.SetEndpoint(new Endpoint(
+            _ => Task.CompletedTask,
+            new EndpointMetadataCollection(IndependentTenantEndpointAuthenticationMetadata.Instance),
+            "independently-authenticated"));
+        TenantEndpointFilter filter = new();
+
+        object? result = await filter.InvokeAsync(
+            new DefaultEndpointFilterInvocationContext(httpContext),
+            _ => ValueTask.FromResult<object?>(Results.Ok("next")));
+
+        Ok<string> ok = Assert.IsType<Ok<string>>(result);
+        Assert.Equal("next", ok.Value);
+        Assert.Equal("tenant-a", tenantContext.TenantId);
+        Assert.Null(accessPolicy.HttpContext);
     }
 
     private static DefaultHttpContext CreateHttpContext(
