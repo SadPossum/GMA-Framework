@@ -56,6 +56,22 @@ internal sealed class TenantEndpointFilter : IEndpointFilter
 
         tenantContext.SetTenant(tenantId);
 
+        IEnumerable<ITenantEndpointAccessPolicy> accessPolicies =
+            context.HttpContext.RequestServices.GetServices<ITenantEndpointAccessPolicy>();
+        foreach (ITenantEndpointAccessPolicy accessPolicy in accessPolicies)
+        {
+            TenantEndpointAccessDecision decision = await accessPolicy
+                .AuthorizeAsync(context.HttpContext, tenantId, context.HttpContext.RequestAborted)
+                .ConfigureAwait(false);
+            if (!decision.IsAllowed)
+            {
+                return Results.Problem(
+                    title: decision.ErrorCode,
+                    detail: decision.ErrorMessage,
+                    statusCode: decision.StatusCode);
+            }
+        }
+
         return await next(context).ConfigureAwait(false);
     }
 }

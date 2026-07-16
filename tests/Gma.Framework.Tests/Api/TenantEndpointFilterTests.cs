@@ -83,13 +83,61 @@ public sealed class TenantEndpointFilterTests
         Assert.Equal("tenant-a", tenantContext.TenantId);
     }
 
-    private static DefaultHttpContext CreateHttpContext(RecordingTenantContext? tenantContext = null)
+    [Fact]
+    public async Task Registered_access_policies_run_after_tenant_resolution()
+    {
+        RecordingTenantContext tenantContext = new();
+        RecordingTenantAccessPolicy accessPolicy = new(TenantEndpointAccessDecision.Allowed);
+        HttpContext httpContext = CreateHttpContext(tenantContext, accessPolicy);
+        httpContext.Request.Headers["X-Tenant-Id"] = "tenant-a";
+        TenantEndpointFilter filter = new();
+
+        object? result = await filter.InvokeAsync(
+            new DefaultEndpointFilterInvocationContext(httpContext),
+            _ => ValueTask.FromResult<object?>(Results.Ok("next")));
+
+        Assert.IsType<Ok<string>>(result);
+        Assert.Equal("tenant-a", accessPolicy.TenantId);
+        Assert.Same(httpContext, accessPolicy.HttpContext);
+    }
+
+    [Fact]
+    public async Task Denied_access_policy_stops_the_endpoint_pipeline()
+    {
+        RecordingTenantAccessPolicy accessPolicy = new(
+            TenantEndpointAccessDecision.Denied("TenantAccess.Denied", "Tenant access is denied."));
+        HttpContext httpContext = CreateHttpContext(accessPolicy: accessPolicy);
+        httpContext.Request.Headers["X-Tenant-Id"] = "tenant-a";
+        TenantEndpointFilter filter = new();
+        bool nextInvoked = false;
+
+        object? result = await filter.InvokeAsync(
+            new DefaultEndpointFilterInvocationContext(httpContext),
+            _ =>
+            {
+                nextInvoked = true;
+                return ValueTask.FromResult<object?>(Results.Ok());
+            });
+
+        ProblemHttpResult problem = Assert.IsType<ProblemHttpResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.StatusCode);
+        Assert.Equal("TenantAccess.Denied", problem.ProblemDetails.Title);
+        Assert.False(nextInvoked);
+    }
+
+    private static DefaultHttpContext CreateHttpContext(
+        RecordingTenantContext? tenantContext = null,
+        ITenantEndpointAccessPolicy? accessPolicy = null)
     {
         tenantContext ??= new RecordingTenantContext();
         ServiceCollection services = new();
         services.AddSingleton<IOptions<TenantOptions>>(Options.Create(new TenantOptions { Enabled = true }));
         services.AddSingleton<ITenantContextAccessor>(tenantContext);
         services.AddSingleton<ITenantContext>(tenantContext);
+        if (accessPolicy is not null)
+        {
+            services.AddSingleton(accessPolicy);
+        }
 
         return new DefaultHttpContext
         {
@@ -103,5 +151,22 @@ public sealed class TenantEndpointFilterTests
         public string? TenantId { get; private set; }
         public void SetTenant(string scopeId) => this.TenantId = scopeId;
         public void ClearTenant() => this.TenantId = null;
+    }
+
+    private sealed class RecordingTenantAccessPolicy(TenantEndpointAccessDecision decision)
+        : ITenantEndpointAccessPolicy
+    {
+        public HttpContext? HttpContext { get; private set; }
+        public string? TenantId { get; private set; }
+
+        public ValueTask<TenantEndpointAccessDecision> AuthorizeAsync(
+            HttpContext httpContext,
+            string tenantId,
+            CancellationToken cancellationToken)
+        {
+            this.HttpContext = httpContext;
+            this.TenantId = tenantId;
+            return ValueTask.FromResult(decision);
+        }
     }
 }
