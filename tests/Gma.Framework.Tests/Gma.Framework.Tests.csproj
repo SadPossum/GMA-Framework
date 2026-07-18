@@ -76,6 +76,7 @@
     <ProjectReference Include="$(GmaFrameworkRoot)Tenancy\Gma.Framework.Tenancy.Tasks\Gma.Framework.Tenancy.Tasks.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Security\Gma.Framework.Security.csproj" />
+    <ProjectReference Include="$(GmaFrameworkRoot)Security\Gma.Framework.Security.AspNetCore\Gma.Framework.Security.AspNetCore.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Cqrs\Gma.Framework.Cqrs\Gma.Framework.Cqrs.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Application\Gma.Framework.Application.Events\Gma.Framework.Application.Events.csproj" />
     <ProjectReference Include="$(GmaFrameworkRoot)Pagination\Gma.Framework.Pagination\Gma.Framework.Pagination.csproj" />

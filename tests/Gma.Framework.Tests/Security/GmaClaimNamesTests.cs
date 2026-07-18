@@ -13,12 +13,18 @@ public sealed class GmaClaimNamesTests
         Assert.Equal("sub", GmaClaimNames.Subject);
         Assert.Equal("scope_id", GmaClaimNames.ScopeId);
         Assert.Equal("sid", GmaClaimNames.SessionId);
+        Assert.Equal("acr", GmaClaimNames.AuthenticationContextReference);
+        Assert.Equal("amr", GmaClaimNames.AuthenticationMethodReference);
+        Assert.Equal("auth_time", GmaClaimNames.AuthenticationTime);
 
-        Assert.Equal(3, new HashSet<string>(
+        Assert.Equal(6, new HashSet<string>(
             [
                 GmaClaimNames.Subject,
                 GmaClaimNames.ScopeId,
-                GmaClaimNames.SessionId
+                GmaClaimNames.SessionId,
+                GmaClaimNames.AuthenticationContextReference,
+                GmaClaimNames.AuthenticationMethodReference,
+                GmaClaimNames.AuthenticationTime
             ],
             StringComparer.Ordinal).Count);
     }

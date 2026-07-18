@@ -1,0 +1,3 @@
+namespace Gma.Framework.Security.AspNetCore;
+
+internal sealed record AuthenticationAssuranceMetadata(AuthenticationAssuranceRequirement Requirement);

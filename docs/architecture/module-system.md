@@ -39,7 +39,8 @@ The shared core is intentionally small:
 - `Gma.Framework.ProjectionRebuild` owns the task-neutral rebuild loop, checkpoint contracts, source/writer contracts, and metrics; `Gma.Framework.ProjectionRebuild.Tasks` adapts that loop to task progress and control messages.
 - `Gma.Framework.Runtime` owns clock/id abstractions and dependency-free runtime naming helpers.
 - `Gma.Framework.Tenancy` owns tenant context contracts, tenant options, and tenant errors.
-- `Gma.Framework.Security` owns dependency-free claim/security constants shared by HTTP adapters and token issuers.
+- `Gma.Framework.Security` owns dependency-free claim/security constants and authentication-assurance requirements shared by HTTP adapters and token issuers.
+- `Gma.Framework.Security.AspNetCore` optionally enforces authentication context and freshness requirements through RFC 9470 HTTP challenges without depending on Auth.
 - `Gma.Framework.Cqrs` owns command/query contracts, validators, dispatcher contracts, `Unit`, and transactional unit-of-work contracts.
 - `Gma.Framework.Application.Events` owns domain-event handler and dispatcher contracts. It references `Gma.Framework.Domain` only.
 - `Gma.Framework.Pagination` owns normalized paging request helpers and remains dependency-free.
@@ -83,7 +84,8 @@ Shared project ownership quick reference:
 - `Gma.Framework.Pagination`: normalized paging request helpers.
 - `Gma.Framework.Runtime`: shared runtime abstractions and dependency-free runtime helpers such as clock/id generator contracts and worker-id normalization.
 - `Gma.Framework.Runtime.Infrastructure`: default runtime implementations for clock and id generator contracts.
-- `Gma.Framework.Security`: shared claim/security constants.
+- `Gma.Framework.Security`: shared claim/security constants and authentication-assurance requirements.
+- `Gma.Framework.Security.AspNetCore`: optional authentication-assurance endpoint enforcement.
 - `Gma.Framework.Caching`: cache-aside contracts, cache key/tag primitives, provider/options contracts, distributed adapter registration marker, and cache descriptor metadata.
 - `Gma.Framework.Tenancy.Caching`: optional tenant-to-cache scope bridge.
 - `Gma.Framework.Tenancy.Tasks`: optional tenant-to-task execution context bridge.

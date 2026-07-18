@@ -8,6 +8,9 @@ public static class GmaClaimNames
     public const string ScopeId = ApplicationClaimNames.ScopeId;
     public const string TenantId = ApplicationClaimNames.TenantId;
     public const string SessionId = ApplicationClaimNames.SessionId;
+    public const string AuthenticationContextReference = ApplicationClaimNames.AuthenticationContextReference;
+    public const string AuthenticationMethodReference = ApplicationClaimNames.AuthenticationMethodReference;
+    public const string AuthenticationTime = ApplicationClaimNames.AuthenticationTime;
 
     public static bool IsValidClaimName(string? claimName) =>
         ApplicationClaimNames.IsValidClaimName(claimName);

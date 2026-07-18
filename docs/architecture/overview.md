@@ -99,6 +99,7 @@ GMA-Framework/
       Gma.Framework.AccessControl.AspNetCore/
       Gma.Framework.Permissions/
       Gma.Framework.Security/
+      Gma.Framework.Security.AspNetCore/
     Tasks/
       Gma.Framework.Tasks/
       Gma.Framework.Tasks.Cqrs/
@@ -548,6 +549,9 @@ Gma.Framework.Runtime.Infrastructure
 
 Gma.Framework.Security
   -> no project references
+
+Gma.Framework.Security.AspNetCore
+  -> Gma.Framework.Security
 
 Gma.Framework.Tasks
   -> Gma.Framework.ModuleComposition

@@ -8,6 +8,9 @@ public static class ApplicationClaimNames
     public const string ScopeId = "scope_id";
     public const string TenantId = ScopeId;
     public const string SessionId = "sid";
+    public const string AuthenticationContextReference = "acr";
+    public const string AuthenticationMethodReference = "amr";
+    public const string AuthenticationTime = "auth_time";
 
     public static bool IsValidClaimName(string? claimName) =>
         !string.IsNullOrWhiteSpace(claimName) &&

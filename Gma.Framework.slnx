@@ -189,6 +189,7 @@
     <Project Path="src/Security/Gma.Framework.AccessControl.AspNetCore/Gma.Framework.AccessControl.AspNetCore.csproj" />
     <Project Path="src/Security/Gma.Framework.Permissions/Gma.Framework.Permissions.csproj" />
     <Project Path="src/Security/Gma.Framework.Security/Gma.Framework.Security.csproj" />
+    <Project Path="src/Security/Gma.Framework.Security.AspNetCore/Gma.Framework.Security.AspNetCore.csproj" />
   </Folder>
   <Folder Name="/src/Tasks/">
     <Project Path="src/Tasks/Gma.Framework.Tasks.Cqrs/Gma.Framework.Tasks.Cqrs.csproj" />
