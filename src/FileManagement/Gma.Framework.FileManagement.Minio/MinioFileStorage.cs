@@ -73,7 +73,8 @@ internal sealed class MinioFileStorage(
                 GetObjectArgs args = new GetObjectArgs()
                     .WithBucket(minioOptions.Value.BucketName)
                     .WithObject(key.Value)
-                    .WithCallbackStream(stream => stream.CopyTo(destination));
+                    .WithCallbackStream((stream, callbackCancellationToken) =>
+                        stream.CopyToAsync(destination, callbackCancellationToken));
 
                 await client.GetObjectAsync(args, copyCancellationToken).ConfigureAwait(false);
             });

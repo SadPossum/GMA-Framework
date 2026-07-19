@@ -40,6 +40,17 @@ public sealed class FileManagementTests
     }
 
     [Fact]
+    public void File_management_options_validation_rejects_null_content_type_allowlist()
+    {
+        string[] failures = FileManagementOptionsValidation.Validate(new FileManagementOptions
+        {
+            AllowedContentTypes = null!
+        });
+
+        Assert.Contains(failures, failure => failure.Contains("AllowedContentTypes", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Local_storage_registration_is_noop_when_file_management_is_disabled()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();

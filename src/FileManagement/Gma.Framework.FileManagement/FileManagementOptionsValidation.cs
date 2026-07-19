@@ -27,7 +27,11 @@ public static class FileManagementOptionsValidation
             failures.Add($"{FileManagementOptions.SectionName}:Provider is required when file management is enabled.");
         }
 
-        if (options.AllowedContentTypes.Any(contentType => !FileStorageMetadata.IsValidContentType(contentType)))
+        if (options.AllowedContentTypes is null)
+        {
+            failures.Add($"{FileManagementOptions.SectionName}:AllowedContentTypes is required.");
+        }
+        else if (options.AllowedContentTypes.Any(contentType => !FileStorageMetadata.IsValidContentType(contentType)))
         {
             failures.Add($"{FileManagementOptions.SectionName}:AllowedContentTypes contains invalid content types.");
         }
