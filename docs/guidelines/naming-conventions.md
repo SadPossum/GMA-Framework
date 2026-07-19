@@ -118,6 +118,7 @@ Gma.Framework.Realtime.Notifications
 Gma.Framework.Runtime
 Gma.Framework.Runtime.Infrastructure
 Gma.Framework.Security
+Gma.Framework.Security.AspNetCore
 Gma.Framework.Tasks
 Gma.Framework.Tasks.Cqrs
 Gma.Framework.Tasks.Infrastructure
