@@ -1,5 +1,6 @@
 namespace Gma.Framework.Administration;
 
+[System.Text.Json.Serialization.JsonConverter(typeof(AdminAuditResultJsonConverter))]
 public enum AdminAuditResult
 {
     Unknown = 0,

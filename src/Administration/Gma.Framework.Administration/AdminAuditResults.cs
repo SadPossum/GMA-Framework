@@ -10,20 +10,36 @@ public static class AdminAuditResults
 
     public static AdminAuditResult Parse(string result)
     {
+        if (TryParse(result, out AdminAuditResult parsed))
+        {
+            return parsed;
+        }
+
         if (string.IsNullOrWhiteSpace(result))
         {
             throw new ArgumentException("Admin audit result is required.", nameof(result));
         }
 
-        string normalized = result.Trim().ToLowerInvariant();
+        throw new ArgumentException("Admin audit result is not supported.", nameof(result));
+    }
 
-        return normalized switch
+    public static bool TryParse(string? result, out AdminAuditResult parsed)
+    {
+        parsed = AdminAuditResult.Unknown;
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return false;
+        }
+
+        parsed = result.Trim().ToLowerInvariant() switch
         {
             Succeeded => AdminAuditResult.Succeeded,
             Denied => AdminAuditResult.Denied,
             Failed => AdminAuditResult.Failed,
-            _ => throw new ArgumentException("Admin audit result is not supported.", nameof(result))
+            _ => AdminAuditResult.Unknown
         };
+
+        return parsed is not AdminAuditResult.Unknown;
     }
 
     public static string ToWireName(AdminAuditResult result) =>
