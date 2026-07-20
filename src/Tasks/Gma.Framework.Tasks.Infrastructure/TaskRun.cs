@@ -4,9 +4,9 @@ using Gma.Framework.Tasks;
 
 public class TaskRun
 {
-    public const int ModuleNameMaxLength = 128;
-    public const int TaskNameMaxLength = 128;
-    public const int WorkerGroupMaxLength = 128;
+    public const int ModuleNameMaxLength = TaskNames.ModuleNameMaxLength;
+    public const int TaskNameMaxLength = TaskNames.TaskNameMaxLength;
+    public const int WorkerGroupMaxLength = TaskNames.WorkerGroupMaxLength;
     public const int WorkerIdMaxLength = TaskNames.WorkerIdMaxLength;
     public const int ErrorMaxLength = 2048;
     public const int ProgressMessageMaxLength = 1024;
@@ -21,6 +21,7 @@ public class TaskRun
     public TaskRunStatus Status { get; private set; }
     public string Payload { get; private set; } = string.Empty;
     public string? DeduplicationKey { get; private set; }
+    public string? ActiveDeduplicationIdentity { get; private set; }
     public string? ScopeId { get; private set; }
     public Guid? CorrelationId { get; private set; }
     public string? RequestedBy { get; private set; }
@@ -41,6 +42,8 @@ public class TaskRun
     public string? LastError { get; private set; }
     public DateTimeOffset? CancellationRequestedAtUtc { get; private set; }
     public string? CancellationRequestedBy { get; private set; }
+    public int LeaseGeneration { get; private set; }
+    public int ConcurrencyVersion { get; private set; }
 
     private TaskRun() { }
 
@@ -53,6 +56,7 @@ public class TaskRun
         this.PayloadVersion = request.PayloadVersion;
         this.Payload = request.PayloadJson;
         this.DeduplicationKey = request.DeduplicationKey;
+        this.ActiveDeduplicationIdentity = request.DeduplicationIdentity;
         this.ScopeId = request.ScopeId;
         this.CorrelationId = request.CorrelationId;
         this.RequestedBy = request.RequestedBy;
@@ -102,6 +106,8 @@ public class TaskRun
             this.Attempts++;
         }
 
+        this.LeaseGeneration = checked(this.LeaseGeneration + 1);
+
         this.Status = cancellationRequested ? TaskRunStatus.CancellationRequested : TaskRunStatus.Leased;
         this.LockedBy = claim.WorkerId;
         this.NodeId = claim.NodeId;
@@ -109,6 +115,7 @@ public class TaskRun
         this.LockedUntilUtc = claim.LockedUntilUtc;
         this.NextAttemptAtUtc = null;
         this.LastError = null;
+        this.Touch();
 
         return this.ToLease();
     }
@@ -125,6 +132,7 @@ public class TaskRun
         this.StartedAtUtc ??= RequireTimestamp(startedAtUtc, nameof(startedAtUtc));
         this.LastHeartbeatAtUtc = this.StartedAtUtc;
         this.RenewLease(context, this.StartedAtUtc.Value);
+        this.Touch();
     }
 
     public void MarkSucceeded(TaskExecutionContext context, DateTimeOffset completedAtUtc)
@@ -138,8 +146,10 @@ public class TaskRun
         this.Status = TaskRunStatus.Succeeded;
         this.CompletedAtUtc = RequireTimestamp(completedAtUtc, nameof(completedAtUtc));
         this.ClearLease();
+        this.ActiveDeduplicationIdentity = null;
         this.LastError = null;
         this.NextAttemptAtUtc = null;
+        this.Touch();
     }
 
     public void MarkCanceled(TaskExecutionContext context, DateTimeOffset canceledAtUtc)
@@ -177,6 +187,12 @@ public class TaskRun
             ? ValidateRetryAt(retryAtUtc!.Value, normalizedFailedAtUtc)
             : null;
         this.ClearLease();
+        if (this.Status == TaskRunStatus.Failed)
+        {
+            this.ActiveDeduplicationIdentity = null;
+        }
+
+        this.Touch();
     }
 
     public void MarkTimedOut(DateTimeOffset timedOutAtUtc)
@@ -191,6 +207,8 @@ public class TaskRun
         this.CompletedAtUtc = RequireTimestamp(timedOutAtUtc, nameof(timedOutAtUtc));
         this.NextAttemptAtUtc = null;
         this.ClearLease();
+        this.ActiveDeduplicationIdentity = null;
+        this.Touch();
     }
 
     public void MarkHeartbeat(TaskExecutionContext context, DateTimeOffset nowUtc)
@@ -203,6 +221,7 @@ public class TaskRun
 
         this.LastHeartbeatAtUtc = RequireTimestamp(nowUtc, nameof(nowUtc));
         this.RenewLease(context, this.LastHeartbeatAtUtc.Value);
+        this.Touch();
     }
 
     public void MarkProgress(TaskExecutionContext context, TaskProgress progress, DateTimeOffset nowUtc)
@@ -212,11 +231,11 @@ public class TaskRun
         this.ProgressMessage = NormalizeOptional(progress.Message, ProgressMessageMaxLength);
     }
 
-    public void RequestCancellation(string? requestedBy, DateTimeOffset requestedAtUtc)
+    public bool RequestCancellation(string? requestedBy, DateTimeOffset requestedAtUtc)
     {
         if (!TaskRunStatusTransitions.CanRequestCancellation(this.Status))
         {
-            return;
+            return false;
         }
 
         this.CancellationRequestedBy = TaskNames.NormalizeOptionalActor(requestedBy, nameof(requestedBy));
@@ -225,10 +244,12 @@ public class TaskRun
         if (this.Status is TaskRunStatus.Leased or TaskRunStatus.Running)
         {
             this.Status = TaskRunStatus.CancellationRequested;
-            return;
+            this.Touch();
+            return true;
         }
 
         this.MarkCanceledCore(requestedAtUtc);
+        return true;
     }
 
     public void Retry(string? requestedBy, DateTimeOffset scheduledAtUtc)
@@ -259,6 +280,29 @@ public class TaskRun
         this.CancellationRequestedAtUtc = null;
         this.CancellationRequestedBy = null;
         this.RequestedBy = TaskNames.NormalizeOptionalActor(requestedBy, nameof(requestedBy)) ?? this.RequestedBy;
+        this.ActiveDeduplicationIdentity = TaskRunRequest.CreateDeduplicationIdentity(
+            this.ModuleName,
+            this.TaskName,
+            this.ScopeId,
+            this.DeduplicationKey);
+        this.Touch();
+    }
+
+    public bool RecordControlMessageEnqueued()
+    {
+        if (TaskRunStatusTransitions.IsTerminal(this.Status))
+        {
+            return false;
+        }
+
+        this.Touch();
+        return true;
+    }
+
+    internal void FenceLeaseMutation(TaskExecutionContext context)
+    {
+        this.EnsureLeaseOwner(context);
+        this.Touch();
     }
 
     public TaskRunLease ToLease()
@@ -284,7 +328,8 @@ public class TaskRun
             this.ScopeId,
             this.CorrelationId,
             this.Status == TaskRunStatus.CancellationRequested,
-            this.PayloadVersion);
+            this.PayloadVersion,
+            this.LeaseGeneration);
     }
 
     private void EnsureLeaseOwner(TaskExecutionContext context)
@@ -296,6 +341,7 @@ public class TaskRun
             !string.Equals(this.TaskName, context.TaskName, StringComparison.Ordinal) ||
             !string.Equals(this.WorkerGroup, context.WorkerGroup, StringComparison.Ordinal) ||
             this.PayloadVersion != context.PayloadVersion ||
+            this.LeaseGeneration != context.LeaseGeneration ||
             !string.Equals(this.LockedBy, context.WorkerId, StringComparison.Ordinal) ||
             !string.Equals(this.NodeId, context.NodeId, StringComparison.Ordinal))
         {
@@ -332,6 +378,8 @@ public class TaskRun
         this.CompletedAtUtc = RequireTimestamp(failedAtUtc, nameof(failedAtUtc));
         this.NextAttemptAtUtc = null;
         this.ClearLease();
+        this.ActiveDeduplicationIdentity = null;
+        this.Touch();
     }
 
     private void MarkCanceledCore(DateTimeOffset canceledAtUtc)
@@ -341,7 +389,11 @@ public class TaskRun
         this.NextAttemptAtUtc = null;
         this.LastError = null;
         this.ClearLease();
+        this.ActiveDeduplicationIdentity = null;
+        this.Touch();
     }
+
+    private void Touch() => this.ConcurrencyVersion = checked(this.ConcurrencyVersion + 1);
 
     private static DateTimeOffset ValidateRetryAt(DateTimeOffset retryAtUtc, DateTimeOffset failedAtUtc) =>
         retryAtUtc <= failedAtUtc

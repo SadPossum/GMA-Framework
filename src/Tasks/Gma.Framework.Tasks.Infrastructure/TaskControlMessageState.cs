@@ -18,6 +18,7 @@ public class TaskControlMessageState
     public DateTimeOffset? DeliveredAtUtc { get; private set; }
     public DateTimeOffset? CompletedAtUtc { get; private set; }
     public string? LastError { get; private set; }
+    public int ConcurrencyVersion { get; private set; }
 
     private TaskControlMessageState() { }
 
@@ -48,6 +49,9 @@ public class TaskControlMessageState
 
         this.Status = TaskControlMessageStatus.Delivered;
         this.DeliveredAtUtc = TaskRun.RequireTimestamp(nowUtc, nameof(nowUtc));
+        this.CompletedAtUtc = null;
+        this.LastError = null;
+        this.Touch();
     }
 
     public void MarkHandled(DateTimeOffset nowUtc)
@@ -60,6 +64,7 @@ public class TaskControlMessageState
         this.Status = TaskControlMessageStatus.Handled;
         this.CompletedAtUtc = TaskRun.RequireTimestamp(nowUtc, nameof(nowUtc));
         this.LastError = null;
+        this.Touch();
     }
 
     public void MarkFailed(string error, DateTimeOffset nowUtc)
@@ -72,6 +77,22 @@ public class TaskControlMessageState
         this.Status = TaskControlMessageStatus.Failed;
         this.CompletedAtUtc = TaskRun.RequireTimestamp(nowUtc, nameof(nowUtc));
         this.LastError = TaskRun.NormalizeError(error);
+        this.Touch();
+    }
+
+    public void MarkExpired(DateTimeOffset nowUtc)
+    {
+        if (!TaskControlMessageStatusTransitions.CanMarkExpired(this.Status))
+        {
+            return;
+        }
+
+        DateTimeOffset observedAtUtc = TaskRun.RequireTimestamp(nowUtc, nameof(nowUtc));
+        this.Status = TaskControlMessageStatus.Expired;
+        this.CompletedAtUtc = this.ExpiresAtUtc is { } expiresAtUtc && expiresAtUtc <= observedAtUtc
+            ? expiresAtUtc
+            : observedAtUtc;
+        this.Touch();
     }
 
     public bool IsReadableAt(DateTimeOffset nowUtc)
@@ -83,4 +104,6 @@ public class TaskControlMessageState
 
         return this.ExpiresAtUtc is null || this.ExpiresAtUtc > nowUtc;
     }
+
+    private void Touch() => this.ConcurrencyVersion = checked(this.ConcurrencyVersion + 1);
 }

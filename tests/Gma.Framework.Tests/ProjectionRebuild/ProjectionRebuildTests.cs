@@ -725,20 +725,20 @@ public sealed class ProjectionRebuildTests
     {
         public List<TaskProgress> Progress { get; } = [];
 
-        public Task ReportHeartbeatAsync(
+        public Task<TaskRunMutationOutcome> ReportHeartbeatAsync(
             TaskExecutionContext context,
             DateTimeOffset observedAtUtc,
             CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+            Task.FromResult(TaskRunMutationOutcome.Applied);
 
-        public Task ReportProgressAsync(
+        public Task<TaskRunMutationOutcome> ReportProgressAsync(
             TaskExecutionContext context,
             TaskProgress progress,
             DateTimeOffset observedAtUtc,
             CancellationToken cancellationToken)
         {
             this.Progress.Add(progress);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
     }
 

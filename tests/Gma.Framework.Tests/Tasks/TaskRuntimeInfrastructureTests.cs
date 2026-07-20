@@ -158,6 +158,42 @@ public sealed class TaskRuntimeInfrastructureTests
     }
 
     [Fact]
+    public void Task_run_fences_reclaimed_lease_even_when_worker_identity_is_reused()
+    {
+        TaskRun taskRun = TaskRun.Enqueue(new TaskRunRequest(
+            RunId,
+            "task-samples",
+            "generate-report",
+            "{}",
+            Now,
+            Now,
+            workerGroup: "samples",
+            maxAttempts: 2));
+        TaskWorkerClaim firstClaim = new(
+            "samples",
+            "worker-a",
+            "node-a",
+            Now,
+            maxRuns: 1,
+            leaseDuration: TimeSpan.FromSeconds(1));
+        TaskRunLease firstLease = taskRun.Claim(firstClaim);
+        TaskRunLease secondLease = taskRun.Claim(new TaskWorkerClaim(
+            "samples",
+            "worker-a",
+            "node-a",
+            Now.AddSeconds(2),
+            maxRuns: 1,
+            leaseDuration: TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(firstLease.LeaseGeneration + 1, secondLease.LeaseGeneration);
+        Assert.Throws<InvalidOperationException>(() =>
+            taskRun.MarkStarted(firstLease.CreateExecutionContext(), Now.AddSeconds(2)));
+
+        taskRun.MarkStarted(secondLease.CreateExecutionContext(), Now.AddSeconds(2));
+        Assert.Equal(TaskRunStatus.Running, taskRun.Status);
+    }
+
+    [Fact]
     public void Task_run_retry_resets_terminal_runtime_state()
     {
         TaskRun taskRun = TaskRun.Enqueue(new TaskRunRequest(
@@ -190,12 +226,32 @@ public sealed class TaskRuntimeInfrastructureTests
         Assert.Equal(0, taskRun.Attempts);
         Assert.Equal(2, taskRun.PayloadVersion);
         Assert.Equal("sample:daily", taskRun.DeduplicationKey);
+        Assert.NotNull(taskRun.ActiveDeduplicationIdentity);
         Assert.Equal("operator-2", taskRun.RequestedBy);
         Assert.Null(taskRun.StartedAtUtc);
         Assert.Null(taskRun.CompletedAtUtc);
         Assert.Null(taskRun.LockedBy);
         Assert.Null(taskRun.NodeId);
         Assert.Null(taskRun.LastError);
+    }
+
+    [Fact]
+    public void Task_control_message_can_be_expired_from_a_readable_state()
+    {
+        TaskControlMessageState state = TaskControlMessageState.Enqueue(new TaskControlMessage(
+            Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            RunId,
+            "tasks.pause",
+            "{}",
+            Now,
+            expiresAtUtc: Now.AddMinutes(1)));
+
+        state.MarkDelivered(Now.AddSeconds(1));
+        state.MarkExpired(Now.AddMinutes(10));
+
+        Assert.Equal(TaskControlMessageStatus.Expired, state.Status);
+        Assert.Equal(Now.AddMinutes(1), state.CompletedAtUtc);
+        Assert.False(state.IsReadableAt(Now.AddMinutes(1)));
     }
 
     [Fact]
@@ -703,7 +759,7 @@ public sealed class TaskRuntimeInfrastructureTests
         public int TimeoutScanFailuresBeforeSuccess { get; init; }
         public int EnqueueAttempts => Volatile.Read(ref this.enqueueAttempts);
 
-        public Task EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken)
+        public Task<TaskRunEnqueueResult> EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken)
         {
             int attempt = Interlocked.Increment(ref this.enqueueAttempts);
             if (attempt <= this.EnqueueFailuresBeforeSuccess)
@@ -716,7 +772,7 @@ public sealed class TaskRuntimeInfrastructureTests
                 this.requests.Add(request);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(new TaskRunEnqueueResult(null!, Created: true));
         }
 
         public Task<bool> WaitForClaimAttemptsAsync(int expectedCount, TimeSpan timeout) =>
@@ -747,7 +803,7 @@ public sealed class TaskRuntimeInfrastructureTests
             }
         }
 
-        public Task<IReadOnlyList<TaskRunSummary>> ListAsync(TaskRunFilter filter, CancellationToken cancellationToken) =>
+        public Task<TaskRunPage> ListAsync(TaskRunFilter filter, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<TaskRunDetails?> GetAsync(Guid runId, CancellationToken cancellationToken) =>
@@ -756,7 +812,7 @@ public sealed class TaskRuntimeInfrastructureTests
         public Task<TaskRunStats> GetStatsAsync(TaskRunStatsFilter filter, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task RetryAsync(Guid runId, string? requestedBy, DateTimeOffset scheduledAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> RetryAsync(Guid runId, string? requestedBy, DateTimeOffset scheduledAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<TaskRunSummary>> MarkStaleTimedOutAsync(
@@ -785,16 +841,16 @@ public sealed class TaskRuntimeInfrastructureTests
             return Task.FromResult<IReadOnlyList<TaskRunLease>>([]);
         }
 
-        public Task MarkStartedAsync(TaskExecutionContext context, DateTimeOffset startedAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> MarkStartedAsync(TaskExecutionContext context, DateTimeOffset startedAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task MarkSucceededAsync(TaskExecutionContext context, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> MarkSucceededAsync(TaskExecutionContext context, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task MarkCanceledAsync(TaskExecutionContext context, DateTimeOffset canceledAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> MarkCanceledAsync(TaskExecutionContext context, DateTimeOffset canceledAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task MarkFailedAsync(
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(
             TaskExecutionContext context,
             string error,
             DateTimeOffset failedAtUtc,
@@ -802,20 +858,20 @@ public sealed class TaskRuntimeInfrastructureTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task ReportHeartbeatAsync(TaskExecutionContext context, DateTimeOffset observedAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> ReportHeartbeatAsync(TaskExecutionContext context, DateTimeOffset observedAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task ReportProgressAsync(
+        public Task<TaskRunMutationOutcome> ReportProgressAsync(
             TaskExecutionContext context,
             TaskProgress progress,
             DateTimeOffset observedAtUtc,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task RequestCancellationAsync(Guid runId, string? requestedBy, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> RequestCancellationAsync(Guid runId, string? requestedBy, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task EnqueueControlMessageAsync(TaskControlMessage message, CancellationToken cancellationToken) =>
+        public Task<TaskControlMessageEnqueueOutcome> EnqueueControlMessageAsync(TaskControlMessage message, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<TaskControlMessage>> ReadPendingAsync(
@@ -824,10 +880,10 @@ public sealed class TaskRuntimeInfrastructureTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task MarkHandledAsync(TaskExecutionContext context, Guid messageId, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> MarkHandledAsync(TaskExecutionContext context, Guid messageId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task MarkFailedAsync(TaskExecutionContext context, Guid messageId, string error, CancellationToken cancellationToken) =>
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(TaskExecutionContext context, Guid messageId, string error, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         private static async Task<bool> WaitForCounterAsync(
@@ -878,23 +934,23 @@ public sealed class TaskRuntimeInfrastructureTests
             return Task.FromResult<IReadOnlyList<TaskControlMessage>>(messages);
         }
 
-        public Task MarkHandledAsync(
+        public Task<TaskRunMutationOutcome> MarkHandledAsync(
             TaskExecutionContext context,
             Guid messageId,
             CancellationToken cancellationToken)
         {
             this.HandledMessageIds.Add(messageId);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
 
-        public Task MarkFailedAsync(
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(
             TaskExecutionContext context,
             Guid messageId,
             string error,
             CancellationToken cancellationToken)
         {
             this.FailedMessages.Add((messageId, error));
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
     }
 
@@ -919,21 +975,21 @@ public sealed class TaskRuntimeInfrastructureTests
             return Task.FromResult(batch);
         }
 
-        public Task MarkHandledAsync(
+        public Task<TaskRunMutationOutcome> MarkHandledAsync(
             TaskExecutionContext context,
             Guid messageId,
             CancellationToken cancellationToken)
         {
             this.HandledMessageIds.Add(messageId);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
 
-        public Task MarkFailedAsync(
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(
             TaskExecutionContext context,
             Guid messageId,
             string error,
             CancellationToken cancellationToken) =>
-            Task.CompletedTask;
+            Task.FromResult(TaskRunMutationOutcome.Applied);
     }
 
     private sealed class SingleScheduleProvider : ITaskScheduleProvider

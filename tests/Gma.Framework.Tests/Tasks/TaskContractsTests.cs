@@ -163,6 +163,38 @@ public sealed class TaskContractsTests
             EnqueuedAtUtc,
             EnqueuedAtUtc,
             payloadVersion: 0));
+        Assert.Throws<ArgumentException>(() => new TaskRunRequest(
+            RunId,
+            new string('a', TaskNames.ModuleNameMaxLength + 1),
+            "rebuild-search",
+            "{}",
+            EnqueuedAtUtc,
+            EnqueuedAtUtc));
+        Assert.Throws<ArgumentException>(() => new TaskRunRequest(
+            RunId,
+            "catalog",
+            new string('a', TaskNames.TaskNameMaxLength + 1),
+            "{}",
+            EnqueuedAtUtc,
+            EnqueuedAtUtc));
+        Assert.Throws<ArgumentException>(() => new TaskRunRequest(
+            RunId,
+            "catalog",
+            "rebuild-search",
+            "{}",
+            EnqueuedAtUtc,
+            EnqueuedAtUtc,
+            workerGroup: new string('a', TaskNames.WorkerGroupMaxLength + 1)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(200)]
+    public void Task_run_filter_bounds_skip_count_for_extreme_pages(int pageSize)
+    {
+        TaskRunFilter filter = new(page: int.MaxValue, pageSize: pageSize);
+
+        Assert.InRange(filter.SkipCount, 0, int.MaxValue);
     }
 
     [Fact]

@@ -20,6 +20,11 @@ public static class TaskControlMessageStatusTransitions
             TaskControlMessageStatus.Delivered or
             TaskControlMessageStatus.Failed;
 
+    public static bool CanMarkExpired(TaskControlMessageStatus status) =>
+        RequireKnown(status) is TaskControlMessageStatus.Pending or
+            TaskControlMessageStatus.Delivered or
+            TaskControlMessageStatus.Failed;
+
     public static TaskControlMessageStatus RequireKnown(TaskControlMessageStatus status) =>
         status == TaskControlMessageStatus.Unknown || !Enum.IsDefined(status)
             ? throw new ArgumentOutOfRangeException(nameof(status), status, "Task control message status must be known.")

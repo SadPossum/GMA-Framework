@@ -182,35 +182,37 @@ internal sealed class TaskWorkerService(
 
         if (lease.CancellationRequested)
         {
-            await store.MarkCanceledAsync(context, clock.UtcNow, stoppingToken).ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "canceled", stopwatch.Elapsed);
+            TaskRunMutationOutcome outcome = await store
+                .MarkCanceledAsync(context, clock.UtcNow, stoppingToken)
+                .ConfigureAwait(false);
+            this.RecordTerminalMutation(outcome, lease, "canceled", stopwatch.Elapsed);
             return;
         }
 
         TaskHandlerRegistration? registration = registry.Find(lease.ModuleName, lease.TaskName, lease.PayloadVersion);
         if (registration is null)
         {
-            await store.MarkFailedAsync(
+            TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
                     context,
                     $"No task handler is registered for {lease.ModuleName}.{lease.TaskName}.",
                     clock.UtcNow,
                     retryAtUtc: null,
                     stoppingToken)
                 .ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "failed", stopwatch.Elapsed);
+            this.RecordTerminalMutation(outcome, lease, "failed", stopwatch.Elapsed);
             return;
         }
 
         if (!string.Equals(registration.WorkerGroup, lease.WorkerGroup, StringComparison.Ordinal))
         {
-            await store.MarkFailedAsync(
+            TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
                     context,
                     $"Task handler {registration.HandlerType.FullName} is registered for worker group {registration.WorkerGroup}, but the run was leased for {lease.WorkerGroup}.",
                     clock.UtcNow,
                     retryAtUtc: null,
                     stoppingToken)
                 .ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "failed", stopwatch.Elapsed);
+            this.RecordTerminalMutation(outcome, lease, "failed", stopwatch.Elapsed);
             return;
         }
 
@@ -222,18 +224,29 @@ internal sealed class TaskWorkerService(
             .ConfigureAwait(false);
         if (preparationResult.IsFailure)
         {
-            await store.MarkFailedAsync(
+            TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
                     context,
                     preparationResult.ErrorMessage!,
                     clock.UtcNow,
                     retryAtUtc: null,
                     stoppingToken)
                 .ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "failed", stopwatch.Elapsed);
+            this.RecordTerminalMutation(outcome, lease, "failed", stopwatch.Elapsed);
             return;
         }
 
-        await store.MarkStartedAsync(context, clock.UtcNow, stoppingToken).ConfigureAwait(false);
+        TaskRunMutationOutcome startOutcome = await store.MarkStartedAsync(context, clock.UtcNow, stoppingToken)
+            .ConfigureAwait(false);
+        if (startOutcome != TaskRunMutationOutcome.Applied)
+        {
+            logger.LogInformation(
+                "Task run {RunId} for {Module}.{Task} lost its lease before handler execution ({Outcome}).",
+                lease.RunId,
+                lease.ModuleName,
+                lease.TaskName,
+                startOutcome);
+            return;
+        }
 
         try
         {
@@ -262,19 +275,23 @@ internal sealed class TaskWorkerService(
                 await StopHeartbeatAsync(heartbeatStop, heartbeat).ConfigureAwait(false);
             }
 
-            await store.MarkSucceededAsync(context, clock.UtcNow, stoppingToken).ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "success", stopwatch.Elapsed);
+            TaskRunMutationOutcome outcome = await store
+                .MarkSucceededAsync(context, clock.UtcNow, CancellationToken.None)
+                .ConfigureAwait(false);
+            this.RecordTerminalMutation(outcome, lease, "success", stopwatch.Elapsed);
         }
         catch (TaskRunCanceledException exception)
         {
-            await store.MarkCanceledAsync(context, clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
+            TaskRunMutationOutcome outcome = await store
+                .MarkCanceledAsync(context, clock.UtcNow, CancellationToken.None)
+                .ConfigureAwait(false);
             logger.LogInformation(
                 exception,
                 "Task run {RunId} for {Module}.{Task} cooperatively canceled.",
                 lease.RunId,
                 lease.ModuleName,
                 lease.TaskName);
-            TryRecordCompleted(metrics, lease, "canceled", stopwatch.Elapsed);
+            this.RecordTerminalMutation(outcome, lease, "canceled", stopwatch.Elapsed);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -288,14 +305,14 @@ internal sealed class TaskWorkerService(
         {
             DateTimeOffset failedAtUtc = clock.UtcNow;
             DateTimeOffset retryAtUtc = failedAtUtc.Add(GetRetryDelay(lease.Attempt, currentOptions));
-            await store.MarkFailedAsync(
+            TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
                     context,
                     GetErrorMessage(exception),
                     failedAtUtc,
                     retryAtUtc,
                     CancellationToken.None)
                 .ConfigureAwait(false);
-            TryRecordCompleted(metrics, lease, "failure", stopwatch.Elapsed);
+            this.RecordTerminalMutation(outcome, lease, "failure", stopwatch.Elapsed);
         }
         finally
         {
@@ -317,8 +334,15 @@ internal sealed class TaskWorkerService(
                 using IServiceScope heartbeatScope = scopeFactory.CreateScope();
                 ITaskRunStore reporter = heartbeatScope.ServiceProvider.GetRequiredService<ITaskRunStore>();
                 ISystemClock heartbeatClock = heartbeatScope.ServiceProvider.GetRequiredService<ISystemClock>();
-                await reporter.ReportHeartbeatAsync(context, heartbeatClock.UtcNow, heartbeatStop)
+                TaskRunMutationOutcome outcome = await reporter
+                    .ReportHeartbeatAsync(context, heartbeatClock.UtcNow, heartbeatStop)
                     .ConfigureAwait(false);
+                if (outcome != TaskRunMutationOutcome.Applied)
+                {
+                    executionCancellation.Cancel();
+                    throw new InvalidOperationException(
+                        $"Task lease heartbeat was rejected with outcome '{outcome}'.");
+                }
             }
         }
         catch (OperationCanceledException) when (heartbeatStop.IsCancellationRequested)
@@ -335,6 +359,27 @@ internal sealed class TaskWorkerService(
     {
         await heartbeatStop.CancelAsync().ConfigureAwait(false);
         await heartbeat.ConfigureAwait(false);
+    }
+
+    private void RecordTerminalMutation(
+        TaskRunMutationOutcome outcome,
+        TaskRunLease lease,
+        string status,
+        TimeSpan duration)
+    {
+        if (outcome == TaskRunMutationOutcome.Applied)
+        {
+            TryRecordCompleted(metrics, lease, status, duration);
+            return;
+        }
+
+        logger.LogInformation(
+            "Task run {RunId} for {Module}.{Task} did not persist terminal status {Status} because the store returned {Outcome}.",
+            lease.RunId,
+            lease.ModuleName,
+            lease.TaskName,
+            status,
+            outcome);
     }
 
     private static async ValueTask<TaskExecutionContextPreparationResult> PrepareExecutionContextAsync(

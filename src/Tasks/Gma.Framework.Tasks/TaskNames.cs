@@ -4,16 +4,19 @@ using Gma.Framework.Naming;
 
 public static class TaskNames
 {
+    public const int ModuleNameMaxLength = 128;
+    public const int TaskNameMaxLength = 128;
+    public const int WorkerGroupMaxLength = 128;
     public const int ControlCommandMaxLength = 256;
     public const int ActorMaxLength = 256;
     public const int WorkerIdMaxLength = 256;
     public const int DeduplicationKeyMaxLength = 256;
 
     public static string NormalizeTaskName(string taskName, string parameterName = "taskName") =>
-        SharedNameSegments.NormalizeKebabSegment(taskName, "task name", parameterName);
+        NormalizeNamedSegment(taskName, "task name", TaskNameMaxLength, parameterName);
 
     public static string NormalizeWorkerGroup(string workerGroup, string parameterName = "workerGroup") =>
-        SharedNameSegments.NormalizeKebabSegment(workerGroup, "worker group", parameterName);
+        NormalizeNamedSegment(workerGroup, "worker group", WorkerGroupMaxLength, parameterName);
 
     public static string NormalizeWorkerId(string workerId, string parameterName = "workerId")
     {
@@ -51,7 +54,7 @@ public static class TaskNames
     }
 
     public static string NormalizeModuleName(string moduleName, string parameterName = "moduleName") =>
-        SharedNameSegments.NormalizeKebabSegment(moduleName, "module name", parameterName);
+        NormalizeNamedSegment(moduleName, "module name", ModuleNameMaxLength, parameterName);
 
     public static string NormalizeScopeId(string scopeId, string parameterName = "scopeId") =>
         ScopeIds.TryNormalize(scopeId, out string? normalized)
@@ -106,5 +109,19 @@ public static class TaskNames
         }
 
         return normalized;
+    }
+
+    private static string NormalizeNamedSegment(
+        string value,
+        string description,
+        int maxLength,
+        string parameterName)
+    {
+        string normalized = SharedNameSegments.NormalizeKebabSegment(value, description, parameterName);
+        return normalized.Length <= maxLength
+            ? normalized
+            : throw new ArgumentException(
+                $"{parameterName} must be a lowercase kebab-case {description} {maxLength} characters or fewer.",
+                parameterName);
     }
 }

@@ -54,7 +54,7 @@ internal sealed class RebuildSearchTask : ITaskHandler<RebuildSearchPayload>
 }
 ```
 
-`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, optional scope id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch.
+`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, lease generation, optional scope id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch. The lease generation fences a stale execution even when a later process reuses the same worker and node identities.
 
 Keep payload handlers and their explicit registration extension in the owning module application project. Modules shared by API, admin, and worker hosts should separate normal application services from executable task handlers:
 
@@ -95,12 +95,16 @@ The shared task store contract is intentionally not tied to EF, Quartz.NET, Hang
 
 - `TaskRunRequest` represents an enqueue request with module/task identity, worker group, payload JSON, optional scope id, correlation id, schedule time, requester, and max attempts.
 - `TaskRunRequest.PayloadVersion` selects the matching handler registration.
-- `TaskRunRequest.DeduplicationKey` lets producers make active queued/running/retry work idempotent without exposing physical provider keys.
+- `TaskRunRequest.DeduplicationKey` lets producers make active queued/running/retry work idempotent. Its active identity is `(module, task, scope, key)`; enqueue returns the canonical run and whether it was newly created.
 - `TaskWorkerClaim` represents a worker's claim request, including worker group, worker id, node id, batch size, and lease duration.
-- `TaskRunLease` is the immutable run lease handed to a worker, including cancellation intent, and can create the `TaskExecutionContext` passed into payload code.
+- `TaskRunLease` is the immutable run lease handed to a worker, including cancellation intent and lease generation, and can create the `TaskExecutionContext` passed into payload code.
 - `TaskRunStatusTransitions` centralizes claim/start/complete/cancel rules so adapters do not invent incompatible state machines.
 - `TaskRunStatusNames` centralizes external status names. API, CLI, docs, and metrics use kebab-case names such as `retry-scheduled` and `cancellation-requested`; enum-style names are accepted only as compatibility input.
+- `TaskRunMutationOutcome` and `TaskControlMessageEnqueueOutcome` make races, lost leases, invalid states, idempotent repeats, and bounded retry conflicts explicit instead of relying on provider exceptions.
+- `TaskRunPage` returns bounded items plus total count and paging metadata for operator surfaces.
 - `TaskRunStats` and `TaskRunStatsFilter` provide a small operational read model for status counts without coupling operators to EF.
+
+Task execution is at least once. Lease fencing prevents stale workers from committing runtime state, but it cannot roll back an external side effect that completed before a process stopped or lost its lease. Task-owning modules must make domain side effects semantically idempotent and choose deduplication keys that match their business operation.
 
 Cancellation is best-effort and lease-aware:
 
@@ -119,7 +123,7 @@ Concrete runtimes persist these concepts in an optional runtime module or adapte
 - `task_runs`
 - `task_control_messages`
 
-Provider-specific migrations exist for SQL Server and PostgreSQL. The store uses serializable transactions for claim batches and marks runs only when the current worker owns the lease. Runtime store methods are self-committing because workers, scanners, and schedulers usually run outside a CQRS request; the optional `TaskRuntimeUnitOfWork` skips its commit when the store already saved the changes.
+Provider-specific migrations exist for SQL Server and PostgreSQL. Healthy concurrent claims and stale-run scans use provider-native skip-locked row locking (`FOR UPDATE SKIP LOCKED` on PostgreSQL and `UPDLOCK, READPAST, ROWLOCK` on SQL Server); the dependency-neutral EF fallback uses serializable transactions. Worker writes require the current lease generation and use optimistic concurrency, while enqueue deduplication is enforced by a unique active identity. Runtime store methods are self-committing because workers, scanners, and schedulers usually run outside a CQRS request; the optional `TaskRuntimeUnitOfWork` skips its commit when the store already saved the changes.
 
 Compose it explicitly:
 
@@ -148,12 +152,18 @@ Worker configuration lives under `Tasks:Worker`:
 - `Enabled`
 - `WorkerGroups`
 - `BatchSize`
+- `MaxConcurrency`
 - `PollInterval`
 - `LeaseDuration`
+- optional `HeartbeatInterval`
 - `HandlerTimeout`
 - `RetryBaseDelay`
 - `RetryMaxDelay`
 - optional `WorkerId` and `NodeId`
+- `TimeoutScannerEnabled`
+- `TimeoutScannerPollInterval`
+- `StaleHeartbeatTimeout`
+- `TimeoutScannerBatchSize`
 - `MetricsSamplerEnabled`
 - `MetricsSamplerPollInterval`
 
@@ -169,7 +179,7 @@ The hosted worker:
 - marks `TaskRunCanceledException` as terminal `Canceled`;
 - marks failure with retry scheduling on handler errors or timeouts;
 - marks cancellation-requested reclaimed leases as canceled without requiring the handler to still be registered;
-- leaves the lease to expire on host shutdown cancellation.
+- leaves the lease to expire on host shutdown cancellation;
 - processes leases with bounded per-worker-host concurrency;
 - emits bounded `{ApplicationIdentity:Namespace}.tasks` metrics for claimed, completed, duration, timed-out, queue-depth, and active-run measurements;
 - runs an optional stale timeout scanner that marks abandoned leases/runs as `TimedOut`.

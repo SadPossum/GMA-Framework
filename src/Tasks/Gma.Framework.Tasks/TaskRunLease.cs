@@ -16,7 +16,8 @@ public sealed record TaskRunLease
         string? scopeId = null,
         Guid? correlationId = null,
         bool cancellationRequested = false,
-        int payloadVersion = 1)
+        int payloadVersion = 1,
+        int leaseGeneration = 1)
     {
         this.RunId = TaskRunRequest.RequireId(runId, nameof(runId));
         this.ModuleName = TaskNames.NormalizeModuleName(moduleName, nameof(moduleName));
@@ -31,6 +32,12 @@ public sealed record TaskRunLease
         this.PayloadVersion = payloadVersion > 0
             ? payloadVersion
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
+        this.LeaseGeneration = leaseGeneration > 0
+            ? leaseGeneration
+            : throw new ArgumentOutOfRangeException(
+                nameof(leaseGeneration),
+                leaseGeneration,
+                "Task lease generation must be positive.");
         this.LeasedAtUtc = TaskRunRequest.RequireTimestamp(leasedAtUtc, nameof(leasedAtUtc));
         this.LockedUntilUtc = TaskRunRequest.RequireTimestamp(lockedUntilUtc, nameof(lockedUntilUtc));
         this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
@@ -56,6 +63,7 @@ public sealed record TaskRunLease
     public string PayloadJson { get; }
     public int Attempt { get; }
     public int PayloadVersion { get; }
+    public int LeaseGeneration { get; }
     public DateTimeOffset LeasedAtUtc { get; }
     public DateTimeOffset LockedUntilUtc { get; }
     public string? ScopeId { get; }
@@ -75,5 +83,6 @@ public sealed record TaskRunLease
             this.CorrelationId,
             this.CancellationRequested,
             this.PayloadVersion,
-            this.LockedUntilUtc - this.LeasedAtUtc);
+            this.LockedUntilUtc - this.LeasedAtUtc,
+            this.LeaseGeneration);
 }

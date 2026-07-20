@@ -103,6 +103,45 @@ public sealed class TaskWorkerServiceTests
         await host.StopAsync();
     }
 
+    [Fact]
+    public async Task Worker_does_not_invoke_handler_after_start_loses_the_lease()
+    {
+        WorkerTestStore store = new()
+        {
+            StartOutcome = TaskRunMutationOutcome.LeaseLost,
+        };
+        WorkerGate gate = new();
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(store, gate, ["alpha"], maxConcurrency: 1, batchSize: 1);
+        await host.StartAsync();
+        Assert.True(await store.WaitForClaimedAsync(1, TimeSpan.FromSeconds(2)));
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(0, gate.WaitCount);
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public async Task Worker_does_not_count_a_terminal_transition_rejected_after_handler_completion()
+    {
+        WorkerTestStore store = new()
+        {
+            SucceededOutcome = TaskRunMutationOutcome.LeaseLost,
+        };
+        WorkerGate gate = new();
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(store, gate, ["alpha"], maxConcurrency: 1, batchSize: 1);
+        await host.StartAsync();
+        Assert.True(await store.WaitForStartedAsync(1, TimeSpan.FromSeconds(2)));
+
+        gate.Release();
+        Assert.True(await store.WaitForSucceededAttemptsAsync(1, TimeSpan.FromSeconds(2)));
+        Assert.Equal(0, store.SucceededCount);
+        await host.StopAsync();
+    }
+
     private static IHost CreateHost(
         WorkerTestStore store,
         WorkerGate gate,
@@ -161,9 +200,15 @@ public sealed class TaskWorkerServiceTests
     private sealed class WorkerGate
     {
         private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int waitCount;
 
-        public Task WaitAsync(CancellationToken cancellationToken) =>
-            this.completion.Task.WaitAsync(cancellationToken);
+        public int WaitCount => Volatile.Read(ref this.waitCount);
+
+        public Task WaitAsync(CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref this.waitCount);
+            return this.completion.Task.WaitAsync(cancellationToken);
+        }
 
         public void Release() => this.completion.TrySetResult();
     }
@@ -176,6 +221,7 @@ public sealed class TaskWorkerServiceTests
         private readonly ConcurrentQueue<string> startedGroups = new();
         private int claimedCount;
         private int failedCount;
+        private int succeededAttemptCount;
         private int heartbeatAttempts;
         private int heartbeatCount;
         private int maximumRunningCount;
@@ -184,9 +230,12 @@ public sealed class TaskWorkerServiceTests
         private int succeededCount;
 
         public int HeartbeatFailuresBeforeSuccess { get; init; }
+        public TaskRunMutationOutcome StartOutcome { get; init; } = TaskRunMutationOutcome.Applied;
+        public TaskRunMutationOutcome SucceededOutcome { get; init; } = TaskRunMutationOutcome.Applied;
         public IReadOnlyCollection<TaskWorkerClaim> Claims => this.claims.ToArray();
         public IReadOnlyCollection<string> StartedGroups => this.startedGroups.ToArray();
         public int ClaimedCount => Volatile.Read(ref this.claimedCount);
+        public int SucceededCount => Volatile.Read(ref this.succeededCount);
         public int HeartbeatCount => Volatile.Read(ref this.heartbeatCount);
         public string LastFailure { get; private set; } = string.Empty;
         public int MaximumRunningCount => Volatile.Read(ref this.maximumRunningCount);
@@ -239,29 +288,39 @@ public sealed class TaskWorkerServiceTests
             return Task.FromResult<IReadOnlyList<TaskRunLease>>(leases);
         }
 
-        public Task MarkStartedAsync(
+        public Task<TaskRunMutationOutcome> MarkStartedAsync(
             TaskExecutionContext context,
             DateTimeOffset startedAtUtc,
             CancellationToken cancellationToken)
         {
+            if (this.StartOutcome != TaskRunMutationOutcome.Applied)
+            {
+                return Task.FromResult(this.StartOutcome);
+            }
+
             this.startedGroups.Enqueue(context.WorkerGroup);
             Interlocked.Increment(ref this.startedCount);
             int running = Interlocked.Increment(ref this.runningCount);
             UpdateMaximum(ref this.maximumRunningCount, running);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
 
-        public Task MarkSucceededAsync(
+        public Task<TaskRunMutationOutcome> MarkSucceededAsync(
             TaskExecutionContext context,
             DateTimeOffset completedAtUtc,
             CancellationToken cancellationToken)
         {
             Interlocked.Decrement(ref this.runningCount);
-            Interlocked.Increment(ref this.succeededCount);
-            return Task.CompletedTask;
+            Interlocked.Increment(ref this.succeededAttemptCount);
+            if (this.SucceededOutcome == TaskRunMutationOutcome.Applied)
+            {
+                Interlocked.Increment(ref this.succeededCount);
+            }
+
+            return Task.FromResult(this.SucceededOutcome);
         }
 
-        public Task ReportHeartbeatAsync(
+        public Task<TaskRunMutationOutcome> ReportHeartbeatAsync(
             TaskExecutionContext context,
             DateTimeOffset observedAtUtc,
             CancellationToken cancellationToken)
@@ -273,11 +332,14 @@ public sealed class TaskWorkerServiceTests
             }
 
             Interlocked.Increment(ref this.heartbeatCount);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
 
         public Task<bool> WaitForStartedAsync(int count, TimeSpan timeout) =>
             WaitForCountAsync(() => Volatile.Read(ref this.startedCount), count, timeout);
+
+        public Task<bool> WaitForClaimedAsync(int count, TimeSpan timeout) =>
+            WaitForCountAsync(() => Volatile.Read(ref this.claimedCount), count, timeout);
 
         public Task<bool> WaitForSucceededAsync(int count, TimeSpan timeout) =>
             WaitForCountAsync(() => Volatile.Read(ref this.succeededCount), count, timeout);
@@ -288,10 +350,13 @@ public sealed class TaskWorkerServiceTests
         public Task<bool> WaitForFailedAsync(int count, TimeSpan timeout) =>
             WaitForCountAsync(() => Volatile.Read(ref this.failedCount), count, timeout);
 
-        public Task EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken) =>
+        public Task<bool> WaitForSucceededAttemptsAsync(int count, TimeSpan timeout) =>
+            WaitForCountAsync(() => Volatile.Read(ref this.succeededAttemptCount), count, timeout);
+
+        public Task<TaskRunEnqueueResult> EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<TaskRunSummary>> ListAsync(
+        public Task<TaskRunPage> ListAsync(
             TaskRunFilter filter,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -301,18 +366,18 @@ public sealed class TaskWorkerServiceTests
         public Task<TaskRunStats> GetStatsAsync(TaskRunStatsFilter filter, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task RetryAsync(
+        public Task<TaskRunMutationOutcome> RetryAsync(
             Guid runId,
             string? requestedBy,
             DateTimeOffset scheduledAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task MarkCanceledAsync(
+        public Task<TaskRunMutationOutcome> MarkCanceledAsync(
             TaskExecutionContext context,
             DateTimeOffset canceledAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task MarkFailedAsync(
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(
             TaskExecutionContext context,
             string error,
             DateTimeOffset failedAtUtc,
@@ -322,16 +387,16 @@ public sealed class TaskWorkerServiceTests
             this.LastFailure = error;
             Interlocked.Decrement(ref this.runningCount);
             Interlocked.Increment(ref this.failedCount);
-            return Task.CompletedTask;
+            return Task.FromResult(TaskRunMutationOutcome.Applied);
         }
 
-        public Task ReportProgressAsync(
+        public Task<TaskRunMutationOutcome> ReportProgressAsync(
             TaskExecutionContext context,
             TaskProgress progress,
             DateTimeOffset observedAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task RequestCancellationAsync(
+        public Task<TaskRunMutationOutcome> RequestCancellationAsync(
             Guid runId,
             string? requestedBy,
             DateTimeOffset requestedAtUtc,
@@ -343,7 +408,9 @@ public sealed class TaskWorkerServiceTests
             int maxRuns,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task EnqueueControlMessageAsync(TaskControlMessage message, CancellationToken cancellationToken) =>
+        public Task<TaskControlMessageEnqueueOutcome> EnqueueControlMessageAsync(
+            TaskControlMessage message,
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<TaskControlMessage>> ReadPendingAsync(
@@ -351,12 +418,12 @@ public sealed class TaskWorkerServiceTests
             int maxMessages,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task MarkHandledAsync(
+        public Task<TaskRunMutationOutcome> MarkHandledAsync(
             TaskExecutionContext context,
             Guid messageId,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task MarkFailedAsync(
+        public Task<TaskRunMutationOutcome> MarkFailedAsync(
             TaskExecutionContext context,
             Guid messageId,
             string error,

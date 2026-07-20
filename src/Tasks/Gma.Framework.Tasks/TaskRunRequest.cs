@@ -3,6 +3,8 @@ namespace Gma.Framework.Tasks;
 public sealed record TaskRunRequest
 {
     public const int PayloadMaxLength = 256 * 1024;
+    public const int DeduplicationIdentityMaxLength = 768;
+    private const char DeduplicationIdentitySeparator = '\u001F';
 
     public TaskRunRequest(
         Guid runId,
@@ -40,6 +42,13 @@ public sealed record TaskRunRequest
             ? payloadVersion
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
         this.DeduplicationKey = TaskNames.NormalizeOptionalDeduplicationKey(deduplicationKey, nameof(deduplicationKey));
+        this.DeduplicationIdentity = this.DeduplicationKey is null
+            ? null
+            : CreateDeduplicationIdentity(
+                this.ModuleName,
+                this.TaskName,
+                this.ScopeId,
+                this.DeduplicationKey);
 
         if (this.ScheduledAtUtc < this.CreatedAtUtc)
         {
@@ -60,6 +69,7 @@ public sealed record TaskRunRequest
     public int MaxAttempts { get; }
     public int PayloadVersion { get; }
     public string? DeduplicationKey { get; }
+    public string? DeduplicationIdentity { get; }
 
     internal static Guid RequireId(Guid id, string parameterName) =>
         id == Guid.Empty
@@ -83,5 +93,26 @@ public sealed record TaskRunRequest
         }
 
         return payloadJson;
+    }
+
+    public static string? CreateDeduplicationIdentity(
+        string moduleName,
+        string taskName,
+        string? scopeId,
+        string? deduplicationKey)
+    {
+        if (deduplicationKey is null)
+        {
+            return null;
+        }
+
+        return string.Concat(
+            moduleName,
+            DeduplicationIdentitySeparator,
+            taskName,
+            DeduplicationIdentitySeparator,
+            scopeId,
+            DeduplicationIdentitySeparator,
+            deduplicationKey);
     }
 }

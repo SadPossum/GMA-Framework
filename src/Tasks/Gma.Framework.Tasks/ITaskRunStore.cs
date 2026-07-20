@@ -2,9 +2,9 @@ namespace Gma.Framework.Tasks;
 
 public interface ITaskRunStore : ITaskRuntimeReporter, ITaskControlChannel
 {
-    Task EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken);
+    Task<TaskRunEnqueueResult> EnqueueAsync(TaskRunRequest request, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TaskRunSummary>> ListAsync(
+    Task<TaskRunPage> ListAsync(
         TaskRunFilter filter,
         CancellationToken cancellationToken);
 
@@ -20,35 +20,35 @@ public interface ITaskRunStore : ITaskRuntimeReporter, ITaskControlChannel
         TaskWorkerClaim claim,
         CancellationToken cancellationToken);
 
-    Task MarkStartedAsync(
+    Task<TaskRunMutationOutcome> MarkStartedAsync(
         TaskExecutionContext context,
         DateTimeOffset startedAtUtc,
         CancellationToken cancellationToken);
 
-    Task MarkSucceededAsync(
+    Task<TaskRunMutationOutcome> MarkSucceededAsync(
         TaskExecutionContext context,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken);
 
-    Task MarkCanceledAsync(
+    Task<TaskRunMutationOutcome> MarkCanceledAsync(
         TaskExecutionContext context,
         DateTimeOffset canceledAtUtc,
         CancellationToken cancellationToken);
 
-    Task MarkFailedAsync(
+    Task<TaskRunMutationOutcome> MarkFailedAsync(
         TaskExecutionContext context,
         string error,
         DateTimeOffset failedAtUtc,
         DateTimeOffset? retryAtUtc,
         CancellationToken cancellationToken);
 
-    Task RequestCancellationAsync(
+    Task<TaskRunMutationOutcome> RequestCancellationAsync(
         Guid runId,
         string? requestedBy,
         DateTimeOffset requestedAtUtc,
         CancellationToken cancellationToken);
 
-    Task RetryAsync(
+    Task<TaskRunMutationOutcome> RetryAsync(
         Guid runId,
         string? requestedBy,
         DateTimeOffset scheduledAtUtc,
@@ -60,7 +60,7 @@ public interface ITaskRunStore : ITaskRuntimeReporter, ITaskControlChannel
         int maxRuns,
         CancellationToken cancellationToken);
 
-    Task EnqueueControlMessageAsync(
+    Task<TaskControlMessageEnqueueOutcome> EnqueueControlMessageAsync(
         TaskControlMessage message,
         CancellationToken cancellationToken);
 }

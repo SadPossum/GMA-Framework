@@ -14,7 +14,8 @@ public sealed record TaskExecutionContext
         Guid? correlationId = null,
         bool cancellationRequested = false,
         int payloadVersion = 1,
-        TimeSpan? leaseExtension = null)
+        TimeSpan? leaseExtension = null,
+        int leaseGeneration = 1)
     {
         this.RunId = RequireId(runId, nameof(runId));
         this.ModuleName = TaskNames.NormalizeModuleName(moduleName, nameof(moduleName));
@@ -28,6 +29,12 @@ public sealed record TaskExecutionContext
         this.PayloadVersion = payloadVersion > 0
             ? payloadVersion
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
+        this.LeaseGeneration = leaseGeneration > 0
+            ? leaseGeneration
+            : throw new ArgumentOutOfRangeException(
+                nameof(leaseGeneration),
+                leaseGeneration,
+                "Task lease generation must be positive.");
         this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
             : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
@@ -54,6 +61,7 @@ public sealed record TaskExecutionContext
     public string NodeId { get; }
     public int Attempt { get; }
     public int PayloadVersion { get; }
+    public int LeaseGeneration { get; }
     public string? ScopeId { get; }
     public Guid? CorrelationId { get; }
     public bool CancellationRequested { get; }

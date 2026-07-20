@@ -26,8 +26,11 @@ public sealed record TaskRunFilter
         this.ScopeId = string.IsNullOrWhiteSpace(scopeId)
             ? null
             : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
-        this.Page = Math.Max(1, page);
         this.PageSize = Math.Clamp(pageSize, 1, 200);
+        int maxPage = (int)Math.Min(
+            int.MaxValue,
+            ((long)int.MaxValue / this.PageSize) + 1L);
+        this.Page = Math.Clamp(page, 1, maxPage);
     }
 
     public string? ModuleName { get; }

@@ -7,12 +7,12 @@ public interface ITaskControlChannel
         int maxMessages,
         CancellationToken cancellationToken);
 
-    Task MarkHandledAsync(
+    Task<TaskRunMutationOutcome> MarkHandledAsync(
         TaskExecutionContext context,
         Guid messageId,
         CancellationToken cancellationToken);
 
-    Task MarkFailedAsync(
+    Task<TaskRunMutationOutcome> MarkFailedAsync(
         TaskExecutionContext context,
         Guid messageId,
         string error,
