@@ -469,67 +469,78 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
         int maxMessages,
         CancellationToken cancellationToken)
     {
-        TaskRun? taskRun = await this.FindOwnedRunAsync(context, cancellationToken).ConfigureAwait(false);
-        if (taskRun is null)
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            return [];
+            TaskRun? taskRun = await this.FindOwnedRunAsync(context, cancellationToken).ConfigureAwait(false);
+            if (taskRun is null)
+            {
+                return [];
+            }
+
+            DateTimeOffset nowUtc = clock.UtcNow;
+            List<TaskControlMessageState> expired = await dbContext.Set<TaskControlMessageState>()
+                .Where(message =>
+                    message.RunId == context.RunId &&
+                    (message.Status == TaskControlMessageStatus.Pending ||
+                     message.Status == TaskControlMessageStatus.Delivered ||
+                     message.Status == TaskControlMessageStatus.Failed) &&
+                    message.ExpiresAtUtc != null &&
+                    message.ExpiresAtUtc <= nowUtc)
+                .OrderBy(message => message.ExpiresAtUtc)
+                .ThenBy(message => message.Id)
+                .Take(maxMessages)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            foreach (TaskControlMessageState message in expired)
+            {
+                message.MarkExpired(nowUtc);
+            }
+
+            List<TaskControlMessageState> messages = await dbContext.Set<TaskControlMessageState>()
+                .Where(message =>
+                    message.RunId == context.RunId &&
+                    (message.Status == TaskControlMessageStatus.Pending ||
+                     message.Status == TaskControlMessageStatus.Delivered ||
+                     message.Status == TaskControlMessageStatus.Failed) &&
+                    (message.ExpiresAtUtc == null || message.ExpiresAtUtc > nowUtc))
+                .OrderBy(message => message.EnqueuedAtUtc)
+                .ThenBy(message => message.Id)
+                .Take(maxMessages)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (TaskControlMessageState message in messages)
+            {
+                message.MarkDelivered(nowUtc);
+            }
+
+            if (expired.Count == 0 && messages.Count == 0)
+            {
+                return [];
+            }
+
+            taskRun.FenceLeaseMutation(context);
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                return messages
+                    .Select(message => new TaskControlMessage(
+                        message.Id,
+                        message.RunId,
+                        message.CommandName,
+                        message.Payload,
+                        message.EnqueuedAtUtc,
+                        message.RequestedBy,
+                        message.ExpiresAtUtc))
+                    .ToArray();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                dbContext.ChangeTracker.Clear();
+            }
         }
 
-        DateTimeOffset nowUtc = clock.UtcNow;
-        List<TaskControlMessageState> expired = await dbContext.Set<TaskControlMessageState>()
-            .Where(message =>
-                message.RunId == context.RunId &&
-                (message.Status == TaskControlMessageStatus.Pending ||
-                 message.Status == TaskControlMessageStatus.Delivered ||
-                 message.Status == TaskControlMessageStatus.Failed) &&
-                message.ExpiresAtUtc != null &&
-                message.ExpiresAtUtc <= nowUtc)
-            .OrderBy(message => message.ExpiresAtUtc)
-            .ThenBy(message => message.Id)
-            .Take(maxMessages)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-        foreach (TaskControlMessageState message in expired)
-        {
-            message.MarkExpired(nowUtc);
-        }
-
-        List<TaskControlMessageState> messages = await dbContext.Set<TaskControlMessageState>()
-            .Where(message =>
-                message.RunId == context.RunId &&
-                (message.Status == TaskControlMessageStatus.Pending ||
-                 message.Status == TaskControlMessageStatus.Delivered ||
-                 message.Status == TaskControlMessageStatus.Failed) &&
-                (message.ExpiresAtUtc == null || message.ExpiresAtUtc > nowUtc))
-            .OrderBy(message => message.EnqueuedAtUtc)
-            .ThenBy(message => message.Id)
-            .Take(maxMessages)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        foreach (TaskControlMessageState message in messages)
-        {
-            message.MarkDelivered(nowUtc);
-        }
-
-        if (expired.Count == 0 && messages.Count == 0)
-        {
-            return [];
-        }
-
-        taskRun.FenceLeaseMutation(context);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return messages
-            .Select(message => new TaskControlMessage(
-                message.Id,
-                message.RunId,
-                message.CommandName,
-                message.Payload,
-                message.EnqueuedAtUtc,
-                message.RequestedBy,
-                message.ExpiresAtUtc))
-            .ToArray();
+        return [];
     }
 
     private static IQueryable<TaskRun> ApplyFilter(IQueryable<TaskRun> query, TaskRunFilter filter)
