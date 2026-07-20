@@ -16,7 +16,7 @@ The same modularity rules still apply:
 
 - public API composition stays separate from admin composition;
 - modules are registered explicitly;
-- RBAC, audit, and tenant scope stay behind shared administration contracts;
+- authorization, audit, and tenant scope stay behind the shared access-control and administration contracts that own them;
 - feature admin endpoints reuse application commands and queries, not persistence internals.
 
 ## Decision
@@ -25,7 +25,8 @@ Add administration HTTP APIs through a separate optional host and adapter:
 
 - `Gma.Framework.Administration.Api` contains generic admin API composition, actor resolution, and result mapping.
 - `Host.AdminApi` composes only the admin API modules a deployment wants.
-- `Gma.Modules.Administration.AdminApi` exposes RBAC role management endpoints.
+- `Gma.Modules.AccessControl.AdminApi` exposes persisted role-management endpoints.
+- `Gma.Modules.Administration.AdminApi` exposes audit discovery and bounded retention endpoints.
 - `Gma.Modules.Auth.AdminApi` exposes Auth member management endpoints.
 - `Host.Api` does not register admin API modules.
 - Tenant-scoped admin API calls use the configured tenant header plus optional token tenant binding. If the configured token tenant claim is present, it must match the requested tenant; if absent, RBAC remains the tenant authority.

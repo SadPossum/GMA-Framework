@@ -101,7 +101,7 @@ Shared project ownership quick reference:
 - `Gma.Framework.Logging.Serilog`: host logging configuration package ownership.
 - `Gma.Framework.Caching.Redis`: Redis cache adapter package ownership. It depends only on `Gma.Framework.Caching` contracts plus Redis packages, not the HybridCache runtime package.
 - `Gma.Framework.Messaging.Nats.Aspire`: Aspire/NATS client composition package ownership.
-- `Gma.Framework.Administration`: backend-agnostic administration contracts and RBAC/audit abstractions.
+- `Gma.Framework.Administration`: backend-agnostic administrative execution, authorization, and audit-write contracts.
 - `Gma.Framework.Administration.Cli`: System.CommandLine administration front-door helpers.
 - `Gma.Framework.Administration.Api`: administration HTTP front-door helpers.
 
