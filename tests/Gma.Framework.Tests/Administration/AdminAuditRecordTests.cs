@@ -35,6 +35,25 @@ public sealed class AdminAuditRecordTests
     }
 
     [Fact]
+    public void Constructor_normalizes_timestamp_to_utc()
+    {
+        DateTimeOffset localTimestamp = new(2026, 7, 2, 15, 0, 0, TimeSpan.FromHours(3));
+
+        AdminAuditRecord record = new(
+            Id,
+            "actor",
+            "tenant-a",
+            "auth.members.list",
+            "auth.members.read",
+            AdminAuditResult.Succeeded,
+            null,
+            localTimestamp);
+
+        Assert.Equal(TimeSpan.Zero, record.CreatedAtUtc.Offset);
+        Assert.Equal(CreatedAtUtc, record.CreatedAtUtc);
+    }
+
+    [Fact]
     public void Constructor_treats_blank_tenant_and_error_code_as_absent()
     {
         AdminAuditRecord record = Create(tenantId: " ", errorCode: " ");
@@ -47,6 +66,7 @@ public sealed class AdminAuditRecordTests
     [InlineData("Succeeded", AdminAuditResult.Succeeded, "succeeded")]
     [InlineData("denied", AdminAuditResult.Denied, "denied")]
     [InlineData(" FAILED ", AdminAuditResult.Failed, "failed")]
+    [InlineData(" Canceled ", AdminAuditResult.Canceled, "canceled")]
     public void Constructor_accepts_known_result_values(
         string input,
         AdminAuditResult expected,

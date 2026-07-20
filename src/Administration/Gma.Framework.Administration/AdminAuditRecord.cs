@@ -33,7 +33,7 @@ public sealed record AdminAuditRecord
         this.Permission = normalizedPermission.Code;
         this.Result = RequireKnownResult(result);
         this.ErrorCode = NormalizeErrorCode(errorCode);
-        this.CreatedAtUtc = createdAtUtc;
+        this.CreatedAtUtc = createdAtUtc.ToUniversalTime();
     }
 
     public AdminAuditRecord(

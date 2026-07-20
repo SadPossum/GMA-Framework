@@ -72,8 +72,8 @@ Gma.Modules.Auth.AdminApi
 
 The shared core also owns the admin operation runner used by CLI and HTTP front doors for actor context, tenant context, authorization, execution, and audit.
 It does not own command-line parsing, HTTP mapping, or host-builder module contracts.
-`AdminPermission` validates normal dot-separated permission codes directly; the legacy `*` owner wildcard remains Administration-specific compatibility behavior.
-The default admin authorization service denies by default, and the default audit sink is a no-op. This keeps admin support optional until a host composes real RBAC and audit.
+`AdminPermission` validates concrete dot-separated permission codes requested by operations. Wildcard grants belong only to AccessControl and are never valid requested permissions.
+The default admin authorization service denies by default. The default audit sink reports that audit is unavailable instead of silently discarding records. A host may explicitly register `NullAdminAuditSink` only when unaudited execution is a conscious deployment decision.
 `Gma.Framework.Administration.AccessControl` is the explicit bridge that adapts `IAdminAuthorizationService` to generic `IAccessAuthorizationService`.
 Custom `IAdminAuthorizationService` implementations remain supported and should return `AdminAuthorizationResult` through `Allowed()` or `Denied(reason)`. Allowed results carry no failure reason, and denied results carry a bounded, normalized operator-facing reason.
 
@@ -90,6 +90,8 @@ It owns:
 - authorization before mutation/query execution;
 - audit recording after authorization decisions and command results;
 - exit-code mapping.
+
+Exit code `4` means the operation completed but its terminal audit write failed. Automation must treat that as partial success and must not blindly retry a mutation.
 
 Feature modules should not parse command-line arguments directly outside their `.AdminCli` project.
 Admin permission code strings live in public `.Contracts` so module metadata can declare them without referencing admin-only packages. Typed `AdminPermission` wrappers shared by CLI and HTTP live in `.Admin.Contracts`.
@@ -164,7 +166,7 @@ auth.members.disable
 *
 ```
 
-`*` is the owner wildcard grant. Authorization is deny-by-default in the core admin package. When `Gma.Framework.Administration.AccessControl` and `Gma.Modules.AccessControl` are composed, authorization flows through generic `IAccessAuthorizationService` plus the AccessControl persisted decision provider. Global assignments and tenant-scoped assignments are stored as normalized access scopes, such as `global` and `tenant:default`.
+`*` is an AccessControl owner wildcard grant. It can be stored on a role, but it is never passed as an `AdminPermission`. Authorization is deny-by-default in the core admin package. When `Gma.Framework.Administration.AccessControl` and `Gma.Modules.AccessControl` are composed, authorization flows through generic `IAccessAuthorizationService` plus the AccessControl persisted decision provider. Global assignments and tenant-scoped assignments are stored as normalized access scopes, such as `global` and `tenant:default`.
 
 ## Audit
 
@@ -178,7 +180,9 @@ Audit records include:
 - error code;
 - timestamp.
 
-Audit records must never include passwords, tokens, token hashes, raw refresh tokens, or other secrets. Audit write failures are reported to CLI stderr but do not roll back already committed domain mutations.
+Audit records must never include passwords, tokens, token hashes, raw refresh tokens, or other secrets. Terminal audit writes use a bounded token independent of caller cancellation so a disconnected request cannot suppress the outcome after an operation commits. Audit write failures are reported through the API audit header or CLI stderr, but they do not roll back already committed domain mutations.
+
+`AdminAuditResult.Canceled` records authorization or operation cancellation before cancellation is propagated. `AdminOperationOptions.AuditWriteTimeout` defaults to 10 seconds and can be configured programmatically between 100 milliseconds and 1 minute.
 
 Actor ids are external identifiers resolved from CLI `--actor` or authenticated claims. They are trimmed, case-preserving, capped at 256 characters, and cannot contain whitespace or control characters. Admin API requests with an invalid actor claim fail as unauthorized before RBAC or audit recording, because there is no trustworthy actor id to audit against.
 Audit error codes are bounded operation metadata. They should be stable application or domain error codes, not free-form messages.

@@ -13,6 +13,7 @@ public sealed class AdminAuditResultJsonTests
     [InlineData(AdminAuditResult.Succeeded, "\"succeeded\"")]
     [InlineData(AdminAuditResult.Denied, "\"denied\"")]
     [InlineData(AdminAuditResult.Failed, "\"failed\"")]
+    [InlineData(AdminAuditResult.Canceled, "\"canceled\"")]
     public void Known_results_round_trip_as_lowercase_strings(
         AdminAuditResult result,
         string json)

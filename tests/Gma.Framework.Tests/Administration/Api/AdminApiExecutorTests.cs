@@ -48,10 +48,27 @@ public sealed class AdminApiExecutorTests
         await Assert.ThrowsAsync<ArgumentNullException>(ExecuteAsync);
     }
 
-    private static AdminApiExecutor CreateExecutor(out DefaultHttpContext httpContext)
+    [Fact]
+    public async Task Audit_failure_is_exposed_through_the_response_header()
+    {
+        AdminApiExecutor executor = CreateExecutor(out DefaultHttpContext httpContext, auditError: "Admin audit failed.");
+
+        await executor.ExecuteAsync(
+            httpContext,
+            CreateOperation(),
+            requireTenant: false,
+            _ => Task.FromResult(Result.Success("value")),
+            CancellationToken.None);
+
+        Assert.Equal("failed", httpContext.Response.Headers["X-Admin-Audit"]);
+    }
+
+    private static AdminApiExecutor CreateExecutor(
+        out DefaultHttpContext httpContext,
+        string? auditError = null)
     {
         ServiceProvider services = new ServiceCollection()
-            .AddSingleton<IAdminOperationRunner, InvokingAdminOperationRunner>()
+            .AddSingleton<IAdminOperationRunner>(new InvokingAdminOperationRunner(auditError))
             .BuildServiceProvider();
 
         httpContext = new DefaultHttpContext
@@ -70,7 +87,7 @@ public sealed class AdminApiExecutorTests
     private static AdminOperation CreateOperation() =>
         AdminOperation.Create("admin.test", AdminPermission.Create("admin.test"));
 
-    private sealed class InvokingAdminOperationRunner : IAdminOperationRunner
+    private sealed class InvokingAdminOperationRunner(string? auditError) : IAdminOperationRunner
     {
         public async Task<AdminOperationExecutionResult<T>> ExecuteAsync<T>(
             AdminOperationContext context,
@@ -81,7 +98,7 @@ public sealed class AdminApiExecutorTests
             return new AdminOperationExecutionResult<T>(
                 result.IsSuccess ? AdminOperationExecutionStatus.Succeeded : AdminOperationExecutionStatus.Failed,
                 result,
-                auditError: null);
+                auditError);
         }
     }
 }

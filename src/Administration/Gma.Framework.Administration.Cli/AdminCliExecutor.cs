@@ -46,6 +46,11 @@ public sealed class AdminCliExecutor(IServiceProvider serviceProvider)
         if (!string.IsNullOrWhiteSpace(execution.AuditError))
         {
             WriteError(execution.AuditError);
+
+            if (execution.Status == AdminOperationExecutionStatus.Succeeded)
+            {
+                return AdminExitCodes.AuditFailed;
+            }
         }
 
         return execution.Status switch

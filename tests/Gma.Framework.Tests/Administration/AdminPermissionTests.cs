@@ -12,16 +12,13 @@ public sealed class AdminPermissionTests
         AdminPermission permission = AdminPermission.Create("Auth.Members.Read");
 
         Assert.Equal("auth.members.read", permission.Code);
-        Assert.False(permission.IsOwnerWildcard);
     }
 
     [Fact]
-    public void Create_preserves_owner_wildcard_as_admin_compatibility_only()
+    public void Create_rejects_access_control_grant_wildcards()
     {
-        AdminPermission permission = AdminPermission.Create(" * ");
-
-        Assert.Equal(AdminPermission.OwnerWildcard, permission.Code);
-        Assert.True(permission.IsOwnerWildcard);
+        Assert.Throws<ArgumentException>(() => AdminPermission.Create(" * "));
+        Assert.False(AdminPermission.TryCreate("*", out _));
     }
 
     [Fact]

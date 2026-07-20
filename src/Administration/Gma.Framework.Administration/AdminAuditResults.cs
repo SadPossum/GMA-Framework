@@ -7,6 +7,7 @@ public static class AdminAuditResults
     public const string Succeeded = "succeeded";
     public const string Denied = "denied";
     public const string Failed = "failed";
+    public const string Canceled = "canceled";
 
     public static AdminAuditResult Parse(string result)
     {
@@ -36,6 +37,7 @@ public static class AdminAuditResults
             Succeeded => AdminAuditResult.Succeeded,
             Denied => AdminAuditResult.Denied,
             Failed => AdminAuditResult.Failed,
+            Canceled => AdminAuditResult.Canceled,
             _ => AdminAuditResult.Unknown
         };
 
@@ -48,6 +50,7 @@ public static class AdminAuditResults
             AdminAuditResult.Succeeded => Succeeded,
             AdminAuditResult.Denied => Denied,
             AdminAuditResult.Failed => Failed,
+            AdminAuditResult.Canceled => Canceled,
             _ => throw new ArgumentOutOfRangeException(nameof(result), result, "Admin audit result is invalid.")
         };
 }

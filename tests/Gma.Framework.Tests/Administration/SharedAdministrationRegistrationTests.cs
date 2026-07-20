@@ -74,6 +74,24 @@ public sealed class SharedAdministrationRegistrationTests
     }
 
     [Fact]
+    public void Shared_administration_rejects_an_invalid_audit_timeout()
+    {
+        ServiceProvider services = new ServiceCollection()
+            .AddGmaAdministration()
+            .Configure<AdminOperationOptions>(options =>
+                options.AuditWriteTimeout = AdminOperationOptions.MinimumAuditWriteTimeout - TimeSpan.FromMilliseconds(1))
+            .BuildServiceProvider();
+
+        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+            services.GetRequiredService<IOptions<AdminOperationOptions>>().Value);
+
+        Assert.Contains(
+            AdminOperationOptions.InvalidConfigurationMessage,
+            exception.Failures,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
     public async Task Shared_administration_access_control_bridge_uses_generic_access_control_provider()
     {
         RecordingDecisionProvider decisionProvider = new(AccessDecision.Allowed());

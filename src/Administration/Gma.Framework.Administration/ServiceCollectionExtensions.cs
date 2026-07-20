@@ -16,7 +16,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IAdminActorContext>(provider => provider.GetRequiredService<ScopedAdminActorContext>());
         services.TryAddScoped<IAdminActorContextAccessor>(provider => provider.GetRequiredService<ScopedAdminActorContext>());
         services.TryAddScoped<IAdminAuthorizationService, DenyAllAdminAuthorizationService>();
-        services.TryAddScoped<IAdminAuditSink, NullAdminAuditSink>();
+        services.AddOptions<AdminOperationOptions>()
+            .Validate(AdminOperationOptions.IsValid, AdminOperationOptions.InvalidConfigurationMessage)
+            .ValidateOnStart();
+        services.TryAddScoped<IAdminAuditSink, MissingAdminAuditSink>();
         services.TryAddScoped<IAdminOperationRunner, AdminOperationRunner>();
 
         return services;

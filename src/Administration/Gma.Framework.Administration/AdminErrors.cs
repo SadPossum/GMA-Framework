@@ -10,5 +10,6 @@ public static class AdminErrors
     public static readonly Error TenantClaimMismatch = new("Admin.TenantClaimMismatch", "The requested tenant does not match the authenticated admin actor tenant claim.");
     public static readonly Error ConfirmationRequired = new("Admin.ConfirmationRequired", "This admin operation requires explicit confirmation.");
     public static readonly Error BootstrapNotAllowed = new("Admin.BootstrapNotAllowed", "Admin bootstrap is not allowed because assignments already exist.");
+    public static readonly Error OperationCanceled = new("Admin.OperationCanceled", "The admin operation was canceled.");
     public static readonly Error OperationFailed = new("Admin.OperationFailed", "The admin operation failed unexpectedly.");
 }

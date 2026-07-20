@@ -7,12 +7,10 @@ using Gma.Framework.Naming;
 public sealed record AdminPermission
 {
     public const int MaxLength = 256;
-    public const string OwnerWildcard = "*";
 
     private AdminPermission(string code) => this.Code = code;
 
     public string Code { get; }
-    public bool IsOwnerWildcard => this.Code == OwnerWildcard;
 
     public static AdminPermission Create(string code)
     {
@@ -22,11 +20,6 @@ public sealed record AdminPermission
         }
 
         string normalized = code.Trim().ToLowerInvariant();
-
-        if (normalized == OwnerWildcard)
-        {
-            return new AdminPermission(OwnerWildcard);
-        }
 
         if (!IsPermissionCode(normalized))
         {
@@ -48,12 +41,6 @@ public sealed record AdminPermission
         }
 
         string normalized = code.Trim().ToLowerInvariant();
-
-        if (normalized == OwnerWildcard)
-        {
-            permission = new AdminPermission(OwnerWildcard);
-            return true;
-        }
 
         if (!IsPermissionCode(normalized))
         {

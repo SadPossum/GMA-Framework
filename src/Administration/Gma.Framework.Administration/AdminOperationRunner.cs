@@ -6,6 +6,7 @@ using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Tenancy;
 using Gma.Framework.Runtime.Time;
 using Gma.Framework.Results;
+using Microsoft.Extensions.Options;
 
 internal sealed class AdminOperationRunner(
     IAdminActorContextAccessor actorContext,
@@ -14,10 +15,12 @@ internal sealed class AdminOperationRunner(
     IAdminAuditSink auditSink,
     ISystemClock clock,
     IIdGenerator idGenerator,
+    IOptions<AdminOperationOptions> options,
     ILogger<AdminOperationRunner> logger)
     : IAdminOperationRunner
 {
     private const string AuditFailureMessage = "Admin audit failed.";
+    private readonly TimeSpan auditWriteTimeout = options.Value.AuditWriteTimeout;
 
     public async Task<AdminOperationExecutionResult<T>> ExecuteAsync<T>(
         AdminOperationContext context,
@@ -37,8 +40,7 @@ internal sealed class AdminOperationRunner(
                 context,
                 tenantId,
                 AdminAuditResult.Denied,
-                AdminErrors.TenantInvalid.Code,
-                cancellationToken).ConfigureAwait(false);
+                AdminErrors.TenantInvalid.Code).ConfigureAwait(false);
 
             return new AdminOperationExecutionResult<T>(
                 AdminOperationExecutionStatus.ValidationFailed,
@@ -52,8 +54,7 @@ internal sealed class AdminOperationRunner(
                 context,
                 tenantId,
                 AdminAuditResult.Denied,
-                context.PreAuthorizationError.Code,
-                cancellationToken).ConfigureAwait(false);
+                context.PreAuthorizationError.Code).ConfigureAwait(false);
 
             return new AdminOperationExecutionResult<T>(
                 AdminOperationExecutionStatus.ValidationFailed,
@@ -67,8 +68,7 @@ internal sealed class AdminOperationRunner(
                 context,
                 tenantId,
                 AdminAuditResult.Denied,
-                AdminErrors.TenantRequired.Code,
-                cancellationToken).ConfigureAwait(false);
+                AdminErrors.TenantRequired.Code).ConfigureAwait(false);
 
             return new AdminOperationExecutionResult<T>(
                 AdminOperationExecutionStatus.ValidationFailed,
@@ -88,13 +88,21 @@ internal sealed class AdminOperationRunner(
                 .AuthorizeAsync(context.Actor, context.Operation.Permission, tenantId, cancellationToken)
                 .ConfigureAwait(false);
         }
+        catch (OperationCanceledException)
+        {
+            await this.RecordAuditAsync(
+                context,
+                tenantId,
+                AdminAuditResult.Canceled,
+                AdminErrors.OperationCanceled.Code).ConfigureAwait(false);
+            throw;
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             return await this.FailUnexpectedlyAsync<T>(
                     context,
                     tenantId,
-                    exception,
-                    cancellationToken)
+                    exception)
                 .ConfigureAwait(false);
         }
 
@@ -104,8 +112,7 @@ internal sealed class AdminOperationRunner(
                 context,
                 tenantId,
                 AdminAuditResult.Denied,
-                AdminErrors.Unauthorized.Code,
-                cancellationToken).ConfigureAwait(false);
+                AdminErrors.Unauthorized.Code).ConfigureAwait(false);
 
             return new AdminOperationExecutionResult<T>(
                 AdminOperationExecutionStatus.Unauthorized,
@@ -119,13 +126,21 @@ internal sealed class AdminOperationRunner(
             result = await action(cancellationToken).ConfigureAwait(false) ??
                 throw new InvalidOperationException("Admin operation action returned a null result.");
         }
+        catch (OperationCanceledException)
+        {
+            await this.RecordAuditAsync(
+                context,
+                tenantId,
+                AdminAuditResult.Canceled,
+                AdminErrors.OperationCanceled.Code).ConfigureAwait(false);
+            throw;
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             return await this.FailUnexpectedlyAsync<T>(
                     context,
                     tenantId,
-                    exception,
-                    cancellationToken)
+                    exception)
                 .ConfigureAwait(false);
         }
 
@@ -133,8 +148,7 @@ internal sealed class AdminOperationRunner(
             context,
             tenantId,
             result.IsSuccess ? AdminAuditResult.Succeeded : AdminAuditResult.Failed,
-            result.IsSuccess ? null : result.Error.Code,
-            cancellationToken).ConfigureAwait(false);
+            result.IsSuccess ? null : result.Error.Code).ConfigureAwait(false);
 
         return new AdminOperationExecutionResult<T>(
             result.IsSuccess ? AdminOperationExecutionStatus.Succeeded : AdminOperationExecutionStatus.Failed,
@@ -145,8 +159,7 @@ internal sealed class AdminOperationRunner(
     private async Task<AdminOperationExecutionResult<T>> FailUnexpectedlyAsync<T>(
         AdminOperationContext context,
         string? tenantId,
-        Exception exception,
-        CancellationToken cancellationToken)
+        Exception exception)
     {
         this.LogUnexpectedFailure(context, exception);
 
@@ -154,8 +167,7 @@ internal sealed class AdminOperationRunner(
             context,
             tenantId,
             AdminAuditResult.Failed,
-            AdminErrors.OperationFailed.Code,
-            cancellationToken).ConfigureAwait(false);
+            AdminErrors.OperationFailed.Code).ConfigureAwait(false);
 
         return new AdminOperationExecutionResult<T>(
             AdminOperationExecutionStatus.UnexpectedFailure,
@@ -185,9 +197,10 @@ internal sealed class AdminOperationRunner(
         AdminOperationContext context,
         string? tenantId,
         AdminAuditResult result,
-        string? errorCode,
-        CancellationToken cancellationToken)
+        string? errorCode)
     {
+        using CancellationTokenSource auditTimeout = new(this.auditWriteTimeout);
+
         try
         {
             await auditSink.RecordAsync(
@@ -200,11 +213,11 @@ internal sealed class AdminOperationRunner(
                     result,
                     errorCode,
                     clock.UtcNow),
-                cancellationToken).ConfigureAwait(false);
+                auditTimeout.Token).ConfigureAwait(false);
 
             return null;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception)
         {
             this.LogAuditFailure(context, exception);
             return AuditFailureMessage;

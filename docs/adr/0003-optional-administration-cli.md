@@ -17,7 +17,8 @@ Add administration as an optional CLI-first capability:
 - `Gma.Framework.Administration` contains generic contracts.
 - `Gma.Framework.Administration.Cli` contains `System.CommandLine` integration.
 - `Host.AdminCli` is a separate packable .NET tool named `gma-admin`.
-- `Administration` owns persisted RBAC and audit in the `admin` schema.
+- `Gma.Modules.Administration` owns persisted audit in the `admin` schema.
+- `Gma.Modules.AccessControl` owns persisted RBAC in the `access` schema and integrates through the explicit Administration-to-AccessControl bridge.
 - Feature modules expose CLI front doors through `<Module>.AdminCli`.
 - Auth exposes user administration through `Gma.Modules.Auth.AdminCli`.
 
@@ -44,3 +45,7 @@ Tradeoffs:
 - Admin HTTP endpoints were added through ADR 0004 as a separate host/module decision.
 - Add richer audit querying when a real operator workflow needs it.
 - Add command docs for any new `<Module>.AdminCli` project in the same change that introduces it.
+
+## 2026-07-20 Amendment
+
+The default Framework audit registration now reports a missing sink instead of silently dropping records. Terminal audit attempts are bounded and independent of caller cancellation. A successful operation whose audit fails returns CLI exit code `4`, which is partial success and must not be retried blindly.

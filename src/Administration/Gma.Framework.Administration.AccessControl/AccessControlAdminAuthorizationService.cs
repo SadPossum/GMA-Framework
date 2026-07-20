@@ -16,8 +16,7 @@ internal sealed class AccessControlAdminAuthorizationService(IAccessAuthorizatio
         ArgumentNullException.ThrowIfNull(actor);
         ArgumentNullException.ThrowIfNull(permission);
 
-        if (permission.IsOwnerWildcard ||
-            !PermissionCode.TryCreate(permission.Code, out PermissionCode? accessPermission))
+        if (!PermissionCode.TryCreate(permission.Code, out PermissionCode? accessPermission))
         {
             return AdminAuthorizationResult.Denied(AdminErrors.Unauthorized.Message);
         }

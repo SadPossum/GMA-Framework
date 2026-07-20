@@ -229,6 +229,102 @@ public sealed class AdminOperationRunnerTests
     }
 
     [Fact]
+    public async Task Missing_audit_sink_is_reported_instead_of_silently_discarding_the_record()
+    {
+        ServiceProvider services = CreateServices(
+            new RecordingAuthorizationService(),
+            audit: null,
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 14, 45, 0, TimeSpan.Zero)));
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+
+        AdminOperationExecutionResult<int> result = await runner.ExecuteAsync(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
+                "tenant-a",
+                RequireTenant: true),
+            _ => Task.FromResult(Result.Success(42)),
+            CancellationToken.None);
+
+        Assert.Equal(AdminOperationExecutionStatus.Succeeded, result.Status);
+        Assert.Equal("Admin audit failed.", result.AuditError);
+    }
+
+    [Fact]
+    public async Task Explicit_null_sink_is_a_conscious_successful_opt_out()
+    {
+        ServiceProvider services = CreateServices(
+            new RecordingAuthorizationService(),
+            new NullAdminAuditSink(),
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 14, 50, 0, TimeSpan.Zero)));
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+
+        AdminOperationExecutionResult<int> result = await runner.ExecuteAsync(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
+                "tenant-a",
+                RequireTenant: true),
+            _ => Task.FromResult(Result.Success(42)),
+            CancellationToken.None);
+
+        Assert.Null(result.AuditError);
+    }
+
+    [Fact]
+    public async Task Terminal_audit_write_uses_a_bounded_token_independent_of_caller_cancellation()
+    {
+        RecordingAuditSink audit = new();
+        ServiceProvider services = CreateServices(
+            new RecordingAuthorizationService(),
+            audit,
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 14, 55, 0, TimeSpan.Zero)));
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+        using CancellationTokenSource caller = new();
+        caller.Cancel();
+
+        AdminOperationExecutionResult<int> result = await runner.ExecuteAsync(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
+                "tenant-a",
+                RequireTenant: true),
+            _ => Task.FromResult(Result.Success(42)),
+            caller.Token);
+
+        Assert.Equal(AdminOperationExecutionStatus.Succeeded, result.Status);
+        Assert.False(audit.ReceivedCancellationToken.IsCancellationRequested);
+        Assert.Single(audit.Records);
+    }
+
+    [Fact]
+    public async Task Canceled_action_is_audited_before_cancellation_is_propagated()
+    {
+        RecordingAuditSink audit = new();
+        ServiceProvider services = CreateServices(
+            new RecordingAuthorizationService(),
+            audit,
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 14, 57, 0, TimeSpan.Zero)));
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+        using CancellationTokenSource caller = new();
+        caller.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.ExecuteAsync(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
+                "tenant-a",
+                RequireTenant: true),
+            _ => Task.FromCanceled<Result<int>>(caller.Token),
+            caller.Token));
+
+        AdminAuditRecord record = Assert.Single(audit.Records);
+        Assert.Equal(AdminAuditResult.Canceled, record.Result);
+        Assert.Equal(AdminErrors.OperationCanceled.Code, record.ErrorCode);
+        Assert.False(audit.ReceivedCancellationToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task Tenant_context_is_cleared_before_each_operation()
     {
         RecordingAuditSink audit = new();
@@ -265,7 +361,7 @@ public sealed class AdminOperationRunnerTests
 
     private static ServiceProvider CreateServices(
         IAdminAuthorizationService authorization,
-        IAdminAuditSink audit,
+        IAdminAuditSink? audit,
         ISystemClock clock,
         bool addThrowingLogger = false,
         EnabledTenantContext? tenantContext = null)
@@ -289,8 +385,12 @@ public sealed class AdminOperationRunnerTests
             .AddSingleton(clock)
             .AddSingleton<IIdGenerator>(idGenerator)
             .AddScoped(_ => authorization)
-            .AddScoped(_ => audit)
             .AddGmaAdministration();
+
+        if (audit is not null)
+        {
+            services.AddScoped(_ => audit);
+        }
 
         return services.BuildServiceProvider();
     }
@@ -349,9 +449,11 @@ public sealed class AdminOperationRunnerTests
     private sealed class RecordingAuditSink : IAdminAuditSink
     {
         public List<AdminAuditRecord> Records { get; } = [];
+        public CancellationToken ReceivedCancellationToken { get; private set; }
 
         public Task RecordAsync(AdminAuditRecord record, CancellationToken cancellationToken)
         {
+            this.ReceivedCancellationToken = cancellationToken;
             this.Records.Add(record);
             return Task.CompletedTask;
         }

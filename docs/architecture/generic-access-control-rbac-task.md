@@ -9,7 +9,7 @@ The framework and module extraction are implemented in the source-first skeleton
 
 - `Gma.Framework.AccessControl` now owns backend-neutral scope, requirement, decision, authorization service, decision-provider, grant-scope reader, scope-matching, and deny-by-default contracts.
 - `Gma.Framework.Permissions` owns `PermissionCode` and module permission descriptors while preserving existing string `Code` accessors.
-- `Gma.Framework.Administration` keeps source-compatible admin APIs, validates normal permission-code strings itself, and keeps the legacy `*` owner wildcard as an Administration compatibility concern.
+- `Gma.Framework.Administration` validates only concrete requested permission codes. The legacy `*` owner wildcard is an AccessControl grant concern and is not an admin-operation permission.
 - `Gma.Framework.Administration.AccessControl` is the explicit bridge from `IAdminAuthorizationService` to generic `IAccessAuthorizationService`.
 - `Gma.Framework.AccessControl.AspNetCore` provides explicit `.RequirePermission(...)`, route/static/resolved-scope metadata, and filter-based enforcement.
 - `Gma.Framework.Tenancy.AccessControl.AspNetCore` provides the optional tenant-scope HTTP bridge and `.RequireTenantPermission(...)` helpers.
@@ -270,7 +270,7 @@ Important modeling choices:
 - Store assignment scope as normalized scope data, not loose tenant id columns only.
 - Keep permission codes as stable strings declared by modules.
 - Keep role names as operator-facing slugs.
-- Keep wildcard grants explicit and narrowly documented. Consider replacing the current `*` owner wildcard with descriptor-driven owner roles or a named `access.owner` convention before exposing generic wildcard behavior.
+- Keep wildcard grants explicit, AccessControl-owned, and narrowly documented. Consider replacing the current `*` owner wildcard with descriptor-driven owner roles or a named `access.owner` convention before exposing generic wildcard behavior.
 
 ### `Gma.Modules.Administration`
 
@@ -438,7 +438,7 @@ Compatibility rules:
 - Resolved: `Gma.Framework.Permissions` remains a static metadata package and normalizes through `PermissionCode`.
 - Resolved: `AccessScope` is a typed value object backed by a normalized string path and segment parser.
 - Resolved: global and ancestor scope grants are explicit `AccessScopeMatchOptions`, not automatic defaults.
-- Resolved: wildcard owner grants stay as an Administration compatibility concern for now.
+- Resolved: wildcard owner grants stay in AccessControl; Administration operations request concrete permissions only.
 - Resolved: admin-to-access-control authorization lives in `Gma.Framework.Administration.AccessControl`, not core `Gma.Framework.Administration`.
 - Resolved: persisted RBAC keeps concrete permission grants exact-scope by default and resolves explicit descriptor-driven inheritance consistently for point checks and grant-scope reads.
 - Resolved: endpoint helpers use explicit endpoint filters and metadata.
