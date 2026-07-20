@@ -32,6 +32,8 @@ The same package also owns the generic coarse authorization vocabulary:
 - `IAccessAuthorizationService`;
 - `IAccessDecisionProvider`.
 
+Both authorization contracts expose ordered batch methods. Their default implementations preserve source compatibility by evaluating existing single-decision implementations sequentially. Providers may override the batch method to collapse repeated backend work, while the authorization service still applies provider order, deny precedence, abstention, and deny-by-default independently to every requirement.
+
 Permission metadata for module descriptors lives in `Gma.Framework.Permissions`. HTTP enforcement lives in `Gma.Framework.AccessControl.AspNetCore`. Tenant scope resolution lives in `Gma.Framework.Tenancy.AccessControl.AspNetCore`.
 
 ## Why
@@ -104,13 +106,14 @@ External engines such as OPA, Cedar, OpenFGA, or SpiceDB remain optional adapter
 - Do not add automatic endpoint filters that make authorization invisible.
 - Do not add a generic EF query-filter builder for all modules.
 - Do not cache allow/deny decisions unless the owning module documents revocation and invalidation.
+- Use batch authorization when one operation checks several independent coarse permissions; do not replace module-owned SQL visibility scopes with per-row batches.
 - Do not put tenant ids, user ids, resource ids, subject ids, or policy input values in metric tags.
 - Use not-found-shaped failures for private single-resource access when a forbidden response would reveal existence.
 - Keep list/search/feed/export/stream reads scope-aware in repositories, projections, or read models.
 
 ## Tests
 
-- `Gma.Framework.AccessControl` tests cover subject, scope, decision, provider-order, and deny-by-default behavior.
+- `Gma.Framework.AccessControl` tests cover subject, scope, single and batch decisions, provider order, deny precedence, and deny-by-default behavior.
 - Module tests cover each domain visibility policy or direct application access check.
 - Persistence tests prove typed scopes translate into query filters.
 - Architecture tests keep the shared subject package backend-free and keep external access adapters out of domain projects.

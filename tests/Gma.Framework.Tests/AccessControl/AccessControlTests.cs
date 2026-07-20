@@ -310,6 +310,106 @@ public sealed class AccessControlTests
     }
 
     [Fact]
+    public async Task Batch_authorization_preserves_order_deny_precedence_and_default_denial()
+    {
+        BatchRecordingProvider first = new(requirement => requirement.Permission.Value switch
+        {
+            "auth.members.read" => AccessDecision.Allowed("first.allowed"),
+            "auth.members.write" => AccessDecision.Allowed("first.allowed"),
+            _ => AccessDecision.Abstain()
+        });
+        BatchRecordingProvider second = new(requirement => requirement.Permission.Value switch
+        {
+            "auth.members.write" => AccessDecision.Denied("second.denied"),
+            "auth.members.delete" => AccessDecision.Allowed("second.allowed"),
+            _ => AccessDecision.Abstain()
+        });
+        BatchRecordingProvider third = new(_ => AccessDecision.Abstain());
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IAccessDecisionProvider>(first)
+            .AddSingleton<IAccessDecisionProvider>(second)
+            .AddSingleton<IAccessDecisionProvider>(third)
+            .AddGmaAccessControl()
+            .BuildServiceProvider();
+
+        IReadOnlyList<AccessDecision> decisions = await provider
+            .GetRequiredService<IAccessAuthorizationService>()
+            .AuthorizeManyAsync(
+            [
+                CreateRequirement("auth.members.read"),
+                CreateRequirement("auth.members.write"),
+                CreateRequirement("auth.members.delete"),
+                CreateRequirement("auth.members.audit")
+            ], CancellationToken.None);
+
+        Assert.Equal(4, decisions.Count);
+        Assert.True(decisions[0].IsAllowed);
+        Assert.Equal("first.allowed", decisions[0].ReasonCode);
+        Assert.True(decisions[1].IsDenied);
+        Assert.Equal("second.denied", decisions[1].ReasonCode);
+        Assert.True(decisions[2].IsAllowed);
+        Assert.Equal("second.allowed", decisions[2].ReasonCode);
+        Assert.True(decisions[3].IsDenied);
+        Assert.Equal(AccessDecisionReasonCodes.DenyByDefault, decisions[3].ReasonCode);
+        Assert.Equal(4, first.BatchSizes.Single());
+        Assert.Equal(4, second.BatchSizes.Single());
+        Assert.Equal(3, third.BatchSizes.Single());
+        Assert.DoesNotContain("auth.members.write", third.SeenPermissions);
+    }
+
+    [Fact]
+    public async Task Batch_authorization_falls_back_to_single_provider_decisions()
+    {
+        RecordingProvider allowing = new(AccessDecision.Allowed());
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IAccessDecisionProvider>(allowing)
+            .AddGmaAccessControl()
+            .BuildServiceProvider();
+
+        IReadOnlyList<AccessDecision> decisions = await provider
+            .GetRequiredService<IAccessAuthorizationService>()
+            .AuthorizeManyAsync(
+                [CreateRequirement("auth.members.read"), CreateRequirement("auth.members.write")],
+                CancellationToken.None);
+
+        Assert.All(decisions, decision => Assert.True(decision.IsAllowed));
+        Assert.Equal(2, allowing.CallCount);
+    }
+
+    [Fact]
+    public async Task Batch_authorization_rejects_invalid_provider_result_counts()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IAccessDecisionProvider>(new InvalidBatchProvider())
+            .AddGmaAccessControl()
+            .BuildServiceProvider();
+
+        Task action = provider.GetRequiredService<IAccessAuthorizationService>()
+            .AuthorizeManyAsync([CreateRequirement()], CancellationToken.None);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => action);
+        Assert.Contains("returned 0 for 1 requirements", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Deny_all_authorization_service_supports_empty_and_populated_batches()
+    {
+        DenyAllAccessAuthorizationService service = new();
+
+        IReadOnlyList<AccessDecision> empty = await service.AuthorizeManyAsync([], CancellationToken.None);
+        IReadOnlyList<AccessDecision> denied = await service.AuthorizeManyAsync(
+            [CreateRequirement(), CreateRequirement("auth.members.write")],
+            CancellationToken.None);
+
+        Assert.Empty(empty);
+        Assert.All(denied, decision =>
+        {
+            Assert.True(decision.IsDenied);
+            Assert.Equal(AccessDecisionReasonCodes.DenyByDefault, decision.ReasonCode);
+        });
+    }
+
+    [Fact]
     public void Access_decision_normalizes_reason_and_message()
     {
         AccessDecision decision = AccessDecision.Denied(" access.denied ", " Denied by provider. ");
@@ -319,10 +419,10 @@ public sealed class AccessControlTests
         Assert.Equal("Denied by provider.", decision.Message);
     }
 
-    private static AccessRequirement CreateRequirement() =>
+    private static AccessRequirement CreateRequirement(string permission = "auth.members.read") =>
         new(
             AccessSubject.AdminActor("admin-1"),
-            PermissionCode.Create("auth.members.read"),
+            PermissionCode.Create(permission),
             AccessScope.Create(AccessScopeSegment.Create("tenant", "tenant-a")));
 
     private sealed class RecordingProvider(AccessDecision decision) : IAccessDecisionProvider
@@ -336,5 +436,40 @@ public sealed class AccessControlTests
             this.CallCount++;
             return Task.FromResult(decision);
         }
+    }
+
+    private sealed class BatchRecordingProvider(Func<AccessRequirement, AccessDecision> decide)
+        : IAccessDecisionProvider
+    {
+        public List<int> BatchSizes { get; } = [];
+        public List<string> SeenPermissions { get; } = [];
+
+        public Task<AccessDecision> DecideAsync(
+            AccessRequirement requirement,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(decide(requirement));
+
+        public Task<IReadOnlyList<AccessDecision>> DecideManyAsync(
+            IReadOnlyList<AccessRequirement> requirements,
+            CancellationToken cancellationToken)
+        {
+            this.BatchSizes.Add(requirements.Count);
+            this.SeenPermissions.AddRange(requirements.Select(requirement => requirement.Permission.Value));
+            IReadOnlyList<AccessDecision> decisions = requirements.Select(decide).ToArray();
+            return Task.FromResult(decisions);
+        }
+    }
+
+    private sealed class InvalidBatchProvider : IAccessDecisionProvider
+    {
+        public Task<AccessDecision> DecideAsync(
+            AccessRequirement requirement,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(AccessDecision.Abstain());
+
+        public Task<IReadOnlyList<AccessDecision>> DecideManyAsync(
+            IReadOnlyList<AccessRequirement> requirements,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AccessDecision>>([]);
     }
 }
