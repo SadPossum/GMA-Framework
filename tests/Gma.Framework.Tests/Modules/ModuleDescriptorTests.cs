@@ -587,6 +587,17 @@ public sealed class ModuleDescriptorTests
     }
 
     [Fact]
+    public void Module_permission_descriptor_supports_profile_dependent_global_or_scoped_permissions()
+    {
+        ModulePermissionDescriptor descriptor = new(
+            "auth.members.read",
+            "Read Auth members.",
+            scopeRequirement: PermissionScopeRequirement.GlobalOrScoped);
+
+        Assert.Equal(PermissionScopeRequirement.GlobalOrScoped, descriptor.ScopeRequirement);
+    }
+
+    [Fact]
     public void Module_permission_descriptor_preserves_explicit_scope_grant_policy()
     {
         ModulePermissionDescriptor descriptor = new(

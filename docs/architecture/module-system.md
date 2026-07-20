@@ -180,6 +180,8 @@ public static ModuleDescriptor Descriptor { get; } = ModuleDescriptor
     .Build();
 ```
 
+Permission scope requirements describe where a permission may be granted. Use `Global` for global-only operations, `Scoped` when a concrete scope is always required, and `GlobalOrScoped` when the same stable permission follows a selected module profile or another explicit host composition choice. The latter does not widen authorization: the operation still requests one exact runtime scope, and grant inheritance remains controlled separately by `PermissionScopeGrantPolicy`.
+
 Prefer the single-item helpers (`WithPermission`, `WithPublishedEvent`, `WithSubscription`, `WithCacheEntry`, `WithTask`) when metadata naturally belongs near one resource or feature. Use the bulk helpers (`WithPermissions`, `WithPublishedEvents`, `WithSubscriptions`, `WithCacheEntries`, `WithTasks`) when a compact list is clearer. Repeated calls merge within the owning capability feature; duplicate metadata still fails through the capability descriptor.
 
 For metadata that belongs to one local type, prefer the attribute-backed helpers:

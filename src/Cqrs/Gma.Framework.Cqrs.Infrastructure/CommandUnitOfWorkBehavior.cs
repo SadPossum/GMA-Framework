@@ -15,16 +15,9 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
         CommandNext<TResponse> next,
         CancellationToken cancellationToken)
     {
-        Result<TResponse> result = await next().ConfigureAwait(false);
-
-        if (!result.IsSuccess)
-        {
-            return result;
-        }
-
         if (command is not ITransactionalCommand<TResponse>)
         {
-            return result;
+            return await next().ConfigureAwait(false);
         }
 
         string moduleName = ModuleNameResolver.FromType(typeof(TCommand));
@@ -44,8 +37,46 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
                 $"Transactional command '{typeof(TCommand).FullName}' belongs to module '{moduleName}', but {moduleUnitOfWorks.Length} matching units of work are registered.")
         };
 
-        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return result;
+        ITransactionalUnitOfWork? transactionalUnitOfWork = unitOfWork as ITransactionalUnitOfWork;
+        if (transactionalUnitOfWork is not null)
+        {
+            await transactionalUnitOfWork.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            Result<TResponse> result = await next().ConfigureAwait(false);
+            if (!result.IsSuccess)
+            {
+                if (transactionalUnitOfWork is not null)
+                {
+                    await transactionalUnitOfWork
+                        .RollbackTransactionAsync(CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+
+                return result;
+            }
+
+            await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            if (transactionalUnitOfWork is not null)
+            {
+                await transactionalUnitOfWork.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+        catch
+        {
+            if (transactionalUnitOfWork is not null)
+            {
+                await transactionalUnitOfWork
+                    .RollbackTransactionAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+
+            throw;
+        }
     }
 
     private static string NormalizeModuleName(string moduleName) =>

@@ -42,6 +42,65 @@ public sealed class CommandUnitOfWorkBehaviorTests
     }
 
     [Fact]
+    public async Task Transactional_unit_of_work_wraps_handler_and_save_in_one_boundary()
+    {
+        List<string> order = [];
+        RecordingTransactionalUnitOfWork unitOfWork = new("framework", order);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        Result<Unit> result = await behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                return Task.FromResult(Result.Success(Unit.Value));
+            },
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(["begin", "handle", "save", "commit"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_rolls_back_failed_results_without_saving()
+    {
+        List<string> order = [];
+        RecordingTransactionalUnitOfWork unitOfWork = new("framework", order);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        Result<Unit> result = await behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                return Task.FromResult(Result.Failure<Unit>(new Error("Test.Failure", "Failed.")));
+            },
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(["begin", "handle", "rollback"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_rolls_back_handler_exceptions()
+    {
+        List<string> order = [];
+        RecordingTransactionalUnitOfWork unitOfWork = new("framework", order);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                throw new InvalidOperationException("Handler failed.");
+            },
+            CancellationToken.None));
+
+        Assert.Equal(["begin", "handle", "rollback"], order);
+    }
+
+    [Fact]
     public async Task Transactional_command_treats_normalized_module_names_as_duplicates()
     {
         CommandUnitOfWorkBehavior<TransactionalCommand, Unit> duplicate = new(
@@ -93,6 +152,36 @@ public sealed class CommandUnitOfWorkBehaviorTests
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             this.Commits++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingTransactionalUnitOfWork(string moduleName, List<string> order)
+        : ITransactionalUnitOfWork
+    {
+        public string ModuleName { get; } = moduleName;
+
+        public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("begin");
+            return Task.CompletedTask;
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("save");
+            return Task.CompletedTask;
+        }
+
+        public Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("commit");
+            return Task.CompletedTask;
+        }
+
+        public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("rollback");
             return Task.CompletedTask;
         }
     }

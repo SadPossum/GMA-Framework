@@ -4,5 +4,6 @@ public enum PermissionScopeRequirement
 {
     Unknown = 0,
     Global = 1,
-    Scoped = 2
+    Scoped = 2,
+    GlobalOrScoped = 3
 }
