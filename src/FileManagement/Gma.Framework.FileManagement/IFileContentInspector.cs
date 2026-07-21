@@ -16,25 +16,13 @@ public sealed record FileContentInspectionRequest(
 public sealed record FileContentInspectionResult(FileContentInspectionStatus Status, string Inspector)
 {
     public static FileContentInspectionResult Clean(string inspector) =>
-        new(FileContentInspectionStatus.Clean, NormalizeInspector(inspector));
+        new(FileContentInspectionStatus.Clean, FileContentCapabilityIdentity.Normalize(inspector, nameof(inspector)));
 
     public static FileContentInspectionResult Rejected(string inspector) =>
-        new(FileContentInspectionStatus.Rejected, NormalizeInspector(inspector));
+        new(FileContentInspectionStatus.Rejected, FileContentCapabilityIdentity.Normalize(inspector, nameof(inspector)));
 
     public static FileContentInspectionResult Unavailable(string inspector) =>
-        new(FileContentInspectionStatus.Unavailable, NormalizeInspector(inspector));
-
-    private static string NormalizeInspector(string inspector)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(inspector);
-        string candidate = inspector.Trim();
-        if (candidate.Length > FileStorageMetadata.MetadataValueMaxLength || candidate.Any(char.IsControl))
-        {
-            throw new ArgumentException("Inspector name is not valid metadata.", nameof(inspector));
-        }
-
-        return candidate;
-    }
+        new(FileContentInspectionStatus.Unavailable, FileContentCapabilityIdentity.Normalize(inspector, nameof(inspector)));
 }
 
 public enum FileContentInspectionStatus

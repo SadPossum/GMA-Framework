@@ -51,6 +51,33 @@ public sealed class FileManagementTests
     }
 
     [Fact]
+    public void Content_type_detection_results_normalize_trusted_metadata()
+    {
+        FileContentTypeDetectionResult result = FileContentTypeDetectionResult.Detected(
+            " signature-detector ",
+            " IMAGE/PNG ");
+
+        Assert.Equal(FileContentTypeDetectionStatus.Detected, result.Status);
+        Assert.Equal("signature-detector", result.Detector);
+        Assert.Equal("image/png", result.ContentType);
+        Assert.Throws<ArgumentException>(() =>
+            FileContentTypeDetectionResult.Detected("signature-detector", "not-a-media-type"));
+    }
+
+    [Fact]
+    public void Content_capability_readiness_exposes_only_normalized_identity_and_state()
+    {
+        FileContentCapabilityReadiness ready = FileContentCapabilityReadiness.Ready(" scanner-a ");
+        FileContentCapabilityReadiness unavailable = FileContentCapabilityReadiness.Unavailable("detector-a");
+
+        Assert.True(ready.IsReady);
+        Assert.Equal("scanner-a", ready.Provider);
+        Assert.False(unavailable.IsReady);
+        Assert.Equal("detector-a", unavailable.Provider);
+        Assert.Throws<ArgumentException>(() => FileContentCapabilityReadiness.Ready("scanner\rname"));
+    }
+
+    [Fact]
     public void Local_storage_registration_is_noop_when_file_management_is_disabled()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();

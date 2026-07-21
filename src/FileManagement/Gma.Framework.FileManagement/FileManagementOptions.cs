@@ -10,5 +10,4 @@ public sealed class FileManagementOptions
     public FileStorageProvider Provider { get; set; } = FileStorageProvider.Unknown;
     public long MaximumObjectBytes { get; set; } = DefaultMaximumObjectBytes;
     public string[] AllowedContentTypes { get; set; } = [];
-    public bool RequireContentInspection { get; set; }
 }

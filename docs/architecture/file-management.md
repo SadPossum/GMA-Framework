@@ -22,6 +22,8 @@ Modules depend on `Gma.Framework.FileManagement`, not on MinIO or local disk. Ho
 
 The core `Gma.Framework.FileManagement` project deliberately has no NuGet package references and no project references. Composition objects, host registration, and adapter-specific packages stay outside the core storage contract so it cannot accidentally depend on tenancy, ASP.NET Core, MinIO, local disk registration, or host infrastructure.
 
+The same neutral package defines `IFileContentTypeDetector`, `IFileContentInspector`, and companion readiness contracts. These are capability seams only: Framework does not choose a MIME library, malware scanner, quarantine policy, or product lifecycle. The Files module orchestrates them for its own upload front door; direct `IFileStorage` consumers keep ownership of their content policy.
+
 ## Configuration
 
 Local development:
@@ -81,6 +83,21 @@ builder.ValidateModuleComposition();
 Each adapter is a no-op unless `FileManagement:Enabled=true` and its provider is selected. A host may also register only the provider it deploys.
 
 When `FilesModule` is registered, it configures ASP.NET Core multipart parsing with `FileManagement:MaximumObjectBytes`. The command handler still validates the length, but the HTTP parser is also bounded before the file reaches application code.
+
+Files-front-door policy is configured separately from storage:
+
+```json
+{
+  "Files": {
+    "Uploads": {
+      "RequireTrustedContentType": true,
+      "RequireContentInspection": true
+    }
+  }
+}
+```
+
+Production startup requires both switches, a non-empty `FileManagement:AllowedContentTypes` list, and detector/inspector readiness. Required uploads are copied once into an ephemeral bounded quarantine file. The detector-derived canonical type controls allowlisting and stored metadata, then the inspector must return `Clean`; no caller-declared type is trusted for production policy.
 
 ## Files Module
 

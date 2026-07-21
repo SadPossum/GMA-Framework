@@ -102,7 +102,7 @@ Recommended production configuration:
 - `Notifications:SignalR:HubPath`
 - `Notifications:SignalR:ClientMethodName`
 - `Notifications:Retention` only after the product chooses read, unread, and broadcast retention windows
-- `FileManagement:RequireContentInspection=true` plus a real `IFileContentInspector` when the Files module is enabled
+- `Files:Uploads:RequireTrustedContentType=true` and `Files:Uploads:RequireContentInspection=true`, a non-empty storage allowlist, and ready detector/inspector adapters when the Files module is enabled
 
 Never use checked-in development JWT signing keys, refresh-token peppers, or database passwords in production. Auth option classes intentionally have no secret defaults; local placeholders live only in development configuration. Every configured signing/pepper key is validated at startup. Keep prior keys available for at least the corresponding token lifetime, remove them through a rehearsed rotation procedure, and store all key material in the deployment secret provider.
 
