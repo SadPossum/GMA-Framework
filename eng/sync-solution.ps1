@@ -24,6 +24,7 @@ param(
     [string] $HostProjectPattern = '\.Host(\.|$)',
     [bool] $IncludeSourceMarkdown = $true,
     [string[]] $SourceFileExtensions = @('.md'),
+    [string[]] $SourceFilePathPatterns = @(),
     [switch] $Check
 )
 
@@ -70,6 +71,28 @@ function Test-GmaGeneratedPath {
     param([Parameter(Mandatory = $true)][string] $RelativePath)
 
     return $RelativePath -match '(^|[\\/])(\.tmp|bin|obj)([\\/]|$)'
+}
+
+function Test-GmaSourceFileIncluded {
+    param(
+        [Parameter(Mandatory = $true)][string] $RelativePath,
+        [Parameter(Mandatory = $true)][string] $Extension,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]] $Extensions,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]] $PathPatterns
+    )
+
+    if ($Extensions -contains $Extension) {
+        return $true
+    }
+
+    $normalizedPath = $RelativePath.Replace('\', '/')
+    foreach ($pathPattern in $PathPatterns) {
+        if ($normalizedPath -like $pathPattern) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Get-GmaModuleProjectRole {
@@ -243,12 +266,18 @@ foreach ($operationalRoot in $OperationalRoots) {
 if ($IncludeSourceMarkdown) {
     $sourceRoot = Join-GmaCompositionPath 'src'
     if (Test-Path -LiteralPath $sourceRoot -PathType Container) {
-        foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
-            Where-Object { $SourceFileExtensions -contains $_.Extension }) {
+        foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File) {
             $relativePath = Get-GmaCompositionRelativePath `
                 -BasePath (Get-GmaCompositionRepositoryRoot) `
                 -TargetPath $file.FullName
             if (Test-GmaGeneratedPath -RelativePath $relativePath) {
+                continue
+            }
+            if (-not (Test-GmaSourceFileIncluded `
+                    -RelativePath $relativePath `
+                    -Extension $file.Extension `
+                    -Extensions $SourceFileExtensions `
+                    -PathPatterns $SourceFilePathPatterns)) {
                 continue
             }
 
