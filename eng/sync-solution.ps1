@@ -65,6 +65,12 @@ function Get-GmaOrdinalSortedStrings {
     return $sorted
 }
 
+function Test-GmaGeneratedPath {
+    param([Parameter(Mandatory = $true)][string] $RelativePath)
+
+    return $RelativePath -match '(^|[\\/])(\.tmp|bin|obj)([\\/]|$)'
+}
+
 function Get-GmaModuleProjectRole {
     param([Parameter(Mandatory = $true)][string] $ProjectDirectoryName)
 
@@ -200,7 +206,7 @@ foreach ($projectRoot in $ProjectRoots) {
         $relativePath = Get-GmaCompositionRelativePath `
             -BasePath (Get-GmaCompositionRepositoryRoot) `
             -TargetPath $project.FullName
-        if ($relativePath -match '(^|[\\/])(\.tmp|bin|obj)([\\/]|$)') {
+        if (Test-GmaGeneratedPath -RelativePath $relativePath) {
             continue
         }
 
@@ -240,6 +246,10 @@ if ($IncludeSourceMarkdown) {
             $relativePath = Get-GmaCompositionRelativePath `
                 -BasePath (Get-GmaCompositionRepositoryRoot) `
                 -TargetPath $file.FullName
+            if (Test-GmaGeneratedPath -RelativePath $relativePath) {
+                continue
+            }
+
             $directory = Split-Path $relativePath -Parent
             Add-GmaSolutionEntry `
                 -Folders $folders `

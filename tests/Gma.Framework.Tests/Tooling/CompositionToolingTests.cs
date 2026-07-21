@@ -100,7 +100,9 @@ public sealed class CompositionToolingTests
     {
         string source = ReadTool("sync-solution.ps1");
 
-        Assert.Contains("$relativePath -match '(^|[\\\\/])(\\.tmp|bin|obj)([\\\\/]|$)'", source, StringComparison.Ordinal);
+        Assert.Contains("function Test-GmaGeneratedPath", source, StringComparison.Ordinal);
+        Assert.Contains("return $RelativePath -match '(^|[\\\\/])(\\.tmp|bin|obj)([\\\\/]|$)'", source, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(source, "Test-GmaGeneratedPath -RelativePath \\$relativePath"));
         Assert.DoesNotContain("$project.FullName -match", source, StringComparison.Ordinal);
     }
 
