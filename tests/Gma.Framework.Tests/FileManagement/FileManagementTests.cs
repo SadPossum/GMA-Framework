@@ -71,9 +71,9 @@ public sealed class FileManagementTests
         FileContentCapabilityReadiness unavailable = FileContentCapabilityReadiness.Unavailable("detector-a");
 
         Assert.True(ready.IsReady);
-        Assert.Equal("scanner-a", ready.Provider);
+        Assert.Equal("scanner-a", ready.Provider.Value);
         Assert.False(unavailable.IsReady);
-        Assert.Equal("detector-a", unavailable.Provider);
+        Assert.Equal("detector-a", unavailable.Provider.Value);
         Assert.Throws<ArgumentException>(() => FileContentCapabilityReadiness.Ready("scanner\rname"));
     }
 

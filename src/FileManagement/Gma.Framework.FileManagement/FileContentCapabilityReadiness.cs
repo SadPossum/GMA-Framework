@@ -12,18 +12,34 @@ public interface IFileContentTypeDetectorReadiness
 
 public sealed record FileContentCapabilityReadiness
 {
-    private FileContentCapabilityReadiness(bool isReady, string provider)
+    private FileContentCapabilityReadiness(bool isReady, FileContentCapabilityProvider provider)
     {
         this.IsReady = isReady;
-        this.Provider = FileContentCapabilityIdentity.Normalize(provider, nameof(provider));
+        this.Provider = provider;
     }
 
     public bool IsReady { get; }
-    public string Provider { get; }
+    public FileContentCapabilityProvider Provider { get; }
 
-    public static FileContentCapabilityReadiness Ready(string provider) => new(true, provider);
+    public static FileContentCapabilityReadiness Ready(string provider) =>
+        new(true, FileContentCapabilityProvider.Create(provider));
 
-    public static FileContentCapabilityReadiness Unavailable(string provider) => new(false, provider);
+    public static FileContentCapabilityReadiness Unavailable(string provider) =>
+        new(false, FileContentCapabilityProvider.Create(provider));
+}
+
+public readonly record struct FileContentCapabilityProvider
+{
+    private readonly string value;
+
+    private FileContentCapabilityProvider(string value) => this.value = value;
+
+    public string Value => this.value ?? string.Empty;
+
+    public static FileContentCapabilityProvider Create(string value) =>
+        new(FileContentCapabilityIdentity.Normalize(value, nameof(value)));
+
+    public override string ToString() => this.Value;
 }
 
 internal static class FileContentCapabilityIdentity
