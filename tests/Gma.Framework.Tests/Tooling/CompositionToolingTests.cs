@@ -103,6 +103,8 @@ public sealed class CompositionToolingTests
         Assert.Contains("function Test-GmaGeneratedPath", source, StringComparison.Ordinal);
         Assert.Contains("return $RelativePath -match '(^|[\\\\/])(\\.tmp|bin|obj)([\\\\/]|$)'", source, StringComparison.Ordinal);
         Assert.Equal(2, Regex.Count(source, "Test-GmaGeneratedPath -RelativePath \\$relativePath"));
+        Assert.Contains("[string[]] $SourceFileExtensions = @('.md')", source, StringComparison.Ordinal);
+        Assert.Contains("$SourceFileExtensions -contains $_.Extension", source, StringComparison.Ordinal);
         Assert.DoesNotContain("$project.FullName -match", source, StringComparison.Ordinal);
     }
 

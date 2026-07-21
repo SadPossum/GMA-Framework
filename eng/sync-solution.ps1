@@ -23,6 +23,7 @@ param(
     ),
     [string] $HostProjectPattern = '\.Host(\.|$)',
     [bool] $IncludeSourceMarkdown = $true,
+    [string[]] $SourceFileExtensions = @('.md'),
     [switch] $Check
 )
 
@@ -242,7 +243,8 @@ foreach ($operationalRoot in $OperationalRoots) {
 if ($IncludeSourceMarkdown) {
     $sourceRoot = Join-GmaCompositionPath 'src'
     if (Test-Path -LiteralPath $sourceRoot -PathType Container) {
-        foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.md' -File) {
+        foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
+            Where-Object { $SourceFileExtensions -contains $_.Extension }) {
             $relativePath = Get-GmaCompositionRelativePath `
                 -BasePath (Get-GmaCompositionRepositoryRoot) `
                 -TargetPath $file.FullName
