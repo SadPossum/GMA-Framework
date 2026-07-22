@@ -61,12 +61,12 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
 
         if (ack.Duplicate)
         {
-            this.LogDuplicatePublish(message.Id, message.Subject);
+            this.LogDuplicatePublish(message.Subject);
             return;
         }
 
         ack.EnsureSuccess();
-        this.LogPublished(message.Id, message.Subject);
+        this.LogPublished(message.Subject);
     }
 
     private static string CreateMessageId(Guid messageId) =>
@@ -74,11 +74,11 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
 
     public void Dispose() => this.ownedStreamManager?.Dispose();
 
-    private void LogPublished(Guid eventId, string subject)
+    private void LogPublished(string subject)
     {
         try
         {
-            this.logger.LogInformation("Published integration event {EventId} to {Subject}", eventId, subject);
+            this.logger.LogInformation("Published integration event to {Subject}", subject);
         }
         catch (Exception)
         {
@@ -86,13 +86,12 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
         }
     }
 
-    private void LogDuplicatePublish(Guid eventId, string subject)
+    private void LogDuplicatePublish(string subject)
     {
         try
         {
             this.logger.LogInformation(
-                "NATS JetStream ignored duplicate integration event {EventId} on {Subject}",
-                eventId,
+                "NATS JetStream ignored a duplicate integration event on {Subject}",
                 subject);
         }
         catch (Exception)

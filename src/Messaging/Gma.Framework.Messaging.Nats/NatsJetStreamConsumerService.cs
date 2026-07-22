@@ -153,7 +153,7 @@ internal sealed class NatsJetStreamConsumerService(
 
         if (IntegrationEventMetadata.TryGetInvalidReason(integrationEvent, out string invalidReason))
         {
-            this.LogInvalidEventMetadata(subject, subscription.EventType.FullName, invalidReason);
+            this.LogInvalidEventMetadata(subject, subscription.EventType.FullName);
             await message.AckTerminateAsync(
                     new AckOpts { TerminateReason = invalidReason },
                     stoppingToken)
@@ -204,11 +204,7 @@ internal sealed class NatsJetStreamConsumerService(
             return;
         }
 
-        this.LogProcessingFailure(
-            integrationEvent.EventId,
-            subscription.ConsumerModule,
-            subscription.HandlerName,
-            result.Error);
+        this.LogProcessingFailure(subscription.ConsumerModule, subscription.HandlerName);
 
         await message.NakAsync(new AckOpts { NakDelay = options.Value.EffectiveNakDelay }, stoppingToken)
             .ConfigureAwait(false);
@@ -445,10 +441,10 @@ internal sealed class NatsJetStreamConsumerService(
         try
         {
             logger.LogError(
-                exception,
-                "NATS JetStream consumer {DurableName} failed while polling {Subject}",
+                "NATS JetStream consumer {DurableName} failed while polling {Subject} with {ExceptionType}",
                 durableName,
-                subject);
+                subject,
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -460,10 +456,10 @@ internal sealed class NatsJetStreamConsumerService(
         try
         {
             logger.LogError(
-                exception,
-                "Failed to deserialize NATS message on {Subject} as {EventType}",
+                "Failed to deserialize NATS message on {Subject} as {EventType} with {ExceptionType}",
                 subject,
-                eventType);
+                eventType,
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -484,31 +480,28 @@ internal sealed class NatsJetStreamConsumerService(
         }
     }
 
-    private void LogInvalidEventMetadata(string subject, string? eventType, string reason)
+    private void LogInvalidEventMetadata(string subject, string? eventType)
     {
         try
         {
             logger.LogError(
-                "Rejected NATS message on {Subject} as {EventType} because integration event metadata is invalid: {Reason}",
+                "Rejected NATS message on {Subject} as {EventType} because integration event metadata is invalid.",
                 subject,
-                eventType,
-                reason);
+                eventType);
         }
         catch (Exception)
         {
         }
     }
 
-    private void LogProcessingFailure(Guid eventId, string consumerModule, string handlerName, string? error)
+    private void LogProcessingFailure(string consumerModule, string handlerName)
     {
         try
         {
             logger.LogWarning(
-                "NATS message {EventId} for handler {ConsumerModule}.{HandlerName} failed: {Error}",
-                eventId,
+                "NATS message processing for handler {ConsumerModule}.{HandlerName} failed.",
                 consumerModule,
-                handlerName,
-                error);
+                handlerName);
         }
         catch (Exception)
         {
@@ -519,7 +512,9 @@ internal sealed class NatsJetStreamConsumerService(
     {
         try
         {
-            logger.LogWarning(exception, "Failed to extend NATS message acknowledgement wait.");
+            logger.LogWarning(
+                "Failed to extend NATS message acknowledgement wait with {ExceptionType}.",
+                exception.GetType().Name);
         }
         catch (Exception)
         {

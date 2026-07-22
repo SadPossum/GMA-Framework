@@ -2,6 +2,7 @@ namespace Gma.Framework.Tasks.Infrastructure;
 
 using System.Diagnostics;
 using Gma.Framework.Observability.Infrastructure;
+using Gma.Framework.Runtime.Failures;
 using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Runtime.Resilience;
 using Gma.Framework.Runtime.Time;
@@ -33,9 +34,9 @@ internal sealed class TaskWorkerService(
         }
 
         logger.LogInformation(
-            "Task worker runtime started with worker id {WorkerId} on node {NodeId}.",
-            this.workerId,
-            this.nodeId);
+            "Task worker runtime started for {WorkerGroupCount} groups with maximum concurrency {MaxConcurrency}.",
+            currentOptions.EffectiveWorkerGroups.Count,
+            currentOptions.EffectiveMaxConcurrency);
 
         IReadOnlyList<string> workerGroups = currentOptions.EffectiveWorkerGroups;
         List<Task> running = [];
@@ -135,9 +136,9 @@ internal sealed class TaskWorkerService(
         catch (Exception exception)
         {
             logger.LogError(
-                exception,
-                "Task worker failed to claim work for group {WorkerGroup}; other groups will continue.",
-                workerGroup);
+                "Task worker failed to claim work for group {WorkerGroup} with {ExceptionType}; other groups will continue.",
+                workerGroup,
+                exception.GetType().Name);
             return [];
         }
     }
@@ -157,11 +158,10 @@ internal sealed class TaskWorkerService(
         catch (Exception exception)
         {
             logger.LogError(
-                exception,
-                "Task run {RunId} for {Module}.{Task} failed outside handler execution; the lease will expire for retry.",
-                lease.RunId,
+                "Task execution for {Module}.{Task} failed outside handler execution with {ExceptionType}; the lease will expire for retry.",
                 lease.ModuleName,
-                lease.TaskName);
+                lease.TaskName,
+                exception.GetType().Name);
         }
     }
 
@@ -226,7 +226,7 @@ internal sealed class TaskWorkerService(
         {
             TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
                     context,
-                    preparationResult.ErrorMessage!,
+                    "task-context-preparation-failed",
                     clock.UtcNow,
                     retryAtUtc: null,
                     stoppingToken)
@@ -240,8 +240,7 @@ internal sealed class TaskWorkerService(
         if (startOutcome != TaskRunMutationOutcome.Applied)
         {
             logger.LogInformation(
-                "Task run {RunId} for {Module}.{Task} lost its lease before handler execution ({Outcome}).",
-                lease.RunId,
+                "Task execution for {Module}.{Task} lost its lease before handler execution ({Outcome}).",
                 lease.ModuleName,
                 lease.TaskName,
                 startOutcome);
@@ -286,18 +285,16 @@ internal sealed class TaskWorkerService(
                 .MarkCanceledAsync(context, clock.UtcNow, CancellationToken.None)
                 .ConfigureAwait(false);
             logger.LogInformation(
-                exception,
-                "Task run {RunId} for {Module}.{Task} cooperatively canceled.",
-                lease.RunId,
+                "Task execution for {Module}.{Task} cooperatively canceled with {ExceptionType}.",
                 lease.ModuleName,
-                lease.TaskName);
+                lease.TaskName,
+                exception.GetType().Name);
             this.RecordTerminalMutation(outcome, lease, "canceled", stopwatch.Elapsed);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             logger.LogInformation(
-                "Task run {RunId} for {Module}.{Task} stopped before completion; the lease will expire for a later retry.",
-                lease.RunId,
+                "Task execution for {Module}.{Task} stopped before completion; the lease will expire for a later retry.",
                 lease.ModuleName,
                 lease.TaskName);
         }
@@ -374,8 +371,7 @@ internal sealed class TaskWorkerService(
         }
 
         logger.LogInformation(
-            "Task run {RunId} for {Module}.{Task} did not persist terminal status {Status} because the store returned {Outcome}.",
-            lease.RunId,
+            "Task execution for {Module}.{Task} did not persist terminal status {Status} because the store returned {Outcome}.",
             lease.ModuleName,
             lease.TaskName,
             status,
@@ -454,9 +450,7 @@ internal sealed class TaskWorkerService(
             return "Task handler timed out.";
         }
 
-        return string.IsNullOrWhiteSpace(exception.Message)
-            ? exception.GetType().Name
-            : exception.Message;
+        return RuntimeFailureDescriptions.FromException("task-handler-failed", exception);
     }
 
     private static void TryRecordClaimed(TaskMetrics metrics, TaskRunLease lease)

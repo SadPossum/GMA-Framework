@@ -59,7 +59,8 @@ public sealed class OutboxPublisherServiceTests
         Assert.Equal(1, store.MarkFailedCalls);
         Assert.Equal(0, store.MarkProcessedCalls);
         Assert.Equal(message.Id, store.FailedMessageId);
-        Assert.Equal("NATS unavailable.", store.FailedError);
+        Assert.Equal("outbox-publish-failed:InvalidOperationException", store.FailedError);
+        Assert.DoesNotContain(ThrowingEventBus.PersonalDataCanary, store.FailedError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -187,7 +188,8 @@ public sealed class OutboxPublisherServiceTests
         Assert.Equal(1, eventBus.PublishAttempts);
         Assert.Equal(1, store.MarkFailedCalls);
         Assert.Equal(0, store.MarkProcessedCalls);
-        Assert.Equal("NATS unavailable.", store.FailedError);
+        Assert.Equal("outbox-publish-failed:InvalidOperationException", store.FailedError);
+        Assert.DoesNotContain(ThrowingEventBus.PersonalDataCanary, store.FailedError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -343,12 +345,14 @@ public sealed class OutboxPublisherServiceTests
 
     private sealed class ThrowingEventBus : IEventBus
     {
+        public const string PersonalDataCanary = "guest.aprokudanov@example.test";
+
         public int PublishAttempts { get; private set; }
 
         public Task PublishAsync(OutboxMessageRecord message, CancellationToken cancellationToken)
         {
             this.PublishAttempts++;
-            throw new InvalidOperationException("NATS unavailable.");
+            throw new InvalidOperationException(PersonalDataCanary);
         }
     }
 

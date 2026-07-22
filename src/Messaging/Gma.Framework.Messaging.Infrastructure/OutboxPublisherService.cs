@@ -1,16 +1,17 @@
 namespace Gma.Framework.Messaging.Infrastructure;
 
 using System.Diagnostics;
+using Gma.Framework.Messaging;
+using Gma.Framework.Observability;
+using Gma.Framework.Observability.Infrastructure;
+using Gma.Framework.Runtime.Failures;
+using Gma.Framework.Runtime.Identity;
+using Gma.Framework.Runtime.Time;
+using Gma.Framework.Runtime.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Gma.Framework.Runtime.Identity;
-using Gma.Framework.Messaging;
-using Gma.Framework.Observability;
-using Gma.Framework.Runtime.Time;
-using Gma.Framework.Observability.Infrastructure;
-using Gma.Framework.Runtime.Workers;
 
 internal sealed class OutboxPublisherService(
     IServiceScopeFactory scopeFactory,
@@ -81,9 +82,8 @@ internal sealed class OutboxPublisherService(
                 Dictionary<string, object?> scopeProperties = new()
                 {
                     [ObservabilityLogPropertyNames.Module] = moduleName,
-                    [ObservabilityLogPropertyNames.MessageId] = message.Id,
                     [ObservabilityLogPropertyNames.Subject] = message.Subject,
-                    [ObservabilityLogPropertyNames.MessageScopeId] = message.ScopeId,
+                    [ObservabilityLogPropertyNames.MessageScoped] = !string.IsNullOrWhiteSpace(message.ScopeId),
                     [ObservabilityLogPropertyNames.TraceId] = Activity.Current?.TraceId.ToString(),
                 };
 
@@ -100,7 +100,7 @@ internal sealed class OutboxPublisherService(
                 {
                     string error = GetFailureMessage(exception);
                     this.TryRecordFailed(moduleName, message.Subject, Stopwatch.GetElapsedTime(startedAt));
-                    this.LogPublishFailure(message.Id, moduleName, exception);
+                    this.LogPublishFailure(moduleName, exception);
                     await this.TryMarkFailedAsync(store, moduleName, message.Id, error, cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -184,7 +184,7 @@ internal sealed class OutboxPublisherService(
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            this.LogMarkFailedFailure(messageId, moduleName, exception);
+            this.LogMarkFailedFailure(moduleName, exception);
         }
     }
 
@@ -195,9 +195,7 @@ internal sealed class OutboxPublisherService(
             return PublishCanceledError;
         }
 
-        return string.IsNullOrWhiteSpace(exception.Message)
-            ? exception.GetType().Name
-            : exception.Message;
+        return RuntimeFailureDescriptions.FromException("outbox-publish-failed", exception);
     }
 
     private IDisposable? BeginLogScope(Dictionary<string, object?> scopeProperties)
@@ -224,11 +222,14 @@ internal sealed class OutboxPublisherService(
         }
     }
 
-    private void LogPublishFailure(Guid messageId, string moduleName, Exception exception)
+    private void LogPublishFailure(string moduleName, Exception exception)
     {
         try
         {
-            logger.LogError(exception, "Failed to publish outbox message {MessageId} from {ModuleName}", messageId, moduleName);
+            logger.LogError(
+                "Failed to publish an outbox message from {ModuleName} with {ExceptionType}",
+                moduleName,
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -240,7 +241,10 @@ internal sealed class OutboxPublisherService(
     {
         try
         {
-            logger.LogError(exception, "Failed to claim outbox messages from {ModuleName}", moduleName);
+            logger.LogError(
+                "Failed to claim outbox messages from {ModuleName} with {ExceptionType}",
+                moduleName,
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -248,15 +252,14 @@ internal sealed class OutboxPublisherService(
         }
     }
 
-    private void LogMarkFailedFailure(Guid messageId, string moduleName, Exception exception)
+    private void LogMarkFailedFailure(string moduleName, Exception exception)
     {
         try
         {
             logger.LogError(
-                exception,
-                "Failed to mark outbox message {MessageId} from {ModuleName} as failed",
-                messageId,
-                moduleName);
+                "Failed to mark an outbox message from {ModuleName} as failed with {ExceptionType}",
+                moduleName,
+                exception.GetType().Name);
         }
         catch (Exception)
         {

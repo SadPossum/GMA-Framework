@@ -82,20 +82,23 @@ public sealed class EfInboxStoreTests
     [Fact]
     public async Task Process_async_records_handler_failure()
     {
+        const string personalDataCanary = "guest.aprokudanov@example.test";
         using TestDbContext dbContext = CreateDbContext();
         TestInboxStore store = new(dbContext, "ordering");
         InboxMessageRecord message = CreateMessageRecord();
 
         InboxProcessResult result = await store.ProcessAsync(
             message,
-            _ => throw new InvalidOperationException("handler failed"),
+            _ => throw new InvalidOperationException(personalDataCanary),
             CancellationToken.None);
 
         InboxMessage inboxMessage = await dbContext.InboxMessages.SingleAsync();
         Assert.Equal(InboxProcessStatus.Failed, result.Status);
-        Assert.Equal("handler failed", result.Error);
+        Assert.Equal("inbox-handler-failed:InvalidOperationException", result.Error);
+        Assert.DoesNotContain(personalDataCanary, result.Error, StringComparison.Ordinal);
         Assert.Equal(InboxMessageStatus.Failed, inboxMessage.Status);
-        Assert.Equal("handler failed", inboxMessage.LastError);
+        Assert.Equal("inbox-handler-failed:InvalidOperationException", inboxMessage.LastError);
+        Assert.DoesNotContain(personalDataCanary, inboxMessage.LastError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -112,9 +115,9 @@ public sealed class EfInboxStoreTests
 
         InboxMessage inboxMessage = await dbContext.InboxMessages.SingleAsync();
         Assert.Equal(InboxProcessStatus.Failed, result.Status);
-        Assert.Equal("Inbox handler returned a null task.", result.Error);
+        Assert.Equal("inbox-handler-failed:InvalidOperationException", result.Error);
         Assert.Equal(InboxMessageStatus.Failed, inboxMessage.Status);
-        Assert.Equal("Inbox handler returned a null task.", inboxMessage.LastError);
+        Assert.Equal("inbox-handler-failed:InvalidOperationException", inboxMessage.LastError);
     }
 
     [Fact]

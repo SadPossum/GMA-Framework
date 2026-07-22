@@ -46,6 +46,7 @@ public static class DependencyInjection
             };
         });
         builder.Services.AddExceptionHandler<OptimisticConcurrencyExceptionHandler>();
+        builder.Services.AddExceptionHandler<SanitizedUnhandledExceptionHandler>();
         builder.Services.AddHealthChecks();
 
         ConfigureForwardedHeaders(builder.Services, options.ForwardedHeaders);

@@ -48,10 +48,10 @@ internal sealed class NotificationRequestCommandBehavior<TCommand, TResponse>(
         try
         {
             logger.LogWarning(
-                exception,
-                "User notification request flush failed open after successful command {CommandName} in module {Module}",
+                "User notification request flush failed open after successful command {CommandName} in module {Module} with {ExceptionType}",
                 typeof(TCommand).Name,
-                ModuleNameResolver.FromType(typeof(TCommand)));
+                ModuleNameResolver.FromType(typeof(TCommand)),
+                exception.GetType().Name);
         }
         catch (Exception)
         {

@@ -99,7 +99,50 @@ public sealed class TaskWorkerServiceTests
         await host.StartAsync();
 
         Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
-        Assert.Contains("Automatic task heartbeat failed", store.LastFailure, StringComparison.Ordinal);
+        Assert.Equal("task-handler-failed:InvalidOperationException", store.LastFailure);
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public async Task Worker_does_not_persist_handler_exception_messages()
+    {
+        const string personalDataCanary = "guest.aprokudanov@example.test";
+        WorkerTestStore store = new();
+        WorkerGate gate = new()
+        {
+            FailureMessage = personalDataCanary,
+        };
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(store, gate, ["alpha"], maxConcurrency: 1, batchSize: 1);
+        await host.StartAsync();
+
+        Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
+        Assert.Equal("task-handler-failed:InvalidOperationException", store.LastFailure);
+        Assert.DoesNotContain(personalDataCanary, store.LastFailure, StringComparison.Ordinal);
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public async Task Worker_does_not_persist_context_contributor_failure_text()
+    {
+        const string personalDataCanary = "guest.aprokudanov@example.test";
+        WorkerTestStore store = new();
+        WorkerGate gate = new();
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(
+            store,
+            gate,
+            ["alpha"],
+            maxConcurrency: 1,
+            batchSize: 1,
+            contextContributor: new FailingContextContributor(personalDataCanary));
+        await host.StartAsync();
+
+        Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
+        Assert.Equal("task-context-preparation-failed", store.LastFailure);
+        Assert.DoesNotContain(personalDataCanary, store.LastFailure, StringComparison.Ordinal);
         await host.StopAsync();
     }
 
@@ -149,7 +192,8 @@ public sealed class TaskWorkerServiceTests
         int maxConcurrency,
         int batchSize,
         TimeSpan? leaseDuration = null,
-        TimeSpan? heartbeatInterval = null)
+        TimeSpan? heartbeatInterval = null,
+        ITaskExecutionContextContributor? contextContributor = null)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         Dictionary<string, string?> configuration = new()
@@ -175,6 +219,11 @@ public sealed class TaskWorkerServiceTests
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<ITaskRunStore>(store);
         builder.Services.AddSingleton(gate);
+        if (contextContributor is not null)
+        {
+            builder.Services.AddSingleton(contextContributor);
+        }
+
         foreach (string workerGroup in workerGroups)
         {
             builder.Services.AddTaskHandler<WorkerTestPayload, BlockingWorkerHandler>(
@@ -188,6 +237,18 @@ public sealed class TaskWorkerServiceTests
     }
 
     private sealed record WorkerTestPayload(string WorkerGroup) : ITaskPayload;
+
+    private sealed class FailingContextContributor(string errorMessage) : ITaskExecutionContextContributor
+    {
+        public ValueTask<TaskExecutionContextPreparationResult> PrepareAsync(
+            TaskExecutionContextPreparationContext context,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(TaskExecutionContextPreparationResult.Failure(errorMessage));
+
+        public ValueTask CleanupAsync(
+            TaskExecutionContextPreparationContext context,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
 
     private sealed class BlockingWorkerHandler(WorkerGate gate) : ITaskHandler<WorkerTestPayload>
     {
@@ -203,10 +264,16 @@ public sealed class TaskWorkerServiceTests
         private int waitCount;
 
         public int WaitCount => Volatile.Read(ref this.waitCount);
+        public string? FailureMessage { get; init; }
 
         public Task WaitAsync(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref this.waitCount);
+            if (this.FailureMessage is not null)
+            {
+                return Task.FromException(new InvalidOperationException(this.FailureMessage));
+            }
+
             return this.completion.Task.WaitAsync(cancellationToken);
         }
 

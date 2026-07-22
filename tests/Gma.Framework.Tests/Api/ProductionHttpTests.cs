@@ -1,6 +1,8 @@
 namespace Gma.Framework.Tests.Api;
 
 using Gma.Framework.Api.Production;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -88,6 +90,35 @@ public sealed class ProductionHttpTests
         Assert.True(options.RateLimiting.Enabled);
         Assert.Single(builder.Services, descriptor =>
             descriptor.ServiceType.Name.Contains("ProductionHttpRegistrationMarker", StringComparison.Ordinal));
+        Assert.Collection(
+            provider.GetServices<IExceptionHandler>(),
+            handler => Assert.IsType<OptimisticConcurrencyExceptionHandler>(handler),
+            handler => Assert.IsType<SanitizedUnhandledExceptionHandler>(handler));
+    }
+
+    [Fact]
+    public async Task Unhandled_exception_handler_exposes_only_a_stable_problem_and_trace_identifier()
+    {
+        const string exceptionCanary = "private.person@example.test failed for reservation-sensitive-491";
+        CapturingProblemDetailsService problemDetailsService = new();
+        SanitizedUnhandledExceptionHandler handler = new(problemDetailsService);
+        DefaultHttpContext httpContext = new()
+        {
+            TraceIdentifier = "0HMTESTTRACE0001"
+        };
+
+        bool handled = await handler.TryHandleAsync(
+            httpContext,
+            new InvalidOperationException(exceptionCanary),
+            CancellationToken.None);
+
+        ProblemDetailsContext captured = Assert.IsType<ProblemDetailsContext>(problemDetailsService.Context);
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status500InternalServerError, httpContext.Response.StatusCode);
+        Assert.Equal("Http.UnexpectedFailure", captured.ProblemDetails.Title);
+        Assert.Equal("0HMTESTTRACE0001", captured.ProblemDetails.Extensions["traceId"]);
+        Assert.Null(captured.Exception);
+        Assert.DoesNotContain(exceptionCanary, captured.ProblemDetails.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -114,5 +145,22 @@ public sealed class ProductionHttpTests
         HealthCheckRegistration registration = Assert.Single(options.Registrations);
 
         Assert.Contains(GmaHealthCheckTags.Readiness, registration.Tags);
+    }
+
+    private sealed class CapturingProblemDetailsService : IProblemDetailsService
+    {
+        public ProblemDetailsContext? Context { get; private set; }
+
+        public ValueTask WriteAsync(ProblemDetailsContext context)
+        {
+            this.Context = context;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<bool> TryWriteAsync(ProblemDetailsContext context)
+        {
+            this.Context = context;
+            return ValueTask.FromResult(true);
+        }
     }
 }

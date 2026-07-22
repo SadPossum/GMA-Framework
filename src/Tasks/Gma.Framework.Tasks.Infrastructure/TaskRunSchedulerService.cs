@@ -39,7 +39,9 @@ internal sealed class TaskRunSchedulerService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Task run scheduler tick failed; the scheduler will retry.");
+                logger.LogError(
+                    "Task run scheduler tick failed with {ExceptionType}; the scheduler will retry.",
+                    exception.GetType().Name);
             }
 
             await Task.Delay(currentOptions.EffectivePollInterval, stoppingToken).ConfigureAwait(false);

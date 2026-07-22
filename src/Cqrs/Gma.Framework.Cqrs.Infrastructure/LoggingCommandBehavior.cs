@@ -128,9 +128,9 @@ internal sealed class LoggingCommandBehavior<TCommand, TResponse>(
         try
         {
             logger.LogError(
-                exception,
-                "Command {CommandName} failed with an exception after {ElapsedMilliseconds} ms",
+                "Command {CommandName} failed with {ExceptionType} after {ElapsedMilliseconds} ms",
                 commandName,
+                exception.GetType().Name,
                 elapsed.TotalMilliseconds);
         }
         catch (Exception)

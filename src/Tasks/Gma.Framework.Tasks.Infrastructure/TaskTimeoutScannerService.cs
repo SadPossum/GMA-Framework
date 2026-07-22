@@ -36,7 +36,9 @@ internal sealed class TaskTimeoutScannerService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Task timeout scanner iteration failed; the scanner will retry.");
+                logger.LogError(
+                    "Task timeout scanner iteration failed with {ExceptionType}; the scanner will retry.",
+                    exception.GetType().Name);
             }
 
             await Task.Delay(currentOptions.EffectiveTimeoutScannerPollInterval, stoppingToken).ConfigureAwait(false);

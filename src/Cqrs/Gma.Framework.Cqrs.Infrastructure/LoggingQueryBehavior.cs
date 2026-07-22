@@ -128,9 +128,9 @@ internal sealed class LoggingQueryBehavior<TQuery, TResponse>(
         try
         {
             logger.LogError(
-                exception,
-                "Query {QueryName} failed with an exception after {ElapsedMilliseconds} ms",
+                "Query {QueryName} failed with {ExceptionType} after {ElapsedMilliseconds} ms",
                 queryName,
+                exception.GetType().Name,
                 elapsed.TotalMilliseconds);
         }
         catch (Exception)

@@ -50,10 +50,10 @@ internal sealed class CacheInvalidationCommandBehavior<TCommand, TResponse>(
             string commandName = typeof(TCommand).Name;
             string moduleName = ModuleNameResolver.FromType(typeof(TCommand));
             logger.LogWarning(
-                exception,
-                "Cache invalidation failed open after successful command {CommandName} in module {Module}",
+                "Cache invalidation failed open after successful command {CommandName} in module {Module} with {ExceptionType}",
                 commandName,
-                moduleName);
+                moduleName,
+                exception.GetType().Name);
         }
         catch (Exception)
         {

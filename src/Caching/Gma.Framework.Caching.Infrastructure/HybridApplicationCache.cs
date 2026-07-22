@@ -117,7 +117,7 @@ internal sealed class HybridApplicationCache(
         }
         catch (Exception exception)
         {
-            this.LogInvalidationFailure(key.Module, "key", key, exception);
+            this.LogInvalidationFailure(key.Module, "key", exception);
         }
     }
 
@@ -141,7 +141,7 @@ internal sealed class HybridApplicationCache(
         }
         catch (Exception exception)
         {
-            this.LogInvalidationFailure(tag.Module, "tag", tag, exception);
+            this.LogInvalidationFailure(tag.Module, "tag", exception);
         }
     }
 
@@ -152,13 +152,11 @@ internal sealed class HybridApplicationCache(
         try
         {
             logger.LogWarning(
-                exception,
-                "Cache {Operation} failed open for module {Module}, entry {CacheEntry}, scope {CacheScope} and segments {@CacheSegments}",
+                "Cache {Operation} failed open for module {Module} through {CacheProvider} with {ExceptionType}",
                 operation,
                 key.Module,
-                key.Entry,
-                key.Scope,
-                key.Segments);
+                provider,
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -166,7 +164,7 @@ internal sealed class HybridApplicationCache(
         }
     }
 
-    private void LogInvalidationFailure(string module, string operation, object cacheIdentity, Exception exception)
+    private void LogInvalidationFailure(string module, string operation, Exception exception)
     {
         string provider = this.cachingOptions.Provider.ToString().ToLowerInvariant();
         this.TryRecordInvalidationFailure(module, operation, provider);
@@ -174,11 +172,11 @@ internal sealed class HybridApplicationCache(
         try
         {
             logger.LogWarning(
-                exception,
-                "Cache {Operation} invalidation failed open for module {Module} and identity {@CacheIdentity}",
+                "Cache {Operation} invalidation failed open for module {Module} through {CacheProvider} with {ExceptionType}",
                 operation,
                 module,
-                cacheIdentity);
+                provider,
+                exception.GetType().Name);
         }
         catch (Exception)
         {

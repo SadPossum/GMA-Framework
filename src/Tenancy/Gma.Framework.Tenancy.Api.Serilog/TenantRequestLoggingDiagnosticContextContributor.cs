@@ -16,7 +16,7 @@ internal sealed class TenantRequestLoggingDiagnosticContextContributor(ITenantCo
 
         if (!string.IsNullOrWhiteSpace(tenantContext.TenantId))
         {
-            diagnosticContext.Set(ObservabilityLogPropertyNames.TenantId, tenantContext.TenantId);
+            diagnosticContext.Set(ObservabilityLogPropertyNames.TenantScoped, value: true);
         }
     }
 }

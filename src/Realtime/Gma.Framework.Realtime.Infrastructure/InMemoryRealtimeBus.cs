@@ -80,8 +80,7 @@ internal sealed class InMemoryRealtimeBus<TMessage>(
             if (!subscriber.MessageChannel.Writer.TryWrite(message))
             {
                 logger.LogDebug(
-                    "Realtime stream subscriber {SubscriptionId} for channel {ChannelName} could not accept a {MessageType} message.",
-                    subscriber.Id,
+                    "A realtime stream subscriber for channel {ChannelName} could not accept a {MessageType} message.",
                     channel.Name,
                     typeof(TMessage).Name);
             }

@@ -1,11 +1,12 @@
 namespace Gma.Framework.Messaging.Infrastructure;
 
 using System.Data;
-using Microsoft.EntityFrameworkCore;
-using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Messaging;
+using Gma.Framework.Runtime.Failures;
+using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Runtime.Time;
 using Gma.Framework.Runtime.Workers;
+using Microsoft.EntityFrameworkCore;
 
 public abstract class EfInboxStore<TDbContext>(
     TDbContext dbContext,
@@ -126,9 +127,7 @@ public abstract class EfInboxStore<TDbContext>(
             return HandlerCanceledError;
         }
 
-        return string.IsNullOrWhiteSpace(exception.Message)
-            ? exception.GetType().Name
-            : exception.Message;
+        return RuntimeFailureDescriptions.FromException("inbox-handler-failed", exception);
     }
 
     private async Task RecordFailureAsync(

@@ -35,7 +35,9 @@ internal sealed class TaskMetricsSamplerService(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception, "Task metrics sampling failed.");
+                logger.LogWarning(
+                    "Task metrics sampling failed with {ExceptionType}.",
+                    exception.GetType().Name);
             }
 
             await Task.Delay(currentOptions.EffectiveMetricsSamplerPollInterval, stoppingToken).ConfigureAwait(false);

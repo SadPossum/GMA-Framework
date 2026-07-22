@@ -34,7 +34,7 @@ public sealed class TenantCqrsTests
             scopeProperties);
 
         Assert.True(validation.IsValid, validation.Report);
-        Assert.Equal("tenant-a", scopeProperties[ObservabilityLogPropertyNames.TenantId]);
+        Assert.Equal(true, scopeProperties[ObservabilityLogPropertyNames.TenantScoped]);
     }
 
     [Fact]

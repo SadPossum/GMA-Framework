@@ -11,6 +11,7 @@ internal sealed class TenantCqrsLogScopeContributor(ITenantContext tenantContext
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(scopeProperties);
 
-        scopeProperties[ObservabilityLogPropertyNames.TenantId] = tenantContext.TenantId;
+        scopeProperties[ObservabilityLogPropertyNames.TenantScoped] =
+            !string.IsNullOrWhiteSpace(tenantContext.TenantId);
     }
 }

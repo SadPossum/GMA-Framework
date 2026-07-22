@@ -53,9 +53,9 @@ internal sealed class OutboxBacklogMonitorService(
             catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 logger.LogWarning(
-                    exception,
-                    "Failed to observe outbox backlog for module {ModuleName}",
-                    reader.ModuleName);
+                    "Failed to observe outbox backlog for module {ModuleName} with {ExceptionType}",
+                    reader.ModuleName,
+                    exception.GetType().Name);
             }
         }
     }

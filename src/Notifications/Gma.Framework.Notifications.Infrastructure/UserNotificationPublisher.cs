@@ -82,13 +82,10 @@ internal sealed class UserNotificationPublisher(
             catch (Exception exception)
             {
                 logger.LogWarning(
-                    exception,
-                    "User notification {NotificationId} history persistence failed open for module {Module}, notification {NotificationName}, tenant {ScopeId}, and user {UserId}.",
-                    message.Id,
+                    "User notification history persistence failed open for module {Module} and notification {NotificationName} with {ExceptionType}.",
                     message.Module,
                     message.Name,
-                    message.ScopeId,
-                    message.UserId);
+                    exception.GetType().Name);
             }
         }
     }
@@ -141,8 +138,7 @@ internal sealed class UserNotificationPublisher(
                 if (result.Outcome is NotificationSinkDeliveryOutcome.Retry or NotificationSinkDeliveryOutcome.Rejected)
                 {
                     logger.LogWarning(
-                        "User notification {NotificationId} delivery through {NotificationProvider} returned {DeliveryOutcome} with code {DeliveryCode} for module {Module} and notification {NotificationName}.",
-                        message.Id,
+                        "User notification delivery through {NotificationProvider} returned {DeliveryOutcome} with code {DeliveryCode} for module {Module} and notification {NotificationName}.",
                         sink.ProviderName,
                         result.Outcome,
                         result.Code,
@@ -158,14 +154,11 @@ internal sealed class UserNotificationPublisher(
             {
                 metrics.RecordDelivery(message.Module, message.Name, sink.ProviderName, "failure", stopwatch.Elapsed);
                 logger.LogWarning(
-                    exception,
-                    "User notification {NotificationId} delivery failed open through {NotificationProvider} for module {Module}, notification {NotificationName}, tenant {ScopeId}, and user {UserId}.",
-                    message.Id,
+                    "User notification delivery failed open through {NotificationProvider} for module {Module} and notification {NotificationName} with {ExceptionType}.",
                     sink.ProviderName,
                     message.Module,
                     message.Name,
-                    message.ScopeId,
-                    message.UserId);
+                    exception.GetType().Name);
             }
         }
     }
@@ -199,8 +192,7 @@ internal sealed class UserNotificationPublisher(
                 {
                     allowed = false;
                     logger.LogWarning(
-                        "User notification {NotificationId} delivery policy for {NotificationProvider} and {DeliveryTag} failed closed with {ExceptionType}.",
-                        message.Id,
+                        "User notification delivery policy for {NotificationProvider} and {DeliveryTag} failed closed with {ExceptionType}.",
                         sink.ProviderName,
                         deliveryTag,
                         exception.GetType().Name);

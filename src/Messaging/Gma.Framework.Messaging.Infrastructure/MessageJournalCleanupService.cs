@@ -113,10 +113,10 @@ internal sealed class MessageJournalCleanupService(
         {
             this.TryRecordDeleted(moduleName, journal, deletedTotal);
             logger.LogError(
-                exception,
-                "Failed to clean processed {Journal} messages for module {ModuleName}; other stores will continue.",
+                "Failed to clean processed {Journal} messages for module {ModuleName} with {ExceptionType}; other stores will continue.",
                 journal,
-                moduleName);
+                moduleName,
+                exception.GetType().Name);
         }
     }
 

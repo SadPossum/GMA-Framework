@@ -31,8 +31,7 @@ internal sealed class OptimisticConcurrencyExceptionHandler(IProblemDetailsServi
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
-            ProblemDetails = problemDetails,
-            Exception = exception
+            ProblemDetails = problemDetails
         }).ConfigureAwait(false);
     }
 }

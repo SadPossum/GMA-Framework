@@ -229,10 +229,9 @@ internal sealed class AdminOperationRunner(
         try
         {
             logger.LogError(
-                exception,
-                "Admin operation {OperationName} failed unexpectedly for actor {ActorId}",
+                "Admin operation {OperationName} failed unexpectedly with {ExceptionType}",
                 context.Operation.Name,
-                context.Actor.Id);
+                exception.GetType().Name);
         }
         catch (Exception)
         {
@@ -245,10 +244,9 @@ internal sealed class AdminOperationRunner(
         try
         {
             logger.LogError(
-                exception,
-                "Admin audit failed for operation {OperationName} and actor {ActorId}",
+                "Admin audit failed for operation {OperationName} with {ExceptionType}",
                 context.Operation.Name,
-                context.Actor.Id);
+                exception.GetType().Name);
         }
         catch (Exception)
         {
