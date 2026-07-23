@@ -23,6 +23,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Realtime](architecture/realtime.md)
 - [Notifications and Streaming](architecture/notifications-and-streaming.md)
 - [Observability](architecture/observability.md)
+- [Exception-Safe Observability Hardening Task](architecture/exception-safe-observability-task.md)
 - [Caching](architecture/caching.md)
 - [Administration](architecture/administration.md)
 - [Generic Access Control And RBAC Refactor Task](architecture/generic-access-control-rbac-task.md)
