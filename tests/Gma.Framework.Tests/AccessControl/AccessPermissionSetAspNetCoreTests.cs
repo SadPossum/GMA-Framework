@@ -5,6 +5,7 @@ using Gma.Framework.AccessControl;
 using Gma.Framework.AccessControl.AspNetCore;
 using Gma.Framework.Permissions;
 using Gma.Framework.Security;
+using Gma.Framework.Tenancy.AccessControl.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.DependencyInjection;
@@ -90,6 +91,17 @@ public sealed class AccessPermissionSetAspNetCoreTests
             new(PermissionCode.Create("data.erase"));
         Assert.Throws<ArgumentException>(() =>
             new AccessPermissionSetMetadata([requirement, requirement]));
+    }
+
+    [Fact]
+    public void Tenant_permission_metadata_uses_the_registered_tenant_scope_resolver()
+    {
+        AccessPermissionMetadata metadata =
+            TenantAccessPermissionMetadata.Create("data.erase");
+
+        Assert.Equal("data.erase", metadata.Permission.Value);
+        Assert.Equal("tenant", metadata.ScopeResolverName);
+        Assert.True(metadata.RequireScope);
     }
 
     private static DefaultHttpContext CreateHttpContext(

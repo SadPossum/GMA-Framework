@@ -17,7 +17,10 @@ public static class TenantAccessPermissionEndpointRouteBuilderExtensions
         PermissionCode permission)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RequireResolvedScopePermission(permission, TenantAccessScopeResolver.ResolverName);
+        AccessPermissionMetadata metadata = TenantAccessPermissionMetadata.Create(permission);
+        return builder.RequireResolvedScopePermission(
+            metadata.Permission,
+            metadata.ScopeResolverName!);
     }
 
     public static RouteGroupBuilder RequireTenantPermission(
@@ -30,6 +33,9 @@ public static class TenantAccessPermissionEndpointRouteBuilderExtensions
         PermissionCode permission)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.RequireResolvedScopePermission(permission, TenantAccessScopeResolver.ResolverName);
+        AccessPermissionMetadata metadata = TenantAccessPermissionMetadata.Create(permission);
+        return builder.RequireResolvedScopePermission(
+            metadata.Permission,
+            metadata.ScopeResolverName!);
     }
 }
