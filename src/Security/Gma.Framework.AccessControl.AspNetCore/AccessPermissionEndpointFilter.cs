@@ -21,9 +21,19 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
             return await next(context).ConfigureAwait(false);
         }
 
+        IResult? denied = await AuthorizeAsync(
+            context.HttpContext,
+            [metadata]).ConfigureAwait(false);
+        return denied ?? await next(context).ConfigureAwait(false);
+    }
+
+    internal static async ValueTask<IResult?> AuthorizeAsync(
+        HttpContext httpContext,
+        IReadOnlyList<AccessPermissionMetadata> requirements)
+    {
         IAccessHttpSubjectResolver subjectResolver =
-            context.HttpContext.RequestServices.GetRequiredService<IAccessHttpSubjectResolver>();
-        AccessSubject? subject = subjectResolver.ResolveSubject(context.HttpContext);
+            httpContext.RequestServices.GetRequiredService<IAccessHttpSubjectResolver>();
+        AccessSubject? subject = subjectResolver.ResolveSubject(httpContext);
         if (subject is null)
         {
             return Problem(
@@ -32,28 +42,40 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
                 StatusCodes.Status401Unauthorized);
         }
 
-        AccessScopeResolutionResult scopeResult = await ResolveScopeAsync(context.HttpContext, metadata)
-            .ConfigureAwait(false);
-        if (!scopeResult.IsSuccess)
-        {
-            return Problem(scopeResult.ErrorCode!, scopeResult.ErrorMessage!, scopeResult.StatusCode);
-        }
-
         IAccessAuthorizationService authorization =
-            context.HttpContext.RequestServices.GetRequiredService<IAccessAuthorizationService>();
-        AccessDecision decision = await authorization
-            .AuthorizeAsync(new AccessRequirement(subject, metadata.Permission, scopeResult.Scope!), context.HttpContext.RequestAborted)
-            .ConfigureAwait(false);
-
-        if (!decision.IsAllowed)
+            httpContext.RequestServices.GetRequiredService<IAccessAuthorizationService>();
+        foreach (AccessPermissionMetadata requirement in requirements)
         {
-            return Problem(
-                AccessControlHttpErrorCodes.Unauthorized,
-                decision.Message ?? "The authenticated subject is not allowed to perform this action.",
-                StatusCodes.Status403Forbidden);
+            AccessScopeResolutionResult scopeResult = await ResolveScopeAsync(
+                httpContext,
+                requirement).ConfigureAwait(false);
+            if (!scopeResult.IsSuccess)
+            {
+                return Problem(
+                    scopeResult.ErrorCode!,
+                    scopeResult.ErrorMessage!,
+                    scopeResult.StatusCode);
+            }
+
+            AccessDecision decision = await authorization
+                .AuthorizeAsync(
+                    new AccessRequirement(
+                        subject,
+                        requirement.Permission,
+                        scopeResult.Scope!),
+                    httpContext.RequestAborted)
+                .ConfigureAwait(false);
+            if (!decision.IsAllowed)
+            {
+                return Problem(
+                    AccessControlHttpErrorCodes.Unauthorized,
+                    decision.Message ??
+                        "The authenticated subject is not allowed to perform this action.",
+                    StatusCodes.Status403Forbidden);
+            }
         }
 
-        return await next(context).ConfigureAwait(false);
+        return null;
     }
 
     private static async ValueTask<AccessScopeResolutionResult> ResolveScopeAsync(

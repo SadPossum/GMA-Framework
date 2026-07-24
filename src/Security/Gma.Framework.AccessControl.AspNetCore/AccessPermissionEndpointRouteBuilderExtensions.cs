@@ -8,6 +8,16 @@ using Microsoft.AspNetCore.Routing;
 
 public static class AccessPermissionEndpointRouteBuilderExtensions
 {
+    public static RouteHandlerBuilder RequireAllPermissions(
+        this RouteHandlerBuilder builder,
+        params AccessPermissionMetadata[] requirements)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        AccessPermissionSetMetadata metadata = new(requirements);
+        builder.Add(endpointBuilder => endpointBuilder.Metadata.Add(metadata));
+        return builder.AddEndpointFilter<AccessPermissionSetEndpointFilter>();
+    }
+
     public static RouteHandlerBuilder RequirePermission(
         this RouteHandlerBuilder builder,
         string permissionCode) =>

@@ -242,6 +242,9 @@ Rules:
 - keep admin operation authorization in `Gma.Framework.Administration`; compose `Gma.Framework.Administration.AccessControl` and `Gma.Modules.AccessControl` only when persisted RBAC should authorize admin operations;
 - define business access actors, policies, and query scopes in the owning module domain when the rule is part of product behavior;
 - use direct application checks for simple operational rules that do not shape persistence;
+- use `RequireAllPermissions(...)` when one HTTP operation requires independent
+  permissions in different scopes; keep each scope resolver explicit and fail
+  the whole request when any requirement is unavailable or denied;
 - construct identity-only `AccessSubject` values explicitly at front doors, workers, or tests;
 - pass tenant/resource context through `AccessScope` or module-owned typed visibility scopes, not through `AccessSubject`;
 - keep ASP.NET Core, EF, Auth, Administration, Tenancy runtime, NATS, Redis, and external policy engines out of `Gma.Framework.AccessControl`;
