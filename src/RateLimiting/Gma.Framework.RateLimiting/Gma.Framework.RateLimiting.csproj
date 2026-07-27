@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+  </ItemGroup>
+</Project>

@@ -33,6 +33,7 @@
     <File Path="docs/adr/0013-tagged-durable-notification-delivery.md" />
   </Folder>
   <Folder Name="/docs/architecture/">
+    <File Path="docs/architecture/atomic-distributed-rate-limiting.md" />
     <File Path="docs/architecture/administration.md" />
     <File Path="docs/architecture/audit-follow-up-notes.md" />
     <File Path="docs/architecture/audit-hardening-notes.md" />
@@ -138,6 +139,9 @@
     <Project Path="src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.EntityFrameworkCore/Gma.Framework.ProjectionRebuild.EntityFrameworkCore.csproj" />
     <Project Path="src/ProjectionRebuild/Gma.Framework.ProjectionRebuild.Tasks/Gma.Framework.ProjectionRebuild.Tasks.csproj" />
     <Project Path="src/ProjectionRebuild/Gma.Framework.ProjectionRebuild/Gma.Framework.ProjectionRebuild.csproj" />
+    <Project Path="src/RateLimiting/Gma.Framework.RateLimiting.Infrastructure/Gma.Framework.RateLimiting.Infrastructure.csproj" />
+    <Project Path="src/RateLimiting/Gma.Framework.RateLimiting.Redis/Gma.Framework.RateLimiting.Redis.csproj" />
+    <Project Path="src/RateLimiting/Gma.Framework.RateLimiting/Gma.Framework.RateLimiting.csproj" />
     <Project Path="src/Realtime/Gma.Framework.Realtime.Infrastructure/Gma.Framework.Realtime.Infrastructure.csproj" />
     <Project Path="src/Realtime/Gma.Framework.Realtime.Notifications/Gma.Framework.Realtime.Notifications.csproj" />
     <Project Path="src/Realtime/Gma.Framework.Realtime/Gma.Framework.Realtime.csproj" />

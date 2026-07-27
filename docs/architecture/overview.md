@@ -13,6 +13,7 @@ GMA Framework is a set of reusable capability packages for modular monolith appl
 - Use neutral scoping for reusable modules that need isolation without owning tenant semantics.
 - Keep metrics, logging, and tracing vendor-neutral inside modules.
 - Keep caching explicit, optional, tenant-safe, and provider-independent inside modules.
+- Keep rate-limit policy product-owned while offering optional atomic local and distributed providers.
 - Keep user notifications optional and front-door focused; backend integration still goes through events/outbox/inbox.
 
 ## Current Shape
@@ -85,6 +86,10 @@ GMA-Framework/
       Gma.Framework.ProjectionRebuild/
       Gma.Framework.ProjectionRebuild.EntityFrameworkCore/
       Gma.Framework.ProjectionRebuild.Tasks/
+    RateLimiting/
+      Gma.Framework.RateLimiting/
+      Gma.Framework.RateLimiting.Infrastructure/
+      Gma.Framework.RateLimiting.Redis/
     Realtime/
       Gma.Framework.Realtime/
       Gma.Framework.Realtime.Infrastructure/
@@ -358,6 +363,21 @@ Gma.Framework.Caching.Infrastructure
   -> Gma.Framework.Naming
   -> Gma.Framework.Observability
   -> Gma.Framework.Observability.Infrastructure
+  -> Gma.Framework.Runtime
+  -> Gma.Framework.Runtime.Infrastructure
+
+Gma.Framework.RateLimiting
+  -> Gma.Framework.ModuleComposition
+
+Gma.Framework.RateLimiting.Infrastructure
+  -> Gma.Framework.RateLimiting
+  -> Gma.Framework.ModuleComposition
+  -> Gma.Framework.Runtime
+  -> Gma.Framework.Runtime.Infrastructure
+
+Gma.Framework.RateLimiting.Redis
+  -> Gma.Framework.RateLimiting
+  -> Gma.Framework.ModuleComposition
   -> Gma.Framework.Runtime
   -> Gma.Framework.Runtime.Infrastructure
 

@@ -32,6 +32,7 @@ The shared core is intentionally small:
 - `Gma.Framework.ModuleComposition` owns module profile, provided-feature, required-feature, required-module, and fail-fast composition validation primitives. It references only `Gma.Framework.Modules`, `Gma.Framework.Naming`, and hosting abstractions needed by composition roots.
 - `Gma.Framework.Permissions` owns permission metadata descriptor extensions and references only `Gma.Framework.Modules` and `Gma.Framework.Naming`.
 - `Gma.Framework.Caching` owns cache contracts, provider/options seams, adapter markers, cache descriptor metadata, and cache composition feature ids. It references `Gma.Framework.ModuleComposition`, `Gma.Framework.Modules`, and `Gma.Framework.Naming`.
+- `Gma.Framework.RateLimiting` owns bounded atomic fixed-window contracts, provider registration metadata, and rate-limiting composition feature ids. Products own identities, quota values, and outcome policy.
 - `Gma.Framework.Messaging` owns integration event, outbox/inbox, subscription, messaging descriptor contracts, and messaging composition feature ids. It references shared primitives plus DI abstractions, not transport adapters.
 - `Gma.Framework.Tasks` owns task contracts, task descriptor metadata, and task runtime composition feature ids. It does not reference CQRS or runtime adapters.
 - `Gma.Framework.Caching.Cqrs` owns the optional bridge for flushing deferred cache invalidations after successful CQRS unit-of-work commits.
@@ -45,7 +46,7 @@ The shared core is intentionally small:
 - `Gma.Framework.Application.Events` owns domain-event handler and dispatcher contracts. It references `Gma.Framework.Domain` only.
 - `Gma.Framework.Pagination` owns normalized paging request helpers and remains dependency-free.
 - `Gma.Framework.Application.Composition` owns constrained application assembly registration only. It may reference `Gma.Framework.Application.Events`, `Gma.Framework.Cqrs`, and small dependency-injection abstractions, but not domain models directly, HTTP, EF, messaging transports, cache backends, logging backends, hosting, or provider packages.
-- Adapter projects such as `Gma.Framework.Infrastructure`, `Gma.Framework.Application.Events.Infrastructure`, `Gma.Framework.Cqrs.Infrastructure`, `Gma.Framework.Runtime.Infrastructure`, `Gma.Framework.Tenancy.Infrastructure`, `Gma.Framework.Tenancy.Api.Serilog`, `Gma.Framework.Tenancy.Caching`, `Gma.Framework.Tenancy.Cqrs`, `Gma.Framework.Tenancy.Tasks`, `Gma.Framework.Caching.Infrastructure`, `Gma.Framework.Caching.Cqrs`, `Gma.Framework.Messaging.Infrastructure`, `Gma.Framework.Messaging.Nats`, `Gma.Framework.Tasks.Infrastructure`, `Gma.Framework.ProjectionRebuild.Tasks`, `Gma.Framework.Persistence.EntityFrameworkCore`, `Gma.Framework.Api.*`, `Gma.Framework.Caching.Redis`, `Gma.Framework.Messaging.Nats.Aspire`, and `Gma.Framework.Logging.Serilog` own concrete runtime packages.
+- Adapter projects such as `Gma.Framework.Infrastructure`, `Gma.Framework.Application.Events.Infrastructure`, `Gma.Framework.Cqrs.Infrastructure`, `Gma.Framework.Runtime.Infrastructure`, `Gma.Framework.Tenancy.Infrastructure`, `Gma.Framework.Tenancy.Api.Serilog`, `Gma.Framework.Tenancy.Caching`, `Gma.Framework.Tenancy.Cqrs`, `Gma.Framework.Tenancy.Tasks`, `Gma.Framework.Caching.Infrastructure`, `Gma.Framework.Caching.Cqrs`, `Gma.Framework.RateLimiting.Infrastructure`, `Gma.Framework.RateLimiting.Redis`, `Gma.Framework.Messaging.Infrastructure`, `Gma.Framework.Messaging.Nats`, `Gma.Framework.Tasks.Infrastructure`, `Gma.Framework.ProjectionRebuild.Tasks`, `Gma.Framework.Persistence.EntityFrameworkCore`, `Gma.Framework.Api.*`, `Gma.Framework.Caching.Redis`, `Gma.Framework.Messaging.Nats.Aspire`, and `Gma.Framework.Logging.Serilog` own concrete runtime packages.
 
 This keeps every module free to depend on shared contracts and primitives without inheriting optional infrastructure choices.
 
@@ -62,6 +63,8 @@ Shared project ownership quick reference:
 - `Gma.Framework.Tenancy.Tasks`: optional tenant-to-task execution bridge that prepares tenant context for scope-aware task handlers without making task infrastructure depend on tenancy.
 - `Gma.Framework.Caching.Infrastructure`: HybridCache-backed cache-aside runtime, cache invalidation queue, cache metrics, and cache option validation.
 - `Gma.Framework.Caching.Cqrs`: optional command pipeline bridge that flushes deferred cache invalidations after successful CQRS unit-of-work commits.
+- `Gma.Framework.RateLimiting.Infrastructure`: atomic in-memory fixed-window provider for development, tests, and single-process tools.
+- `Gma.Framework.RateLimiting.Redis`: atomic Redis fixed-window provider for multi-node enforcement.
 - `Gma.Framework.Messaging.Infrastructure`: EF outbox/inbox base helpers, outbox publisher, outbox options, a null event bus, and messaging metrics.
 - `Gma.Framework.Messaging.Nats`: NATS JetStream publisher/consumer runtime, NATS options, and low-level NATS composition hooks.
 - `Gma.Framework.Tasks.Infrastructure`: EF task-run store base, task worker/scheduler hosted services, task control loop, task options, and task metrics.
@@ -87,6 +90,7 @@ Shared project ownership quick reference:
 - `Gma.Framework.Security`: shared claim/security constants and authentication-assurance requirements.
 - `Gma.Framework.Security.AspNetCore`: optional authentication-assurance endpoint enforcement.
 - `Gma.Framework.Caching`: cache-aside contracts, cache key/tag primitives, provider/options contracts, distributed adapter registration marker, and cache descriptor metadata.
+- `Gma.Framework.RateLimiting`: bounded atomic fixed-window requests, decisions, provider contracts, and composition features.
 - `Gma.Framework.Tenancy.Caching`: optional tenant-to-cache scope bridge.
 - `Gma.Framework.Tenancy.Tasks`: optional tenant-to-task execution context bridge.
 - `Gma.Framework.Caching.Cqrs`: optional cache-to-CQRS invalidation bridge.
@@ -100,6 +104,7 @@ Shared project ownership quick reference:
 - `Gma.Framework.Tenancy.Api.Serilog`: optional tenant-to-request-logging enrichment bridge.
 - `Gma.Framework.Logging.Serilog`: host logging configuration package ownership.
 - `Gma.Framework.Caching.Redis`: Redis cache adapter package ownership. It depends only on `Gma.Framework.Caching` contracts plus Redis packages, not the HybridCache runtime package.
+- `Gma.Framework.RateLimiting.Redis`: Redis atomic quota adapter package ownership. It keeps product policy outside the framework and hashes caller identities before storage.
 - `Gma.Framework.Messaging.Nats.Aspire`: Aspire/NATS client composition package ownership.
 - `Gma.Framework.Administration`: backend-agnostic administrative execution, authorization, and audit-write contracts.
 - `Gma.Framework.Administration.Cli`: System.CommandLine administration front-door helpers.

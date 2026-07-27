@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gma.Framework.RateLimiting\Gma.Framework.RateLimiting.csproj" />
+    <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
+    <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime.Infrastructure\Gma.Framework.Runtime.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -25,6 +25,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Observability](architecture/observability.md)
 - [Exception-Safe Observability Hardening Task](architecture/exception-safe-observability-task.md)
 - [Caching](architecture/caching.md)
+- [Atomic Distributed Rate Limiting](architecture/atomic-distributed-rate-limiting.md)
 - [Administration](architecture/administration.md)
 - [Generic Access Control And RBAC Refactor Task](architecture/generic-access-control-rbac-task.md)
 - [Shared Access Policy Foundation](architecture/shared-access-policy-foundation.md)
