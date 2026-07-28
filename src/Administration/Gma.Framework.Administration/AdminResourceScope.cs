@@ -5,7 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 
 public sealed class AdminResourceScope
 {
-    // Leaves room for a maximum tenant segment in the 1,024-character AccessScope contract.
+    // Keeps canonical resource scopes bounded across authorization, audit, and transport surfaces.
     public const int MaxLength = 888;
 
     private readonly ReadOnlyCollection<AdminResourceScopeSegment> segments;
