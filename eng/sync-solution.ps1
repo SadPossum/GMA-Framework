@@ -221,7 +221,7 @@ function ConvertTo-GmaSolutionXml {
     }
 
     $document = [System.Xml.Linq.XDocument]::new($solutionElement)
-    return $document.ToString() + [Environment]::NewLine
+    return $document.ToString().Replace("`r`n", "`n").TrimEnd() + "`n"
 }
 
 $folders = @{}

@@ -81,6 +81,10 @@ public sealed class CompositionToolingTests
         Assert.DoesNotContain("ProjectPrefix = \"Gma.Modules.", addMigration, StringComparison.Ordinal);
         Assert.Contains("System.Xml.Linq.XDocument", syncSolution, StringComparison.Ordinal);
         Assert.Contains("[switch] $Check", syncSolution, StringComparison.Ordinal);
+        Assert.Contains(
+            "$document.ToString().Replace(\"`r`n\", \"`n\").TrimEnd() + \"`n\"",
+            syncSolution,
+            StringComparison.Ordinal);
     }
 
     [Fact]
