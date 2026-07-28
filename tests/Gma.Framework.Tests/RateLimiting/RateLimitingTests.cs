@@ -47,7 +47,7 @@ public sealed class RateLimitingTests
         var source = new List<FixedWindowRateLimitPartition> { first };
 
         var request = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:alpha",
+            "workload:alpha",
             permitCount: 2,
             source);
         source.Clear();
@@ -55,17 +55,17 @@ public sealed class RateLimitingTests
         Assert.Single(request.Partitions);
         _ = Assert.Throws<ArgumentException>(() =>
             new MultiPartitionRateLimitRequest(
-                "adapter-ingress:alpha",
+                "workload:alpha",
                 permitCount: 1,
                 [first, first]));
         _ = Assert.Throws<ArgumentException>(() =>
             new MultiPartitionRateLimitRequest(
-                "adapter-ingress:alpha",
+                "workload:alpha",
                 permitCount: 11,
                 [first]));
         _ = Assert.Throws<ArgumentException>(() =>
             new MultiPartitionRateLimitRequest(
-                "adapter ingress alpha",
+                "workload alpha",
                 permitCount: 1,
                 [first]));
     }
@@ -76,7 +76,7 @@ public sealed class RateLimitingTests
         MutableClock clock = new(WindowStart);
         var limiter = new InMemoryMultiPartitionRateLimiter(clock);
         var request = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:alpha",
+            "workload:alpha",
             permitCount: 1,
             [Partition("tenant:alpha", permitLimit: 1)]);
 
@@ -104,11 +104,11 @@ public sealed class RateLimitingTests
         var limiter = new InMemoryMultiPartitionRateLimiter(
             new MutableClock(WindowStart));
         FixedWindowRateLimitPartition constrained =
-            Partition("credential:one", permitLimit: 1);
+            Partition("principal:one", permitLimit: 1);
         FixedWindowRateLimitPartition shared =
             Partition("tenant:alpha", permitLimit: 10);
         var combined = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:alpha",
+            "workload:alpha",
             permitCount: 1,
             [constrained, shared]);
 
@@ -120,7 +120,7 @@ public sealed class RateLimitingTests
             (await limiter.AcquireAsync(combined)).Outcome);
 
         var consumeRemainingSharedCapacity = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:alpha",
+            "workload:alpha",
             permitCount: 9,
             [shared]);
         Assert.Equal(
@@ -136,11 +136,11 @@ public sealed class RateLimitingTests
         FixedWindowRateLimitPartition sharedDescriptor =
             Partition("tenant", permitLimit: 1);
         var firstTenant = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:tenant-a",
+            "workload:tenant-a",
             permitCount: 1,
             [sharedDescriptor]);
         var secondTenant = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:tenant-b",
+            "workload:tenant-b",
             permitCount: 1,
             [sharedDescriptor]);
 
@@ -161,7 +161,7 @@ public sealed class RateLimitingTests
         var limiter = new InMemoryMultiPartitionRateLimiter(
             new MutableClock(WindowStart));
         var request = new MultiPartitionRateLimitRequest(
-            "adapter-ingress:alpha",
+            "workload:alpha",
             permitCount: 1,
             [Partition("tenant:alpha", permitLimit: 100)]);
 
@@ -272,7 +272,7 @@ public sealed class RateLimitingTests
 
         RedisKey first = formatter.Format(
             "tenant-secret",
-            Partition("credential-secret", permitLimit: 10));
+            Partition("principal-secret", permitLimit: 10));
         RedisKey second = formatter.Format(
             "tenant-secret",
             Partition("tenant-secret", permitLimit: 100));
@@ -280,7 +280,7 @@ public sealed class RateLimitingTests
         string secondText = second.ToString();
 
         Assert.DoesNotContain("tenant-secret", firstText, StringComparison.Ordinal);
-        Assert.DoesNotContain("credential-secret", firstText, StringComparison.Ordinal);
+        Assert.DoesNotContain("principal-secret", firstText, StringComparison.Ordinal);
         Assert.Equal(ExtractHashTag(firstText), ExtractHashTag(secondText));
         Assert.StartsWith(
             "gma-tests:tests:rate-limit:",
