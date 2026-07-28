@@ -38,6 +38,8 @@ public sealed class ForwardedHeadersSettings
     public int ForwardLimit { get; set; } = 1;
 
     public string[] KnownProxies { get; set; } = [];
+
+    public string[] KnownNetworks { get; set; } = [];
 }
 
 public sealed class CorsSettings
@@ -60,6 +62,8 @@ public sealed class RateLimitingSettings
 {
     public bool Enabled { get; set; } = true;
 
+    public HttpRateLimitMode Mode { get; set; } = HttpRateLimitMode.InProcess;
+
     public int GlobalPermitLimit { get; set; } = 300;
 
     public int SensitivePermitLimit { get; set; } = 10;
@@ -76,4 +80,10 @@ public sealed class RateLimitingSettings
         "/api/auth/external",
         "/api/auth/email-verification"
     ];
+}
+
+public enum HttpRateLimitMode
+{
+    InProcess = 0,
+    Distributed = 1
 }

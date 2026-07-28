@@ -2,6 +2,8 @@ namespace Gma.Framework.Api.Production;
 
 using System.Net;
 using System.Threading.RateLimiting;
+using Gma.Framework.ModuleComposition;
+using Gma.Framework.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Timeouts;
@@ -53,6 +55,14 @@ public static class DependencyInjection
         ConfigureCors(builder.Services, options.Cors);
         ConfigureRequestTimeouts(builder.Services, options.RequestTimeouts);
         ConfigureRateLimiting(builder.Services, options.RateLimiting);
+        if (options.RateLimiting.Enabled &&
+            options.RateLimiting.Mode == HttpRateLimitMode.Distributed)
+        {
+            builder.RequireFeature(
+                RateLimitingCompositionFeatures.DistributedProviderRequired(
+                    "Gma.Framework.Api.Production",
+                    "Distributed HTTP rate limiting requires a distributed atomic rate-limit provider."));
+        }
 
         return builder;
     }
@@ -131,9 +141,15 @@ public static class DependencyInjection
             app.UseRequestTimeouts();
         }
 
-        if (options.RateLimiting.Enabled)
+        if (options.RateLimiting.Enabled &&
+            options.RateLimiting.Mode == HttpRateLimitMode.InProcess)
         {
             app.UseRateLimiter();
+        }
+        else if (options.RateLimiting.Enabled &&
+                 options.RateLimiting.Mode == HttpRateLimitMode.Distributed)
+        {
+            app.UseMiddleware<DistributedHttpRateLimitMiddleware>();
         }
 
         return app;
@@ -154,18 +170,22 @@ public static class DependencyInjection
                                           ForwardedHeaders.XForwardedProto |
                                           ForwardedHeaders.XForwardedHost;
             configured.ForwardLimit = options.ForwardLimit;
+            configured.KnownIPNetworks.Clear();
+            configured.KnownProxies.Clear();
 
             if (options.AllowUnknownProxies)
             {
-                configured.KnownIPNetworks.Clear();
-                configured.KnownProxies.Clear();
+                return;
             }
-            else
+
+            foreach (string knownProxy in options.KnownProxies)
             {
-                foreach (string knownProxy in options.KnownProxies)
-                {
-                    configured.KnownProxies.Add(IPAddress.Parse(knownProxy));
-                }
+                configured.KnownProxies.Add(IPAddress.Parse(knownProxy));
+            }
+
+            foreach (string knownNetwork in options.KnownNetworks)
+            {
+                configured.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(knownNetwork));
             }
         });
     }
@@ -227,30 +247,42 @@ public static class DependencyInjection
                     .ConfigureAwait(false);
             };
 
-            if (!options.Enabled)
+            if (!options.Enabled || options.Mode != HttpRateLimitMode.InProcess)
             {
                 return;
             }
 
-            configured.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            PartitionedRateLimiter<HttpContext> general =
+                PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
-                bool sensitive = options.SensitivePathPrefixes.Any(prefix =>
-                    context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
-                string client = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                string partitionKey = $"{(sensitive ? "sensitive" : "global")}:{client}";
-                int permitLimit = sensitive ? options.SensitivePermitLimit : options.GlobalPermitLimit;
-
                 return RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey,
+                    $"general:{HttpRateLimitPolicy.ClientPartition(context)}",
                     _ => new FixedWindowRateLimiterOptions
                     {
                         AutoReplenishment = true,
-                        PermitLimit = permitLimit,
+                        PermitLimit = options.GlobalPermitLimit,
                         QueueLimit = 0,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                         Window = TimeSpan.FromSeconds(options.WindowSeconds)
                     });
             });
+            PartitionedRateLimiter<HttpContext> sensitive =
+                PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                    HttpRateLimitPolicy.IsSensitive(context, options)
+                        ? RateLimitPartition.GetFixedWindowLimiter(
+                            $"sensitive:{HttpRateLimitPolicy.ClientPartition(context)}",
+                            _ => new FixedWindowRateLimiterOptions
+                            {
+                                AutoReplenishment = true,
+                                PermitLimit = options.SensitivePermitLimit,
+                                QueueLimit = 0,
+                                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                                Window = TimeSpan.FromSeconds(options.WindowSeconds)
+                            })
+                        : RateLimitPartition.GetNoLimiter("not-sensitive"));
+
+            configured.GlobalLimiter =
+                PartitionedRateLimiter.CreateChained(general, sensitive);
         });
     }
 

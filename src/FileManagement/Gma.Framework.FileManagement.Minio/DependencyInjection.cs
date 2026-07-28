@@ -36,7 +36,7 @@ public static class DependencyInjection
 
         IConfigurationSection minio = builder.Configuration.GetSection(MinioFileStorageOptions.SectionName);
         MinioFileStorageOptions minioOptions = minio.Get<MinioFileStorageOptions>() ?? new MinioFileStorageOptions();
-        ValidateMinioOptions(minioOptions);
+        ValidateMinioOptions(minioOptions, builder.Environment.IsProduction());
 
         builder.Services.AddSingleton<MinioFileStorageRegistrationMarker>();
         builder.ProvideFeature(new ProvidedCompositionFeature(
@@ -87,15 +87,19 @@ public static class DependencyInjection
     private static bool IsValidFileManagementOptions(FileManagementOptions options) =>
         FileManagementOptionsValidation.Validate(options).Length == 0;
 
-    private static void ValidateMinioOptions(MinioFileStorageOptions options)
+    private static void ValidateMinioOptions(
+        MinioFileStorageOptions options,
+        bool isProduction)
     {
-        ValidateOptionsResult result = new MinioFileStorageOptionsValidator().Validate(name: null, options);
-        if (result.Failed)
+        string[] failures = MinioFileStorageOptionsValidation.Validate(
+            options,
+            isProduction);
+        if (failures.Length > 0)
         {
             throw new OptionsValidationException(
                 MinioFileStorageOptions.SectionName,
                 typeof(MinioFileStorageOptions),
-                result.Failures);
+                failures);
         }
     }
 

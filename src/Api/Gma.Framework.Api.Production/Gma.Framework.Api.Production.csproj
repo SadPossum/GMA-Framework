@@ -4,5 +4,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Cqrs\Gma.Framework.Cqrs\Gma.Framework.Cqrs.csproj" />
+    <ProjectReference Include="..\..\Modules\Gma.Framework.ModuleComposition\Gma.Framework.ModuleComposition.csproj" />
+    <ProjectReference Include="..\..\RateLimiting\Gma.Framework.RateLimiting\Gma.Framework.RateLimiting.csproj" />
+    <ProjectReference Include="..\..\Runtime\Gma.Framework.Runtime\Gma.Framework.Runtime.csproj" />
   </ItemGroup>
 </Project>

@@ -20,6 +20,14 @@ The framework does not own:
 
 Products translate their own policy into bounded partition identities and decide how each outcome affects the use case.
 
+`Gma.Framework.Api.Production` can consume the same contract when
+`Http:RateLimiting:Mode` is `Distributed`. The HTTP integration hashes the
+resolved client address, atomically applies the general client budget plus any
+sensitive-path budget, and returns a bounded service-unavailable response when
+the provider cannot make an admission decision. Forwarded addresses are
+resolved before admission and are trusted only through configured proxy IPs or
+CIDR networks.
+
 ## Providers
 
 `Gma.Framework.RateLimiting.Infrastructure` supplies an in-memory provider for local development, tests, and single-process tools. It:

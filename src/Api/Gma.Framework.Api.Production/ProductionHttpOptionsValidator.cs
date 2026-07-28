@@ -56,6 +56,12 @@ internal static class ProductionHttpOptionsValidation
 
         if (options.RateLimiting.Enabled)
         {
+            if (!Enum.IsDefined(options.RateLimiting.Mode))
+            {
+                failures.Add(
+                    "Http:RateLimiting:Mode must be InProcess or Distributed.");
+            }
+
             if (options.RateLimiting.GlobalPermitLimit is < 1 or > 1_000_000)
             {
                 failures.Add("Http:RateLimiting:GlobalPermitLimit must be between 1 and 1000000.");
@@ -115,10 +121,28 @@ internal static class ProductionHttpOptionsValidation
             failures.Add("Http:ForwardedHeaders:KnownProxies must contain valid IP addresses.");
         }
 
-        if (!options.AllowUnknownProxies && options.KnownProxies.Length == 0)
+        string[] invalidNetworks = options.KnownNetworks
+            .Where(value => !IPNetwork.TryParse(value, out _))
+            .ToArray();
+        if (invalidNetworks.Length > 0)
         {
             failures.Add(
-                "Http:ForwardedHeaders requires at least one KnownProxies entry unless AllowUnknownProxies is explicitly enabled.");
+                "Http:ForwardedHeaders:KnownNetworks must contain valid CIDR networks.");
+        }
+
+        if (options.AllowUnknownProxies &&
+            (options.KnownProxies.Length > 0 || options.KnownNetworks.Length > 0))
+        {
+            failures.Add(
+                "Http:ForwardedHeaders cannot combine AllowUnknownProxies with KnownProxies or KnownNetworks.");
+        }
+
+        if (!options.AllowUnknownProxies &&
+            options.KnownProxies.Length == 0 &&
+            options.KnownNetworks.Length == 0)
+        {
+            failures.Add(
+                "Http:ForwardedHeaders requires at least one KnownProxies or KnownNetworks entry unless AllowUnknownProxies is explicitly enabled.");
         }
     }
 

@@ -13,6 +13,8 @@ public sealed class MinioFileStorageOptions
     public string BucketName { get; set; } = "generic-modular-api-files";
     public bool UseSsl { get; set; } = true;
     public bool CreateBucketIfMissing { get; set; } = true;
+    public bool AllowInsecureTransportInProduction { get; set; }
+    public bool AllowBucketCreationInProduction { get; set; }
 
     internal Uri ToEndpointUri()
     {
