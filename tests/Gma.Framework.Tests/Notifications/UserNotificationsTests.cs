@@ -382,6 +382,7 @@ public sealed class UserNotificationsTests
             [
                 typeof(ValidationCommandBehavior<TestCommand, Unit>),
                 typeof(LoggingCommandBehavior<TestCommand, Unit>),
+                typeof(CommandOutcomeObservationBehavior<TestCommand, Unit>),
                 typeof(NotificationRequestCommandBehavior<TestCommand, Unit>),
                 typeof(CommandUnitOfWorkBehavior<TestCommand, Unit>)
             ],

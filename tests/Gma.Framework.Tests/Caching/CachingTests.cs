@@ -464,6 +464,7 @@ public sealed class CachingTests
             [
                 typeof(ValidationCommandBehavior<TestCommand, Unit>),
                 typeof(LoggingCommandBehavior<TestCommand, Unit>),
+                typeof(CommandOutcomeObservationBehavior<TestCommand, Unit>),
                 typeof(CacheInvalidationCommandBehavior<TestCommand, Unit>),
                 typeof(CommandUnitOfWorkBehavior<TestCommand, Unit>)
             ],

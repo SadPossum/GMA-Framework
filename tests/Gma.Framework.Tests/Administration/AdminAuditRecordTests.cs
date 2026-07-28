@@ -62,6 +62,24 @@ public sealed class AdminAuditRecordTests
         Assert.Null(record.ErrorCode);
     }
 
+    [Fact]
+    public void Constructor_preserves_canonical_resource_scope()
+    {
+        AdminAuditRecord record = new(
+            Id,
+            "actor",
+            "tenant-a",
+            "properties.read",
+            "properties.read",
+            AdminAuditResult.Succeeded,
+            null,
+            CreatedAtUtc,
+            AdminResourceScope.Create(
+                AdminResourceScopeSegment.Create("property", "property-a")));
+
+        Assert.Equal("property:property-a", record.ResourceScope);
+    }
+
     [Theory]
     [InlineData("Succeeded", AdminAuditResult.Succeeded, "succeeded")]
     [InlineData("denied", AdminAuditResult.Denied, "denied")]

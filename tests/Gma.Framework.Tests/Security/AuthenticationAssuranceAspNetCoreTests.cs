@@ -80,6 +80,7 @@ public sealed class AuthenticationAssuranceAspNetCoreTests
         Assert.Contains("error=\"insufficient_user_authentication\"", challenge);
         Assert.Contains("acr_values=\"urn:test:acr:password urn:test:acr:mfa\"", challenge);
         Assert.Contains("max_age=\"90\"", challenge);
+        Assert.Equal(challenge, AuthenticationAssuranceChallenge.Create(requirement));
     }
 
     [Fact]

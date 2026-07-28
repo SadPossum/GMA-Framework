@@ -10,5 +10,6 @@
     <ProjectReference Include="..\..\Naming\Gma.Framework.Naming\Gma.Framework.Naming.csproj" />
     <ProjectReference Include="..\..\Tenancy\Gma.Framework.Tenancy\Gma.Framework.Tenancy.csproj" />
     <ProjectReference Include="..\..\Security\Gma.Framework.Security\Gma.Framework.Security.csproj" />
+    <ProjectReference Include="..\..\Security\Gma.Framework.Security.AspNetCore\Gma.Framework.Security.AspNetCore.csproj" />
   </ItemGroup>
 </Project>

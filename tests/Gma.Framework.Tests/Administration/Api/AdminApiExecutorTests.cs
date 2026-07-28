@@ -9,6 +9,8 @@ using Gma.Framework.Administration.Api;
 using Gma.Framework.Cqrs;
 using Gma.Framework.Tenancy;
 using Gma.Framework.Results;
+using Gma.Framework.Security;
+using Gma.Framework.Security.AspNetCore;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -63,13 +65,96 @@ public sealed class AdminApiExecutorTests
         Assert.Equal("failed", httpContext.Response.Headers["X-Admin-Audit"]);
     }
 
+    [Fact]
+    public async Task Configured_authentication_assurance_is_audited_and_challenged()
+    {
+        AuthenticationAssuranceRequirement requirement = new(
+            ["urn:test:acr:mfa"],
+            TimeSpan.FromMinutes(10));
+        RecordingAdminOperationRunner runner = new();
+        AdminApiExecutor executor = CreateExecutor(
+            out DefaultHttpContext httpContext,
+            runner: runner,
+            assurance: requirement);
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, "actor"),
+                new Claim(ApplicationClaimNames.AuthenticationContextReference, "urn:test:acr:password")
+            ],
+            authenticationType: "Test"));
+
+        IResult result = await executor.ExecuteAsync(
+            httpContext,
+            CreateOperation(),
+            requireTenant: false,
+            _ => Task.FromResult(Result.Success("value")),
+            CancellationToken.None);
+
+        await result.ExecuteAsync(httpContext);
+
+        Assert.NotNull(runner.Context);
+        Assert.Equal(
+            AuthenticationAssuranceHttpErrorCodes.InsufficientAuthentication,
+            runner.Context.PreAuthorizationError?.Code);
+        Assert.Equal(StatusCodes.Status401Unauthorized, httpContext.Response.StatusCode);
+        Assert.Contains(
+            "insufficient_user_authentication",
+            httpContext.Response.Headers.WWWAuthenticate.ToString());
+    }
+
+    [Fact]
+    public async Task Resource_scope_resolver_is_forwarded_to_the_operation_runner()
+    {
+        AdminResourceScope resourceScope = AdminResourceScope.Create(
+            AdminResourceScopeSegment.Create("property", "property-a"));
+        RecordingAdminOperationRunner runner = new();
+        AdminApiExecutor executor = CreateExecutor(
+            out DefaultHttpContext httpContext,
+            runner: runner,
+            resourceScopeResolver: new FixedResourceScopeResolver(resourceScope));
+
+        await executor.ExecuteAsync(
+            httpContext,
+            CreateOperation(),
+            requireTenant: false,
+            _ => Task.FromResult(Result.Success("value")),
+            CancellationToken.None);
+
+        Assert.Same(resourceScope, runner.Context?.ResourceScope);
+    }
+
+    [Fact]
+    public async Task Invalid_resource_scope_is_audited_as_pre_authorization_failure()
+    {
+        RecordingAdminOperationRunner runner = new();
+        AdminApiExecutor executor = CreateExecutor(
+            out DefaultHttpContext httpContext,
+            runner: runner,
+            resourceScopeResolver: new FixedResourceScopeResolver(resourceScope: null, isValid: false));
+
+        await executor.ExecuteAsync(
+            httpContext,
+            CreateOperation(),
+            requireTenant: false,
+            _ => Task.FromResult(Result.Success("value")),
+            CancellationToken.None);
+
+        Assert.Equal(
+            AdminErrors.ResourceScopeInvalid,
+            runner.Context?.PreAuthorizationError);
+    }
+
     private static AdminApiExecutor CreateExecutor(
         out DefaultHttpContext httpContext,
-        string? auditError = null)
+        string? auditError = null,
+        IAdminOperationRunner? runner = null,
+        AuthenticationAssuranceRequirement? assurance = null,
+        IAdminApiResourceScopeResolver? resourceScopeResolver = null)
     {
-        ServiceProvider services = new ServiceCollection()
-            .AddSingleton<IAdminOperationRunner>(new InvokingAdminOperationRunner(auditError))
-            .BuildServiceProvider();
+        ServiceCollection serviceCollection = new();
+        serviceCollection.AddLogging();
+        serviceCollection.AddSingleton(runner ?? new InvokingAdminOperationRunner(auditError));
+        ServiceProvider services = serviceCollection.BuildServiceProvider();
 
         httpContext = new DefaultHttpContext
         {
@@ -80,8 +165,9 @@ public sealed class AdminApiExecutorTests
         };
 
         return new AdminApiExecutor(
-            Options.Create(new AdminApiOptions()),
-            Options.Create(new TenantOptions { Enabled = false }));
+            Options.Create(new AdminApiOptions { AuthenticationAssurance = assurance }),
+            Options.Create(new TenantOptions { Enabled = false }),
+            resourceScopeResolver);
     }
 
     private static AdminOperation CreateOperation() =>
@@ -99,6 +185,39 @@ public sealed class AdminApiExecutorTests
                 result.IsSuccess ? AdminOperationExecutionStatus.Succeeded : AdminOperationExecutionStatus.Failed,
                 result,
                 auditError);
+        }
+    }
+
+    private sealed class RecordingAdminOperationRunner : IAdminOperationRunner
+    {
+        public AdminOperationContext? Context { get; private set; }
+
+        public Task<AdminOperationExecutionResult<T>> ExecuteAsync<T>(
+            AdminOperationContext context,
+            Func<CancellationToken, Task<Result<T>>> action,
+            CancellationToken cancellationToken)
+        {
+            this.Context = context;
+            Result<T> result = context.PreAuthorizationError is null
+                ? Result.Failure<T>(AdminErrors.OperationFailed)
+                : Result.Failure<T>(context.PreAuthorizationError);
+            return Task.FromResult(new AdminOperationExecutionResult<T>(
+                AdminOperationExecutionStatus.ValidationFailed,
+                result,
+                null));
+        }
+    }
+
+    private sealed class FixedResourceScopeResolver(
+        AdminResourceScope? resourceScope,
+        bool isValid = true) : IAdminApiResourceScopeResolver
+    {
+        public bool TryResolve(
+            HttpContext httpContext,
+            out AdminResourceScope? resolvedResourceScope)
+        {
+            resolvedResourceScope = resourceScope;
+            return isValid;
         }
     }
 }

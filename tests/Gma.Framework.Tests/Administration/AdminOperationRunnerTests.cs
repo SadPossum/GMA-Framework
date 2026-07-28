@@ -359,6 +359,36 @@ public sealed class AdminOperationRunnerTests
         Assert.Null(tenantContext.TenantId);
     }
 
+    [Fact]
+    public async Task Resource_scope_is_forwarded_to_authorization_and_audit()
+    {
+        RecordingAuthorizationService authorization = new();
+        RecordingAuditSink audit = new();
+        ServiceProvider services = CreateServices(
+            authorization,
+            audit,
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 15, 0, 0, TimeSpan.Zero)));
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+        AdminResourceScope resourceScope = AdminResourceScope.Create(
+            AdminResourceScopeSegment.Create("property", "property-a"));
+
+        AdminOperationExecutionResult<int> execution = await runner.ExecuteAsync<int>(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create(
+                    "properties.read",
+                    AdminPermission.Create("properties.read")),
+                "tenant-a",
+                RequireTenant: true,
+                ResourceScope: resourceScope),
+            _ => Task.FromResult(Result.Success(42)),
+            CancellationToken.None);
+
+        Assert.Equal(AdminOperationExecutionStatus.Succeeded, execution.Status);
+        Assert.Same(resourceScope, authorization.ResourceScope);
+        Assert.Equal(resourceScope.Value, Assert.Single(audit.Records).ResourceScope);
+    }
+
     private static ServiceProvider CreateServices(
         IAdminAuthorizationService authorization,
         IAdminAuditSink? audit,
@@ -413,6 +443,7 @@ public sealed class AdminOperationRunnerTests
     private sealed class RecordingAuthorizationService : IAdminAuthorizationService
     {
         public int CallCount { get; private set; }
+        public AdminResourceScope? ResourceScope { get; private set; }
 
         public Task<AdminAuthorizationResult> AuthorizeAsync(
             AdminActor actor,
@@ -422,6 +453,17 @@ public sealed class AdminOperationRunnerTests
         {
             this.CallCount++;
             return Task.FromResult(AdminAuthorizationResult.Allowed());
+        }
+
+        public Task<AdminAuthorizationResult> AuthorizeAsync(
+            AdminActor actor,
+            AdminPermission permission,
+            string? scopeId,
+            AdminResourceScope? resourceScope,
+            CancellationToken cancellationToken)
+        {
+            this.ResourceScope = resourceScope;
+            return this.AuthorizeAsync(actor, permission, scopeId, cancellationToken);
         }
     }
 

@@ -15,7 +15,8 @@ public sealed record AdminAuditRecord
         string permission,
         AdminAuditResult result,
         string? errorCode,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        AdminResourceScope? resourceScope = null)
     {
         if (id == Guid.Empty)
         {
@@ -34,6 +35,7 @@ public sealed record AdminAuditRecord
         this.Result = RequireKnownResult(result);
         this.ErrorCode = NormalizeErrorCode(errorCode);
         this.CreatedAtUtc = createdAtUtc.ToUniversalTime();
+        this.ResourceScope = resourceScope?.Value;
     }
 
     public AdminAuditRecord(
@@ -44,7 +46,8 @@ public sealed record AdminAuditRecord
         string permission,
         string result,
         string? errorCode,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        AdminResourceScope? resourceScope = null)
         : this(
             id,
             actorId,
@@ -53,7 +56,8 @@ public sealed record AdminAuditRecord
             permission,
             AdminAuditResults.Parse(result),
             errorCode,
-            createdAtUtc)
+            createdAtUtc,
+            resourceScope)
     {
     }
 
@@ -65,6 +69,7 @@ public sealed record AdminAuditRecord
     public AdminAuditResult Result { get; }
     public string? ErrorCode { get; }
     public DateTimeOffset CreatedAtUtc { get; }
+    public string? ResourceScope { get; }
 
     public string ResultName => AdminAuditResults.ToWireName(this.Result);
 

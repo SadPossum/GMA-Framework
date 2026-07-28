@@ -11,6 +11,7 @@ The repo uses lightweight CQRS primitives from `Gma.Framework.Cqrs` instead of M
 - `IQueryHandler<TQuery, TResponse>`
 - `IRequestDispatcher`
 - `ICommandPipelineBehavior<TCommand, TResponse>`
+- `ICommandOutcomeObserver<TCommand, TResponse>`
 - `IQueryPipelineBehavior<TQuery, TResponse>`
 - `ICommandValidator<TCommand>`
 - `IQueryValidator<TQuery>`
@@ -25,6 +26,7 @@ Endpoint
   -> IRequestDispatcher
   -> validation behavior
   -> logging behavior
+  -> outcome-observation behavior
   -> unit-of-work behavior, for transactional commands
   -> command handler
   -> domain changes
@@ -36,6 +38,21 @@ The unit-of-work behavior derives the owning module from the command assembly na
 Commands that do not write persistent state may stay as plain `ICommand<TResponse>` and skip the UoW behavior.
 
 This is a small documented convention, not host composition scanning. Architecture tests guard module commands so state-writing commands stay explicit about transactionality.
+
+## Command Outcome Observation
+
+`ICommandOutcomeObserver<TCommand, TResponse>` is an optional best-effort hook
+for facts that must be derived from a settled command result. It runs after the
+inner unit-of-work behavior has committed or rolled back. Observer exceptions
+are logged and cannot change the command result. The full observation phase
+uses the bounded `Cqrs:OutcomeObservation:Timeout` budget independently of
+request cancellation.
+
+This hook is not a durable event bus and must not replace an owning module's
+outbox. Validation failures that short-circuit before the observation behavior
+are not observed. Use it for bounded operational evidence where the command
+result is authoritative; use domain events and the transactional outbox for
+business facts that must be delivered.
 
 ## Query Flow
 
@@ -97,4 +114,6 @@ Gma.Modules.Auth.Domain.Events.MemberRegisteredDomainEvent
 - Inherit domain events from `DomainEvent` or `ScopedDomainEvent` instead of re-declaring common metadata in every event type.
 - Integration events describe something published across module or process boundaries.
 - Do not publish integration events directly from command handlers.
+- Keep command outcome observers payload-minimal and idempotent; they are
+  best-effort observations, not transaction participants.
 - Use domain event handlers to project committed domain facts into the outbox.

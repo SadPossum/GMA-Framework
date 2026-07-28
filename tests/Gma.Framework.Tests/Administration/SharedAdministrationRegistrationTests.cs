@@ -116,6 +116,56 @@ public sealed class SharedAdministrationRegistrationTests
         Assert.Equal("auth.members.read", requirement.Permission.Value);
     }
 
+    [Fact]
+    public async Task Shared_administration_access_control_bridge_composes_exact_resource_scope()
+    {
+        RecordingDecisionProvider decisionProvider = new(AccessDecision.Allowed());
+        ServiceProvider services = new ServiceCollection()
+            .AddSingleton<IAccessDecisionProvider>(decisionProvider)
+            .AddGmaAdministration()
+            .AddGmaAccessControlAdministrationAuthorization()
+            .BuildServiceProvider();
+        AdminResourceScope resourceScope = AdminResourceScope.Create(
+            AdminResourceScopeSegment.Create(
+                "property",
+                "9e11c484-2999-44d5-b293-2c0962fdff76"));
+
+        IAdminAuthorizationService authorization = services.GetRequiredService<IAdminAuthorizationService>();
+        AdminAuthorizationResult result = await authorization.AuthorizeAsync(
+            AdminActor.System("actor-1"),
+            AdminPermission.Create("properties.read"),
+            "tenant-a",
+            resourceScope,
+            CancellationToken.None);
+
+        Assert.True(result.IsAuthorized);
+        AccessRequirement requirement = Assert.Single(decisionProvider.Requirements);
+        Assert.Equal(
+            "tenant:tenant-a/property:9e11c484-2999-44d5-b293-2c0962fdff76",
+            requirement.Scope.Value);
+    }
+
+    [Fact]
+    public async Task Shared_administration_access_control_bridge_denies_an_unrepresentable_tenant_scope()
+    {
+        RecordingDecisionProvider decisionProvider = new(AccessDecision.Allowed());
+        ServiceProvider services = new ServiceCollection()
+            .AddSingleton<IAccessDecisionProvider>(decisionProvider)
+            .AddGmaAdministration()
+            .AddGmaAccessControlAdministrationAuthorization()
+            .BuildServiceProvider();
+
+        IAdminAuthorizationService authorization = services.GetRequiredService<IAdminAuthorizationService>();
+        AdminAuthorizationResult result = await authorization.AuthorizeAsync(
+            AdminActor.System("actor-1"),
+            AdminPermission.Create("properties.read"),
+            "tenant/invalid",
+            CancellationToken.None);
+
+        Assert.False(result.IsAuthorized);
+        Assert.Empty(decisionProvider.Requirements);
+    }
+
     [Theory]
     [InlineData("Administration:Api:ActorIdClaim", "actor id", "ActorIdClaim")]
     [InlineData("Administration:Api:TenantIdClaim", "scope id", "TenantIdClaim")]

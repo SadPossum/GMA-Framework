@@ -10,12 +10,14 @@ using Gma.Framework.Administration;
 using Gma.Framework.Api.Results;
 using Gma.Framework.Cqrs;
 using Gma.Framework.Security;
+using Gma.Framework.Security.AspNetCore;
 using Gma.Framework.Tenancy;
 using Gma.Framework.Results;
 
 public sealed class AdminApiExecutor(
     IOptions<AdminApiOptions> options,
-    IOptions<TenantOptions> tenantOptions)
+    IOptions<TenantOptions> tenantOptions,
+    IAdminApiResourceScopeResolver? resourceScopeResolver = null)
 {
     private const string AuditHeaderName = "X-Admin-Audit";
 
@@ -49,12 +51,25 @@ public sealed class AdminApiExecutor(
             tenantId,
             requireTenant,
             out Error? tenantError);
+        AdminResourceScope? resourceScope = null;
+        Error? resourceScopeError =
+            resourceScopeResolver is not null &&
+            !resourceScopeResolver.TryResolve(httpContext, out resourceScope)
+                ? AdminErrors.ResourceScopeInvalid
+                : null;
         Error? preAuthorizationError = this.ResolvePreAuthorizationError(
             httpContext.User,
             effectiveTenantId,
-            requireTenant) ?? tenantError;
+            requireTenant,
+            httpContext) ?? tenantError ?? resourceScopeError;
         AdminOperationExecutionResult<T> execution = await runner.ExecuteAsync(
-            new AdminOperationContext(actor, operation, effectiveTenantId, requireTenant, preAuthorizationError),
+            new AdminOperationContext(
+                actor,
+                operation,
+                effectiveTenantId,
+                requireTenant,
+                preAuthorizationError,
+                resourceScope),
             action,
             cancellationToken).ConfigureAwait(false);
 
@@ -68,7 +83,10 @@ public sealed class AdminApiExecutor(
             AdminOperationExecutionStatus.Succeeded => ToSuccessResult(execution.Result.Value, onSuccess),
             AdminOperationExecutionStatus.Unauthorized => ToProblem(execution.Result.Error, StatusCodes.Status403Forbidden),
             AdminOperationExecutionStatus.Failed => ToProblem(execution.Result.Error, GetExpectedFailureStatusCode(execution.Result.Error, errorStatusCodes)),
-            AdminOperationExecutionStatus.ValidationFailed => ToProblem(execution.Result.Error, GetExpectedFailureStatusCode(execution.Result.Error, errorStatusCodes)),
+            AdminOperationExecutionStatus.ValidationFailed => this.ToValidationProblem(
+                httpContext,
+                execution.Result.Error,
+                errorStatusCodes),
             AdminOperationExecutionStatus.UnexpectedFailure => ToProblem(execution.Result.Error, StatusCodes.Status500InternalServerError),
             _ => ToProblem(execution.Result.Error, StatusCodes.Status400BadRequest)
         };
@@ -175,9 +193,25 @@ public sealed class AdminApiExecutor(
     private Error? ResolvePreAuthorizationError(
         ClaimsPrincipal user,
         string? tenantId,
-        bool requireTenant)
+        bool requireTenant,
+        HttpContext httpContext)
     {
         AdminApiOptions adminOptions = options.Value;
+        AuthenticationAssuranceRequirement? assurance = adminOptions.AuthenticationAssurance;
+        if (assurance is not null)
+        {
+            TimeProvider timeProvider =
+                httpContext.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System;
+            if (!AuthenticationAssuranceEvaluator.IsSatisfied(
+                    user,
+                    assurance,
+                    timeProvider.GetUtcNow()))
+            {
+                return new Error(
+                    AuthenticationAssuranceHttpErrorCodes.InsufficientAuthentication,
+                    "A stronger or more recent authentication event is required.");
+            }
+        }
 
         if (!requireTenant ||
             !adminOptions.RequireTenantClaimMatch ||
@@ -198,6 +232,26 @@ public sealed class AdminApiExecutor(
                string.Equals(normalizedTenantClaim, tenantId, StringComparison.Ordinal)
             ? null
             : AdminErrors.TenantClaimMismatch;
+    }
+
+    private IResult ToValidationProblem(
+        HttpContext httpContext,
+        Error error,
+        ApiErrorStatusCodeMap? errorStatusCodes)
+    {
+        AuthenticationAssuranceRequirement? assurance = options.Value.AuthenticationAssurance;
+        if (assurance is not null &&
+            string.Equals(
+                error.Code,
+                AuthenticationAssuranceHttpErrorCodes.InsufficientAuthentication,
+                StringComparison.Ordinal))
+        {
+            httpContext.Response.Headers.WWWAuthenticate =
+                AuthenticationAssuranceChallenge.Create(assurance);
+            return ToProblem(error, StatusCodes.Status401Unauthorized);
+        }
+
+        return ToProblem(error, GetExpectedFailureStatusCode(error, errorStatusCodes));
     }
 
     private static IResult ToSuccessResult<T>(T value, Func<T, IResult>? onSuccess)

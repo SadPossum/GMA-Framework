@@ -15,7 +15,8 @@ public sealed class AdminCliExecutor(IServiceProvider serviceProvider)
         string? tenantId,
         bool requireTenant,
         Func<IServiceProvider, CancellationToken, Task<Result<T>>> action,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AdminResourceScope? resourceScope = null)
     {
         ArgumentNullException.ThrowIfNull(parseResult);
         ArgumentNullException.ThrowIfNull(operation);
@@ -36,9 +37,25 @@ public sealed class AdminCliExecutor(IServiceProvider serviceProvider)
                 AdminExitCodes.ValidationFailed);
         }
 
+        AdminResourceScope? resolvedResourceScope = resourceScope;
+        Error? resourceScopeError = null;
+        if (resolvedResourceScope is null &&
+            scopedProvider.GetService<IAdminCliResourceScopeResolver>() is
+                IAdminCliResourceScopeResolver resourceScopeResolver &&
+            !resourceScopeResolver.TryResolve(parseResult, out resolvedResourceScope))
+        {
+            resourceScopeError = AdminErrors.ResourceScopeInvalid;
+        }
+
         IAdminOperationRunner runner = scopedProvider.GetRequiredService<IAdminOperationRunner>();
         AdminOperationExecutionResult<T> execution = await runner.ExecuteAsync(
-            new AdminOperationContext(actor, operation, tenantId, requireTenant),
+            new AdminOperationContext(
+                actor,
+                operation,
+                tenantId,
+                requireTenant,
+                resourceScopeError,
+                resolvedResourceScope),
             token => action(scopedProvider, token),
             cancellationToken)
             .ConfigureAwait(false);
@@ -68,7 +85,8 @@ public sealed class AdminCliExecutor(IServiceProvider serviceProvider)
         string? tenantId,
         bool requireTenant,
         Func<IServiceProvider, CancellationToken, Task<Result>> action,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        AdminResourceScope? resourceScope = null) =>
         this.ExecuteAsync(
             parseResult,
             operation,
@@ -81,7 +99,8 @@ public sealed class AdminCliExecutor(IServiceProvider serviceProvider)
                     ? Result.Success(Unit.Value)
                     : Result.Failure<Unit>(result.Error);
             },
-            cancellationToken);
+            cancellationToken,
+            resourceScope);
 
     private static string ResolveActor(ParseResult parseResult, AdminCliGlobalOptions options)
     {

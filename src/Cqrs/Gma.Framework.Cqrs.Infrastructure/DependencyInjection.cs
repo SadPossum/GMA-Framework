@@ -21,12 +21,20 @@ public static class DependencyInjection
         }
 
         builder.Services.AddSingleton<CqrsInfrastructureRegistrationMarker>();
+        builder.Services
+            .AddOptions<CommandOutcomeObservationOptions>()
+            .Bind(builder.Configuration.GetSection(CommandOutcomeObservationOptions.SectionName))
+            .Validate(
+                CommandOutcomeObservationOptions.IsValid,
+                $"Cqrs outcome-observation timeout must be between {CommandOutcomeObservationOptions.MinimumTimeout} and {CommandOutcomeObservationOptions.MaximumTimeout}.")
+            .ValidateOnStart();
         builder.Services.AddMetrics();
         builder.Services.TryAddScoped<IRequestDispatcher, RequestDispatcher>();
         builder.Services.TryAddSingleton<CommandMetrics>();
         builder.Services.TryAddSingleton<QueryMetrics>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(ICommandPipelineBehavior<,>), typeof(ValidationCommandBehavior<,>)));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(ICommandPipelineBehavior<,>), typeof(LoggingCommandBehavior<,>)));
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(ICommandPipelineBehavior<,>), typeof(CommandOutcomeObservationBehavior<,>)));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(ICommandPipelineBehavior<,>), typeof(CommandUnitOfWorkBehavior<,>)));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(IQueryPipelineBehavior<,>), typeof(ValidationQueryBehavior<,>)));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Scoped(typeof(IQueryPipelineBehavior<,>), typeof(LoggingQueryBehavior<,>)));

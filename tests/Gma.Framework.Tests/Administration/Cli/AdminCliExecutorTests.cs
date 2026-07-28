@@ -138,6 +138,38 @@ public sealed class AdminCliExecutorTests
         Assert.Contains("Admin audit failed.", error.ToString(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Resource_scope_resolver_is_forwarded_to_authorization()
+    {
+        AdminResourceScope resourceScope = AdminResourceScope.Create(
+            AdminResourceScopeSegment.Create("property", "property-a"));
+        RecordingAuthorizationService authorization = new();
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddScoped<ITenantContextAccessor, DisabledTenantContext>();
+        services.AddSingleton<ISystemClock, FixedClock>();
+        services.AddSingleton<IIdGenerator, RandomIdGenerator>();
+        services.AddSingleton<IAdminCliResourceScopeResolver>(
+            new FixedResourceScopeResolver(resourceScope));
+        services.AddGmaAdministrationCli();
+        services.AddScoped<IAdminAuthorizationService>(_ => authorization);
+        services.AddScoped<IAdminAuditSink, NullAdminAuditSink>();
+        using ServiceProvider provider = services.BuildServiceProvider();
+        AdminCliGlobalOptions options = provider.GetRequiredService<AdminCliGlobalOptions>();
+        ParseResult parseResult = CreateRoot(options).Parse(["--actor", "actor"]);
+
+        int exitCode = await provider.GetRequiredService<AdminCliExecutor>().ExecuteAsync(
+            parseResult,
+            AdminOperation.Create("admin.test", AdminPermission.Create("admin.test")),
+            "tenant-a",
+            requireTenant: true,
+            (_, _) => Task.FromResult(Result.Success(Unit.Value)),
+            CancellationToken.None);
+
+        Assert.Equal(AdminExitCodes.Success, exitCode);
+        Assert.Same(resourceScope, authorization.ResourceScope);
+    }
+
     private static RootCommand CreateRoot(AdminCliGlobalOptions options)
     {
         RootCommand root = new("admin");
@@ -154,6 +186,41 @@ public sealed class AdminCliExecutorTests
             string? tenantId,
             CancellationToken cancellationToken) =>
             Task.FromResult(AdminAuthorizationResult.Allowed());
+    }
+
+    private sealed class RecordingAuthorizationService : IAdminAuthorizationService
+    {
+        public AdminResourceScope? ResourceScope { get; private set; }
+
+        public Task<AdminAuthorizationResult> AuthorizeAsync(
+            AdminActor actor,
+            AdminPermission permission,
+            string? tenantId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(AdminAuthorizationResult.Allowed());
+
+        public Task<AdminAuthorizationResult> AuthorizeAsync(
+            AdminActor actor,
+            AdminPermission permission,
+            string? tenantId,
+            AdminResourceScope? resourceScope,
+            CancellationToken cancellationToken)
+        {
+            this.ResourceScope = resourceScope;
+            return Task.FromResult(AdminAuthorizationResult.Allowed());
+        }
+    }
+
+    private sealed class FixedResourceScopeResolver(
+        AdminResourceScope resourceScope) : IAdminCliResourceScopeResolver
+    {
+        public bool TryResolve(
+            ParseResult parseResult,
+            out AdminResourceScope? resolvedResourceScope)
+        {
+            resolvedResourceScope = resourceScope;
+            return true;
+        }
     }
 
     private sealed class ThrowingAuditSink : IAdminAuditSink

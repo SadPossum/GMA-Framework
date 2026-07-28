@@ -14,18 +14,22 @@ public sealed class AdminOperationContextTests
     [Fact]
     public void Constructor_assigns_values()
     {
+        AdminResourceScope resourceScope = AdminResourceScope.Create(
+            AdminResourceScopeSegment.Create("property", "property-a"));
         AdminOperationContext context = new(
             Actor,
             Operation,
             " tenant-a ",
             RequireTenant: true,
-            AdminErrors.TenantClaimMismatch);
+            AdminErrors.TenantClaimMismatch,
+            resourceScope);
 
         Assert.Equal(Actor, context.Actor);
         Assert.Equal(Operation, context.Operation);
         Assert.Equal(" tenant-a ", context.TenantId);
         Assert.True(context.RequireTenant);
         Assert.Equal(AdminErrors.TenantClaimMismatch, context.PreAuthorizationError);
+        Assert.Same(resourceScope, context.ResourceScope);
     }
 
     [Fact]

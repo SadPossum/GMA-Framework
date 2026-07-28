@@ -11,6 +11,27 @@ using Xunit;
 public sealed class CqrsPipelineRegistrationTests
 {
     [Fact]
+    public async Task Cqrs_infrastructure_registers_command_behaviors_with_observation_outside_unit_of_work()
+    {
+        await using ServiceProvider provider = BuildProvider();
+        using IServiceScope scope = provider.CreateScope();
+
+        Type[] behaviorTypes = scope.ServiceProvider
+            .GetServices<ICommandPipelineBehavior<TestCommand, Unit>>()
+            .Select(behavior => behavior.GetType())
+            .ToArray();
+
+        Assert.Equal(
+            [
+                typeof(ValidationCommandBehavior<TestCommand, Unit>),
+                typeof(LoggingCommandBehavior<TestCommand, Unit>),
+                typeof(CommandOutcomeObservationBehavior<TestCommand, Unit>),
+                typeof(CommandUnitOfWorkBehavior<TestCommand, Unit>)
+            ],
+            behaviorTypes);
+    }
+
+    [Fact]
     public async Task Cqrs_infrastructure_registers_query_behaviors_in_expected_order()
     {
         await using ServiceProvider provider = BuildProvider();

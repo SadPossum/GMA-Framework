@@ -85,7 +85,12 @@ internal sealed class AdminOperationRunner(
         try
         {
             authorizationResult = await authorization
-                .AuthorizeAsync(context.Actor, context.Operation.Permission, tenantId, cancellationToken)
+                .AuthorizeAsync(
+                    context.Actor,
+                    context.Operation.Permission,
+                    tenantId,
+                    context.ResourceScope,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -212,7 +217,8 @@ internal sealed class AdminOperationRunner(
                     context.Operation.Permission.Code,
                     result,
                     errorCode,
-                    clock.UtcNow),
+                    clock.UtcNow,
+                    context.ResourceScope),
                 auditTimeout.Token).ConfigureAwait(false);
 
             return null;

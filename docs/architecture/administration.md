@@ -66,11 +66,12 @@ Gma.Modules.Auth.AdminApi
 - `AdminPermission`
 - `AdminOperation`
 - `AdminActor`
+- `AdminResourceScope`
 - `IAdminActorContextAccessor`
 - `IAdminAuthorizationService`
 - `IAdminAuditSink`
 
-The shared core also owns the admin operation runner used by CLI and HTTP front doors for actor context, tenant context, authorization, execution, and audit.
+The shared core also owns the admin operation runner used by CLI and HTTP front doors for actor context, tenant context, optional resource scope, authorization, execution, and audit.
 It does not own command-line parsing, HTTP mapping, or host-builder module contracts.
 `AdminPermission` validates concrete dot-separated permission codes requested by operations. Wildcard grants belong only to AccessControl and are never valid requested permissions.
 The default admin authorization service denies by default. The default audit sink reports that audit is unavailable instead of silently discarding records. A host may explicitly register `NullAdminAuditSink` only when unaudited execution is a conscious deployment decision.
@@ -87,6 +88,7 @@ It owns:
 - global options: `--actor`, `--tenant`, `--output`;
 - command registration through `IAdminCliCommandRegistry`;
 - tenant setup before dispatch;
+- optional host-provided resource-scope resolution before authorization;
 - authorization before mutation/query execution;
 - audit recording after authorization decisions and command results;
 - exit-code mapping.
@@ -106,11 +108,24 @@ It owns:
 - admin API module registration;
 - actor resolution from authenticated claims;
 - tenant resolution for tenant-scoped admin operations;
+- optional host-wide authentication assurance and resource-scope resolution;
 - HTTP result mapping;
 - audit failure response headers.
 
 Feature modules should not map admin HTTP endpoints outside their `.AdminApi` project.
 Admin API endpoints should call `AdminApiExecutor` for authorization, tenant enforcement, execution, audit, and expected error-to-status mapping. Do not use generic tenant endpoint filters on admin routes, because they can short-circuit audit recording.
+
+`AdminApiOptions.AuthenticationAssurance` applies one provider-neutral assurance
+requirement to every operation executed by the host. Missing, stale, or
+insufficient claims fail before module execution, return the shared RFC 9470
+challenge, and still produce an Administration denial audit.
+
+Hosts may replace `IAdminApiResourceScopeResolver` and
+`IAdminCliResourceScopeResolver` to translate trusted route or command structure
+into a bounded `AdminResourceScope`. Invalid resolution fails closed. The
+AccessControl bridge appends the ordered resource segments after the tenant
+segment for exact authorization, and the canonical scope is included in the
+durable audit record.
 
 Use `ApiErrorStatusCodeMap` at the admin API front door for expected operation outcomes such as not found or conflict. Domain and application errors stay HTTP-agnostic; the executor keeps authorization, tenant, audit, and unexpected-failure status mapping centralized.
 
@@ -174,6 +189,7 @@ Audit records include:
 
 - actor id;
 - tenant id, when present;
+- canonical resource scope, when present;
 - operation name;
 - permission code;
 - result;
@@ -214,7 +230,7 @@ Admin API tenant binding is configurable under `Administration:Api`:
 When `RequireTenantClaimMatch` is `true`, tenant-scoped admin HTTP operations compare the requested tenant with the configured token scope claim if that claim is present. A present mismatch fails before RBAC with `Admin.TenantClaimMismatch` and is audited. A missing scope claim is allowed so external identity providers or global operator tokens can still work; RBAC must still grant the actor permission for the requested tenant.
 Admin API options are validated at startup: `ActorIdClaim` is required, and `TenantIdClaim` is required when tenant-claim matching is enabled.
 
-Global RBAC assignments have no tenant scope. Tenant-scoped assignments can administer only the matching tenant.
+Global RBAC assignments have no tenant scope. Tenant-scoped assignments can administer only the matching tenant. Resource-addressed operations append host-owned segments such as `property:<id>` after the tenant, so a tenant assignment does not silently authorize an exact property operation unless that permission explicitly grants descendants.
 
 ## Command Flow
 
@@ -267,6 +283,7 @@ HTTP request
 - Role/permission management commands should return application errors for invalid operator input. Do not let permission parsing exceptions escape into the unexpected-failure path.
 - Admin role names are lowercase slugs: letters, numbers, and hyphens only, starting with a letter.
 - Keep `Administration:Api:RequireTenantClaimMatch=true` unless the deployment's identity provider cannot issue tenant-bound admin tokens. If disabled, rely on RBAC assignments and gateway policy to prevent tenant confusion.
+- Resolve resource scope only from trusted command or route structure. Never derive it from request payload text, a support reason, or another free-form value.
 - Do not add an admin HTTP bootstrap endpoint without a separate ADR and architecture tests.
 
 ## Current Commands
