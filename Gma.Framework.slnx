@@ -33,8 +33,8 @@
     <File Path="docs/adr/0013-tagged-durable-notification-delivery.md" />
   </Folder>
   <Folder Name="/docs/architecture/">
-    <File Path="docs/architecture/atomic-distributed-rate-limiting.md" />
     <File Path="docs/architecture/administration.md" />
+    <File Path="docs/architecture/atomic-distributed-rate-limiting.md" />
     <File Path="docs/architecture/audit-follow-up-notes.md" />
     <File Path="docs/architecture/audit-hardening-notes.md" />
     <File Path="docs/architecture/background-worker-host-task.md" />

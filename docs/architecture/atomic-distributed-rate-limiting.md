@@ -52,6 +52,12 @@ An atomic request contains:
 
 Partition identities and groups are length-bounded and cannot contain whitespace or control characters. Permit counts and limits are bounded positive integers. Windows use whole milliseconds between 100 milliseconds and 31 days.
 
+Partition identity is scoped to its atomic group. Callers that need a shared
+counter across requests must use the same atomic group and the same partition
+descriptor. This matches Redis Cluster's requirement that every key touched by
+one atomic script share a hash slot and keeps the in-memory and Redis providers
+behaviorally equivalent.
+
 Provider storage keys include the partition identity, limit, and window only through a hash. Changing a quota definition therefore starts a new physical counter instead of reinterpreting an existing counter under incompatible settings.
 
 ## Composition

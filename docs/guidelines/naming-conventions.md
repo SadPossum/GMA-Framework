@@ -112,6 +112,9 @@ Gma.Framework.Persistence.EntityFrameworkCore
 Gma.Framework.ProjectionRebuild
 Gma.Framework.ProjectionRebuild.EntityFrameworkCore
 Gma.Framework.ProjectionRebuild.Tasks
+Gma.Framework.RateLimiting
+Gma.Framework.RateLimiting.Infrastructure
+Gma.Framework.RateLimiting.Redis
 Gma.Framework.Realtime
 Gma.Framework.Realtime.Infrastructure
 Gma.Framework.Realtime.Notifications

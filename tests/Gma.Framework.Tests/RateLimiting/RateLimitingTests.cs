@@ -120,12 +120,39 @@ public sealed class RateLimitingTests
             (await limiter.AcquireAsync(combined)).Outcome);
 
         var consumeRemainingSharedCapacity = new MultiPartitionRateLimitRequest(
-            "tenant-only:alpha",
+            "adapter-ingress:alpha",
             permitCount: 9,
             [shared]);
         Assert.Equal(
             MultiPartitionRateLimitOutcome.Acquired,
             (await limiter.AcquireAsync(consumeRemainingSharedCapacity)).Outcome);
+    }
+
+    [Fact]
+    public async Task In_memory_partitions_are_isolated_by_atomic_group_like_redis_keys()
+    {
+        var limiter = new InMemoryMultiPartitionRateLimiter(
+            new MutableClock(WindowStart));
+        FixedWindowRateLimitPartition sharedDescriptor =
+            Partition("tenant", permitLimit: 1);
+        var firstTenant = new MultiPartitionRateLimitRequest(
+            "adapter-ingress:tenant-a",
+            permitCount: 1,
+            [sharedDescriptor]);
+        var secondTenant = new MultiPartitionRateLimitRequest(
+            "adapter-ingress:tenant-b",
+            permitCount: 1,
+            [sharedDescriptor]);
+
+        Assert.Equal(
+            MultiPartitionRateLimitOutcome.Acquired,
+            (await limiter.AcquireAsync(firstTenant)).Outcome);
+        Assert.Equal(
+            MultiPartitionRateLimitOutcome.Acquired,
+            (await limiter.AcquireAsync(secondTenant)).Outcome);
+        Assert.Equal(
+            MultiPartitionRateLimitOutcome.Rejected,
+            (await limiter.AcquireAsync(firstTenant)).Outcome);
     }
 
     [Fact]

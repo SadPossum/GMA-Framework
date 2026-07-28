@@ -29,7 +29,10 @@ internal sealed class InMemoryMultiPartitionRateLimiter(
 
         long nowMilliseconds = clock.UtcNow.ToUnixTimeMilliseconds();
         PartitionState[] partitions = request.Partitions
-            .Select(partition => PartitionState.Create(partition, nowMilliseconds))
+            .Select(partition => PartitionState.Create(
+                request.AtomicGroup,
+                partition,
+                nowMilliseconds))
             .ToArray();
         int[] stripeIndexes = partitions
             .Select(partition => GetStripeIndex(partition.StorageKey))
@@ -144,6 +147,7 @@ internal sealed class InMemoryMultiPartitionRateLimiter(
         long ExpiresAtMilliseconds)
     {
         public static PartitionState Create(
+            string atomicGroup,
             FixedWindowRateLimitPartition partition,
             long nowMilliseconds)
         {
@@ -152,7 +156,7 @@ internal sealed class InMemoryMultiPartitionRateLimiter(
             long expiresAtMilliseconds = checked(nowMilliseconds + windowMilliseconds - elapsed);
             string descriptor = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
-                $"{partition.Identity}|{partition.PermitLimit}|{windowMilliseconds}");
+                $"{atomicGroup}|{partition.Identity}|{partition.PermitLimit}|{windowMilliseconds}");
             string storageKey = Convert.ToHexString(
                     SHA256.HashData(Encoding.UTF8.GetBytes(descriptor)))
                 .ToLowerInvariant();
