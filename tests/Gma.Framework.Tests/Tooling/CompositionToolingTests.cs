@@ -129,6 +129,8 @@ public sealed class CompositionToolingTests
         string source = ReadTool("sync-solution.ps1");
 
         Assert.Contains("function Get-GmaModuleProjectRole", source, StringComparison.Ordinal);
+        Assert.Contains("$isStandaloneModuleSolution = $solutionFileName -like 'Gma.Modules.*.slnx'", source, StringComparison.Ordinal);
+        Assert.Contains("return \"/src/$role/\"", source, StringComparison.Ordinal);
         Assert.Contains("/src/Modules/$($segments[2])/src/$role/", source, StringComparison.Ordinal);
         Assert.Contains("/gma/modules/$($segments[2])/src/$role/", source, StringComparison.Ordinal);
     }

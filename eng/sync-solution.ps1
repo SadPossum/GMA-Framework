@@ -36,6 +36,9 @@ param(
 . (Join-Path $PSScriptRoot 'composition-common.ps1')
 Initialize-GmaCompositionTooling -RepositoryRoot $RepositoryRoot
 
+$solutionFileName = [System.IO.Path]::GetFileName($Solution)
+$isStandaloneModuleSolution = $solutionFileName -like 'Gma.Modules.*.slnx'
+
 function Add-GmaSolutionEntry {
     param(
         [Parameter(Mandatory = $true)][hashtable] $Folders,
@@ -156,6 +159,11 @@ function Get-GmaProjectSolutionFolder {
     if ($segments.Count -ge 2 -and $segments[0] -eq 'src' -and
         ($segments[1] -eq 'Hosts' -or $segments[1] -match $HostProjectPattern)) {
         return '/src/Hosts/'
+    }
+
+    if ($segments.Count -ge 2 -and $segments[0] -eq 'src' -and $isStandaloneModuleSolution) {
+        $role = Get-GmaModuleProjectRole -ProjectDirectoryName $segments[1]
+        return "/src/$role/"
     }
 
     if ($segments[0] -eq 'src') {
