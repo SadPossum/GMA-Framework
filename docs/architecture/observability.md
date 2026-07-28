@@ -58,6 +58,10 @@ Caching:
 - `{application-namespace}.cache.backend.failures`
 - `{application-namespace}.cache.invalidation.failures`
 
+Security signals:
+
+- `{application-namespace}.security.signals`
+
 Common metric tags:
 
 - `module`
@@ -66,6 +70,9 @@ Common metric tags:
 - `result`
 - `error.code`
 - `messaging.destination.name`
+- `security.signal`
+- `security.category`
+- `security.severity`
 
 Do not put tenant ids, user ids, message ids, tokens, URLs with ids, or other unbounded values in metrics.
 
@@ -83,6 +90,48 @@ Common log properties:
 - `Subject`
 
 Tenant and message identifiers are allowed in logs because logs are event records, not metric dimensions.
+
+## Payload-Free Security Signals
+
+`Gma.Framework.Observability` defines an optional security-signal contract for
+authentication, authorization, administration, privacy, integration,
+retention, and supply-chain detection.
+
+A `SecuritySignalDefinition` is a static, lowercase dotted code plus a semantic
+category and severity. Each owning package exposes its finite definitions
+through `ISecuritySignalDefinitionSource`. Dynamic signal names are not
+supported.
+
+`SecuritySignalRecord` deliberately has only:
+
+- `SignalCode`;
+- `Category`;
+- `Severity`;
+- `IncidentCorrelationId`;
+- `OccurredAtUtc`.
+
+It has no arbitrary properties, payload, exception, subject, tenant, actor,
+resource, IP address, or message field. The correlation id is a 32-character
+opaque hexadecimal value. The recorder uses an explicit operation/task
+correlation when supplied, otherwise the active trace id, and finally a new
+opaque id.
+
+Packages that can emit signals call `AddSecuritySignalCore()`. That keeps the
+contract optional through a no-op recorder. A host that wants real output calls:
+
+```csharp
+builder.AddSecuritySignalObservability();
+```
+
+The infrastructure adapter validates the complete definition registry at host
+startup, writes one structured event, and increments the bounded security
+counter. The counter uses only the registered code/category/severity tags and
+never the correlation id.
+
+Unknown, conflicting, or duplicate definitions are programming/composition
+errors. Logger or metric-provider failures are observability failures and do
+not change the protected operation. A SIEM, alert thresholds, paging, evidence
+retention, and incident classification remain deployment responsibilities.
 
 ## Module Endpoint Metadata
 

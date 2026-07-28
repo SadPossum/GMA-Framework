@@ -40,6 +40,7 @@ public static class ObservabilityInstrumentNames
     public const string TaskTimedOut = ApplicationNamespaces.Default + ".tasks.timed_out";
     public const string TaskQueueDepth = ApplicationNamespaces.Default + ".tasks.queue.depth";
     public const string TaskActiveRuns = ApplicationNamespaces.Default + ".tasks.active.runs";
+    public const string SecuritySignals = ApplicationNamespaces.Default + ".security.signals";
 
     public static string CommandsExecutedFor(string applicationNamespace) =>
         Create(applicationNamespace, "commands.executed");
@@ -136,6 +137,9 @@ public static class ObservabilityInstrumentNames
 
     public static string TaskActiveRunsFor(string applicationNamespace) =>
         Create(applicationNamespace, "tasks.active.runs");
+
+    public static string SecuritySignalsFor(string applicationNamespace) =>
+        Create(applicationNamespace, "security.signals");
 
     private static string Create(string applicationNamespace, string instrumentName) =>
         $"{ApplicationNamespaces.Normalize(applicationNamespace)}.{instrumentName}";

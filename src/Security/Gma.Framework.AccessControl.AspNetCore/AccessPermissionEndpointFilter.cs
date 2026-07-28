@@ -1,6 +1,7 @@
 namespace Gma.Framework.AccessControl.AspNetCore;
 
 using Gma.Framework.AccessControl;
+using Gma.Framework.Observability;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,6 +37,9 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
         AccessSubject? subject = subjectResolver.ResolveSubject(httpContext);
         if (subject is null)
         {
+            RecordSignal(
+                httpContext,
+                AccessControlSecuritySignalDefinitions.SubjectMissing);
             return Problem(
                 AccessControlHttpErrorCodes.Unauthenticated,
                 "An authenticated subject is required.",
@@ -51,6 +55,11 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
                 requirement).ConfigureAwait(false);
             if (!scopeResult.IsSuccess)
             {
+                RecordSignal(
+                    httpContext,
+                    scopeResult.StatusCode is >= 400 and < 500
+                        ? AccessControlSecuritySignalDefinitions.ScopeDenied
+                        : AccessControlSecuritySignalDefinitions.ScopeResolutionFailed);
                 return Problem(
                     scopeResult.ErrorCode!,
                     scopeResult.ErrorMessage!,
@@ -67,6 +76,9 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
                 .ConfigureAwait(false);
             if (!decision.IsAllowed)
             {
+                RecordSignal(
+                    httpContext,
+                    AccessControlSecuritySignalDefinitions.PermissionDenied);
                 return Problem(
                     AccessControlHttpErrorCodes.Unauthorized,
                     decision.Message ??
@@ -77,6 +89,13 @@ internal sealed class AccessPermissionEndpointFilter : IEndpointFilter
 
         return null;
     }
+
+    private static void RecordSignal(
+        HttpContext httpContext,
+        SecuritySignalDefinition definition) =>
+        httpContext.RequestServices
+            .GetRequiredService<ISecuritySignalRecorder>()
+            .Record(definition);
 
     private static async ValueTask<AccessScopeResolutionResult> ResolveScopeAsync(
         HttpContext httpContext,

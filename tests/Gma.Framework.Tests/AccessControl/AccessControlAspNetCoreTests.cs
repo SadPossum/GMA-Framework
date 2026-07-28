@@ -3,6 +3,7 @@ namespace Gma.Framework.Tests.AccessControl;
 using System.Security.Claims;
 using Gma.Framework.AccessControl;
 using Gma.Framework.AccessControl.AspNetCore;
+using Gma.Framework.Observability;
 using Gma.Framework.Permissions;
 using Gma.Framework.Security;
 using Microsoft.AspNetCore.Http;
@@ -16,7 +17,11 @@ public sealed class AccessControlAspNetCoreTests
     [Fact]
     public async Task Permission_filter_returns_unauthenticated_when_subject_is_missing()
     {
-        HttpContext httpContext = CreateHttpContext(AccessDecision.Allowed(), authenticated: false);
+        RecordingSecuritySignalRecorder signals = new();
+        HttpContext httpContext = CreateHttpContext(
+            AccessDecision.Allowed(),
+            authenticated: false,
+            signals: signals);
         AccessPermissionEndpointFilter filter = new();
 
         object? result = await filter.InvokeAsync(
@@ -26,13 +31,17 @@ public sealed class AccessControlAspNetCoreTests
         ProblemHttpResult problem = Assert.IsType<ProblemHttpResult>(result);
         Assert.Equal(StatusCodes.Status401Unauthorized, problem.StatusCode);
         Assert.Equal(AccessControlHttpErrorCodes.Unauthenticated, problem.ProblemDetails.Title);
+        Assert.Equal(
+            "access-control.subject-missing",
+            Assert.Single(signals.Definitions).Code);
     }
 
     [Fact]
     public async Task Permission_filter_returns_forbidden_when_authorization_denies()
     {
         RecordingAuthorizationService authorization = new(AccessDecision.Denied("access.denied", "Nope."));
-        HttpContext httpContext = CreateHttpContext(authorization);
+        RecordingSecuritySignalRecorder signals = new();
+        HttpContext httpContext = CreateHttpContext(authorization, signals: signals);
         AccessPermissionEndpointFilter filter = new();
 
         object? result = await filter.InvokeAsync(
@@ -44,6 +53,9 @@ public sealed class AccessControlAspNetCoreTests
         Assert.Equal(AccessControlHttpErrorCodes.Unauthorized, problem.ProblemDetails.Title);
         Assert.Equal("Nope.", problem.ProblemDetails.Detail);
         Assert.Equal(1, authorization.CallCount);
+        Assert.Equal(
+            "access-control.permission-denied",
+            Assert.Single(signals.Definitions).Code);
     }
 
     [Fact]
@@ -94,11 +106,13 @@ public sealed class AccessControlAspNetCoreTests
     public async Task Required_scope_returns_bad_request_when_scope_is_missing()
     {
         RecordingAuthorizationService authorization = new(AccessDecision.Allowed());
+        RecordingSecuritySignalRecorder signals = new();
         HttpContext httpContext = CreateHttpContext(
             authorization,
             metadata: new AccessPermissionMetadata(
                 PermissionCode.Create("auth.members.read"),
-                requireScope: true));
+                requireScope: true),
+            signals: signals);
         AccessPermissionEndpointFilter filter = new();
 
         object? result = await filter.InvokeAsync(
@@ -109,18 +123,23 @@ public sealed class AccessControlAspNetCoreTests
         Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
         Assert.Equal(AccessControlHttpErrorCodes.ScopeRequired, problem.ProblemDetails.Title);
         Assert.Equal(0, authorization.CallCount);
+        Assert.Equal(
+            "access-control.scope-denied",
+            Assert.Single(signals.Definitions).Code);
     }
 
     [Fact]
     public async Task Unknown_scope_resolver_returns_server_error_before_authorization()
     {
         RecordingAuthorizationService authorization = new(AccessDecision.Allowed());
+        RecordingSecuritySignalRecorder signals = new();
         HttpContext httpContext = CreateHttpContext(
             authorization,
             metadata: new AccessPermissionMetadata(
                 PermissionCode.Create("auth.members.read"),
                 scopeResolverName: "missing",
-                requireScope: true));
+                requireScope: true),
+            signals: signals);
         AccessPermissionEndpointFilter filter = new();
 
         object? result = await filter.InvokeAsync(
@@ -131,22 +150,34 @@ public sealed class AccessControlAspNetCoreTests
         Assert.Equal(StatusCodes.Status500InternalServerError, problem.StatusCode);
         Assert.Equal(AccessControlHttpErrorCodes.ScopeResolverMissing, problem.ProblemDetails.Title);
         Assert.Equal(0, authorization.CallCount);
+        Assert.Equal(
+            "access-control.scope-resolution-failed",
+            Assert.Single(signals.Definitions).Code);
     }
 
     private static DefaultHttpContext CreateHttpContext(
         AccessDecision decision,
-        bool authenticated = true) =>
-        CreateHttpContext(new RecordingAuthorizationService(decision), authenticated: authenticated);
+        bool authenticated = true,
+        RecordingSecuritySignalRecorder? signals = null) =>
+        CreateHttpContext(
+            new RecordingAuthorizationService(decision),
+            authenticated: authenticated,
+            signals: signals);
 
     private static DefaultHttpContext CreateHttpContext(
         RecordingAuthorizationService authorization,
         AccessPermissionMetadata? metadata = null,
-        bool authenticated = true)
+        bool authenticated = true,
+        RecordingSecuritySignalRecorder? signals = null)
     {
         metadata ??= new AccessPermissionMetadata(PermissionCode.Create("auth.members.read"));
         ServiceCollection services = new();
         services.AddSingleton<IAccessAuthorizationService>(authorization);
         services.AddGmaAccessControlAspNetCore();
+        if (signals is not null)
+        {
+            services.AddSingleton<ISecuritySignalRecorder>(signals);
+        }
 
         DefaultHttpContext httpContext = new()
         {
@@ -178,6 +209,21 @@ public sealed class AccessControlAspNetCoreTests
             this.CallCount++;
             this.Requirements.Add(requirement);
             return Task.FromResult(decision);
+        }
+    }
+
+    private sealed class RecordingSecuritySignalRecorder : ISecuritySignalRecorder
+    {
+        public List<SecuritySignalDefinition> Definitions { get; } = [];
+
+        public SecuritySignalReceipt Record(
+            SecuritySignalDefinition definition,
+            Guid? correlationId = null)
+        {
+            this.Definitions.Add(definition);
+            return new(
+                SecuritySignalCorrelation.Create(correlationId),
+                WasEmitted: true);
         }
     }
 }

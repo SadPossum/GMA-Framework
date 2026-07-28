@@ -10,4 +10,8 @@ public static class ObservabilityLogPropertyNames
     public const string MessageScoped = "MessageScoped";
     public const string TraceId = "TraceId";
     public const string Subject = "Subject";
+    public const string SecuritySignalCode = "SecuritySignalCode";
+    public const string SecuritySignalCategory = "SecuritySignalCategory";
+    public const string SecuritySignalSeverity = "SecuritySignalSeverity";
+    public const string IncidentCorrelationId = "IncidentCorrelationId";
 }

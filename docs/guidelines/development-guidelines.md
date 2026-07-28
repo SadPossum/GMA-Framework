@@ -385,6 +385,9 @@ Rules:
 - do not add tenant, user, token, message, or request ids as metric tags;
 - keep Prometheus, Loki, Grafana, and OpenTelemetry exporter dependencies outside modules.
 - keep notification metrics bounded to module/operation/provider/result style tags; never tag tenant id, user id, notification id, or payload fields.
+- define security signals statically in their owning package, register them through `ISecuritySignalDefinitionSource`, and emit through `ISecuritySignalRecorder`;
+- keep `SecuritySignalRecord` payload-free; do not add arbitrary attributes, messages, exceptions, tenant/subject/resource values, or correlation ids to security metric tags;
+- use explicit task/operation correlation ids when available and otherwise let the recorder reuse the active trace or create an opaque id;
 - fail-open infrastructure paths should record metrics first and must not become fail-closed because a logging/export provider throws;
 - admin operation infrastructure must return shaped operation results for expected authorization/validation/action/audit outcomes even when logging fails.
 - CQRS logging must preserve the command/query result or original command/query exception even when logging scopes or log writes fail.

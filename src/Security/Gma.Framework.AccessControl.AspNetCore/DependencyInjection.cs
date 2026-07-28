@@ -1,6 +1,7 @@
 namespace Gma.Framework.AccessControl.AspNetCore;
 
 using Gma.Framework.AccessControl;
+using Gma.Framework.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +14,11 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddGmaAccessControl();
+        services.AddSecuritySignalCore();
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<
+                ISecuritySignalDefinitionSource,
+                AccessControlSecuritySignalDefinitions>());
         services.AddOptions<AccessControlAspNetCoreOptions>();
         if (configure is not null)
         {

@@ -9,4 +9,7 @@ public static class ObservabilityTagNames
     public const string ErrorCode = "error.code";
     public const string Subject = "messaging.destination.name";
     public const string TaskStatus = "task.status";
+    public const string SecuritySignal = "security.signal";
+    public const string SecurityCategory = "security.category";
+    public const string SecuritySeverity = "security.severity";
 }

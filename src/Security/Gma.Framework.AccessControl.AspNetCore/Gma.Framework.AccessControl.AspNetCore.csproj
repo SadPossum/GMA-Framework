@@ -6,5 +6,6 @@
     <ProjectReference Include="..\Gma.Framework.AccessControl\Gma.Framework.AccessControl.csproj" />
     <ProjectReference Include="..\Gma.Framework.Permissions\Gma.Framework.Permissions.csproj" />
     <ProjectReference Include="..\Gma.Framework.Security\Gma.Framework.Security.csproj" />
+    <ProjectReference Include="..\..\Observability\Gma.Framework.Observability\Gma.Framework.Observability.csproj" />
   </ItemGroup>
 </Project>
