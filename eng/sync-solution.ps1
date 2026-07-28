@@ -11,6 +11,8 @@ param(
         '.config/dotnet-tools.json',
         '.editorconfig',
         '.gitattributes',
+        '.gma/repository-security.json',
+        '.gma/security-exceptions.json',
         '.gitignore',
         '.gitmodules',
         'Directory.Build.props',
@@ -19,7 +21,8 @@ param(
         'Gma.SourceRoots.props.example',
         'LICENSE',
         'nuget.config',
-        'README.md'
+        'README.md',
+        'SECURITY.md'
     ),
     [string] $HostProjectPattern = '\.Host(\.|$)',
     [bool] $IncludeSourceMarkdown = $true,

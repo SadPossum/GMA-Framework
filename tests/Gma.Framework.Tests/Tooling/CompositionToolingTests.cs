@@ -138,6 +138,16 @@ public sealed class CompositionToolingTests
         Assert.Contains("return '/src/Extensions/tests/'", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Solution_sync_keeps_repository_security_governance_discoverable()
+    {
+        string source = ReadTool("sync-solution.ps1");
+
+        Assert.Contains("'.gma/repository-security.json'", source, StringComparison.Ordinal);
+        Assert.Contains("'.gma/security-exceptions.json'", source, StringComparison.Ordinal);
+        Assert.Contains("'SECURITY.md'", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 

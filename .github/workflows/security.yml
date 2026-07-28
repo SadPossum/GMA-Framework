@@ -1,0 +1,56 @@
+name: Security Baseline
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+  schedule:
+    - cron: '11 4 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Owned source, dependency and configuration scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout owned source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate repository security policy
+        shell: pwsh
+        run: ./eng/check-repository-security.ps1
+
+      - name: Run repository security baseline
+        uses: SadPossum/GMA-Skeleton/.github/actions/security-baseline@32ec053c78a87f5b5941068eb449e7ae10f51f59
+        with:
+          exception-file: .gma/security-exceptions.json
+
+      - name: Publish code-scanning evidence
+        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        with:
+          sarif_file: artifacts/security/trivy-results.sarif
+          category: trivy-owned-source
+
+      - name: Retain security evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-evidence-${{ github.sha }}
+          path: artifacts/security
+          if-no-files-found: error
+          retention-days: 30
