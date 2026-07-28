@@ -34,7 +34,7 @@ internal sealed partial class SecuritySignalRecorder(
 
         try
         {
-            this.WriteLog(record, registered.Severity);
+            this.WriteLog(record);
             emitted = true;
         }
         catch (Exception)
@@ -45,18 +45,19 @@ internal sealed partial class SecuritySignalRecorder(
         return new(record.IncidentCorrelationId, emitted);
     }
 
-    private void WriteLog(
-        SecuritySignalRecord record,
-        SecuritySignalSeverity severity)
+    private void WriteLog(SecuritySignalRecord record)
     {
-        switch (severity)
+        string category = SecuritySignalCategories.ToWireName(record.Category);
+        string severity = SecuritySignalSeverities.ToWireName(record.Severity);
+
+        switch (record.Severity)
         {
             case SecuritySignalSeverity.Notice:
                 LogNotice(
                     logger,
                     record.SignalCode,
-                    record.Category,
-                    record.Severity,
+                    category,
+                    severity,
                     record.IncidentCorrelationId,
                     record.OccurredAtUtc);
                 break;
@@ -64,8 +65,8 @@ internal sealed partial class SecuritySignalRecorder(
                 LogWarning(
                     logger,
                     record.SignalCode,
-                    record.Category,
-                    record.Severity,
+                    category,
+                    severity,
                     record.IncidentCorrelationId,
                     record.OccurredAtUtc);
                 break;
@@ -73,16 +74,16 @@ internal sealed partial class SecuritySignalRecorder(
                 LogCritical(
                     logger,
                     record.SignalCode,
-                    record.Category,
-                    record.Severity,
+                    category,
+                    severity,
                     record.IncidentCorrelationId,
                     record.OccurredAtUtc);
                 break;
             case SecuritySignalSeverity.Unknown:
             default:
                 throw new ArgumentOutOfRangeException(
-                    nameof(severity),
-                    severity,
+                    nameof(record),
+                    record.Severity,
                     "Security signal severity is invalid.");
         }
     }

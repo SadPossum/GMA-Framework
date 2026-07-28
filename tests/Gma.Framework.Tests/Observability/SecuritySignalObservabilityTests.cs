@@ -75,6 +75,8 @@ public sealed class SecuritySignalObservabilityTests
                 "SignalCode"
             ],
             propertyNames);
+        Assert.Equal(Definition.Category, record.Category);
+        Assert.Equal(Definition.Severity, record.Severity);
         Assert.DoesNotContain(
             json.EnumerateObject(),
             property => property.Name.Contains("payload", StringComparison.OrdinalIgnoreCase));

@@ -12,15 +12,15 @@ public sealed record SecuritySignalRecord
         ArgumentNullException.ThrowIfNull(definition);
 
         this.SignalCode = definition.Code;
-        this.Category = SecuritySignalCategories.ToWireName(definition.Category);
-        this.Severity = SecuritySignalSeverities.ToWireName(definition.Severity);
+        this.Category = definition.Category;
+        this.Severity = definition.Severity;
         this.IncidentCorrelationId = NormalizeIncidentCorrelationId(incidentCorrelationId);
         this.OccurredAtUtc = occurredAtUtc.ToUniversalTime();
     }
 
     public string SignalCode { get; }
-    public string Category { get; }
-    public string Severity { get; }
+    public SecuritySignalCategory Category { get; }
+    public SecuritySignalSeverity Severity { get; }
     public string IncidentCorrelationId { get; }
     public DateTimeOffset OccurredAtUtc { get; }
 
