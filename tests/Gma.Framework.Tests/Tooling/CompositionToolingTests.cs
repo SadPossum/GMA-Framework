@@ -148,6 +148,17 @@ public sealed class CompositionToolingTests
         Assert.Contains("'SECURITY.md'", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Source_package_checks_accept_and_require_repository_security_governance()
+    {
+        string source = ReadTool("check-source-packages.ps1");
+
+        Assert.Contains("'.gma'", source, StringComparison.Ordinal);
+        Assert.Contains("'.json'", source, StringComparison.Ordinal);
+        Assert.Contains("'/.gma/'", source, StringComparison.Ordinal);
+        Assert.Contains("'SECURITY.md'", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 

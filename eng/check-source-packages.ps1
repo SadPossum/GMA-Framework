@@ -19,7 +19,7 @@ function Get-GmaPackageRequiredPaths {
     param([Parameter(Mandatory = $true)][string] $PackageRoot)
 
     $requiredPaths = [System.Collections.Generic.List[string]]::new()
-    foreach ($relativeRoot in @('docs', 'eng', 'src', 'tests', '.github')) {
+    foreach ($relativeRoot in @('docs', 'eng', 'src', 'tests', '.github', '.gma')) {
         $absoluteRoot = Join-Path $PackageRoot $relativeRoot
         if (-not (Test-Path -LiteralPath $absoluteRoot -PathType Container)) {
             continue
@@ -28,7 +28,7 @@ function Get-GmaPackageRequiredPaths {
         foreach ($file in Get-ChildItem -LiteralPath $absoluteRoot -Recurse -File |
             Where-Object {
                 $_.FullName -notmatch '\\(bin|obj)\\' -and
-                ($_.Extension -in @('.csproj', '.md', '.ps1', '.yml', '.yaml'))
+                ($_.Extension -in @('.csproj', '.json', '.md', '.ps1', '.yml', '.yaml'))
             }) {
             $requiredPaths.Add((Get-GmaCompositionRelativePath -BasePath $PackageRoot -TargetPath $file.FullName).Replace('\', '/'))
         }
@@ -47,11 +47,11 @@ if ($selectedSubmodules.Count -eq 0) {
     throw 'No matching source packages were found in .gitmodules.'
 }
 
-$allowedFolders = @('/.github/', '/Solution Items/', '/docs/', '/eng/', '/src/', '/tests/')
+$allowedFolders = @('/.github/', '/.gma/', '/Solution Items/', '/docs/', '/eng/', '/src/', '/tests/')
 $allowedRootFiles = @(
     '.editorconfig', '.gitattributes', '.gitignore', 'Directory.Build.props',
     'Directory.Packages.props', 'global.json', 'Gma.SourceRoots.props.example',
-    'LICENSE', 'nuget.config', 'README.md'
+    'LICENSE', 'nuget.config', 'README.md', 'SECURITY.md'
 )
 $errors = [System.Collections.Generic.List[string]]::new()
 $packages = [System.Collections.Generic.List[object]]::new()
