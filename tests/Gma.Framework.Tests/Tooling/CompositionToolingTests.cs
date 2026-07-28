@@ -162,6 +162,18 @@ public sealed class CompositionToolingTests
         Assert.Contains("'SUPPORT.md'", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Source_set_export_supports_explicit_recursive_compositions()
+    {
+        string source = ReadTool("export-source-set.ps1");
+
+        Assert.Contains("[switch] $Recursive", source, StringComparison.Ordinal);
+        Assert.Contains("function Get-GmaDeclaredSubmodules", source, StringComparison.Ordinal);
+        Assert.Contains("function Get-GmaSourceSubmodules", source, StringComparison.Ordinal);
+        Assert.Contains("-ParentRelativePath $submodule.Path", source, StringComparison.Ordinal);
+        Assert.Contains("if ($Recursive)", source, StringComparison.Ordinal);
+    }
+
     private static string ReadTool(string name) =>
         File.ReadAllText(Path.Combine(RepositoryRoot, "eng", name));
 

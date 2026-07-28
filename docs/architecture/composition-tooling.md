@@ -28,5 +28,8 @@ Public API registration is optional. A composition wrapper may pass its API proj
 - migration targets are discovered from matching `.Persistence` and provider-migration project suffixes;
 - solution output is generated through XML APIs and supports a non-writing `-Check` mode;
 - submodule validation follows each branch declared in `.gitmodules`, with an optional expected-branch policy;
-- source-set export records exact commits, configured branches, SDK identity, package-catalog hash, and dirty state;
+- source-set export records exact commits, configured branches, SDK identity,
+  package-catalog hash, and dirty state; product compositions can request
+  recursive traversal when independently versioned components contain their
+  own source submodules;
 - no runtime project references these scripts.

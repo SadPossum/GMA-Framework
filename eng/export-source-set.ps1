@@ -3,7 +3,8 @@ param(
     [string] $RepositoryRoot,
 
     [string] $OutputPath = 'artifacts/gma-source-set.json',
-    [switch] $RequireClean
+    [switch] $RequireClean,
+    [switch] $Recursive
 )
 
 . (Join-Path $PSScriptRoot 'composition-common.ps1')
@@ -32,16 +33,120 @@ function Get-GmaRepositoryEntry {
     }
 }
 
-$repositories = [System.Collections.Generic.List[object]]::new()
-$repositories.Add((Get-GmaRepositoryEntry -Path (Get-GmaCompositionRepositoryRoot) -RelativePath '.'))
-foreach ($submodule in Get-GmaCompositionSubmodules) {
-    $fullPath = Join-GmaCompositionPath $submodule.Path
-    if (-not (Test-Path -LiteralPath $fullPath -PathType Container)) {
-        throw "Submodule '$($submodule.Path)' is not initialized."
+function Get-GmaDeclaredSubmodules {
+    param(
+        [Parameter(Mandatory = $true)][string] $RepositoryPath,
+        [Parameter(Mandatory = $true)][string] $ParentRelativePath
+    )
+
+    $gitmodulesPath = Join-Path $RepositoryPath '.gitmodules'
+    if (-not (Test-Path -LiteralPath $gitmodulesPath -PathType Leaf)) {
+        return @()
     }
 
+    $pathRows = @(Invoke-GmaCompositionGitText `
+        -WorkingDirectory $RepositoryPath `
+        -Arguments @(
+            'config',
+            '--file',
+            $gitmodulesPath,
+            '--get-regexp',
+            '^submodule\..*\.path$'
+        ))
+    $submodules = [System.Collections.Generic.List[object]]::new()
+    $repositoryPrefix =
+        [System.IO.Path]::GetFullPath($RepositoryPath).TrimEnd('\', '/') +
+        [System.IO.Path]::DirectorySeparatorChar
+
+    foreach ($pathRow in $pathRows) {
+        if ($pathRow -notmatch
+            '^submodule\.(?<name>.+)\.path\s+(?<path>.+)$') {
+            throw "Could not parse .gitmodules path row '$pathRow'."
+        }
+
+        $name = $Matches['name']
+        $path = $Matches['path']
+        if ([System.IO.Path]::IsPathRooted($path)) {
+            throw "Submodule '$name' uses rooted path '$path'."
+        }
+
+        $fullPath = [System.IO.Path]::GetFullPath(
+            (Join-Path $RepositoryPath $path))
+        if (-not $fullPath.StartsWith(
+                $repositoryPrefix,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Submodule '$name' resolves outside '$RepositoryPath'."
+        }
+
+        $urlRows = @(Invoke-GmaCompositionGitText `
+            -WorkingDirectory $RepositoryPath `
+            -Arguments @(
+                'config',
+                '--file',
+                $gitmodulesPath,
+                '--get',
+                "submodule.$name.url"
+            ))
+        $branchRows = @(& git -C $RepositoryPath config `
+            --file $gitmodulesPath `
+            --get "submodule.$name.branch" 2>$null)
+        $branch = if ($LASTEXITCODE -eq 0 -and $branchRows.Count -gt 0) {
+            $branchRows[0].Trim()
+        }
+        else {
+            ''
+        }
+        $relativePath = if ($ParentRelativePath -eq '.') {
+            $path
+        }
+        else {
+            "$ParentRelativePath/$path"
+        }
+
+        $submodules.Add([pscustomobject]@{
+            Path = $relativePath.Replace('\', '/')
+            FullPath = $fullPath
+            Url = $urlRows[0].Trim()
+            Branch = $branch
+        })
+    }
+
+    return @($submodules | Sort-Object Path)
+}
+
+function Get-GmaSourceSubmodules {
+    $submodules = [System.Collections.Generic.List[object]]::new()
+    $pending = [System.Collections.Generic.Queue[object]]::new()
+    foreach ($submodule in Get-GmaDeclaredSubmodules `
+        -RepositoryPath (Get-GmaCompositionRepositoryRoot) `
+        -ParentRelativePath '.') {
+        $pending.Enqueue($submodule)
+    }
+
+    while ($pending.Count -gt 0) {
+        $submodule = $pending.Dequeue()
+        if (-not (Test-Path -LiteralPath $submodule.FullPath -PathType Container)) {
+            throw "Submodule '$($submodule.Path)' is not initialized."
+        }
+
+        $submodules.Add($submodule)
+        if ($Recursive) {
+            foreach ($nested in Get-GmaDeclaredSubmodules `
+                -RepositoryPath $submodule.FullPath `
+                -ParentRelativePath $submodule.Path) {
+                $pending.Enqueue($nested)
+            }
+        }
+    }
+
+    return @($submodules | Sort-Object Path)
+}
+
+$repositories = [System.Collections.Generic.List[object]]::new()
+$repositories.Add((Get-GmaRepositoryEntry -Path (Get-GmaCompositionRepositoryRoot) -RelativePath '.'))
+foreach ($submodule in Get-GmaSourceSubmodules) {
     $repositories.Add((Get-GmaRepositoryEntry `
-        -Path $fullPath `
+        -Path $submodule.FullPath `
         -RelativePath $submodule.Path `
         -Url $submodule.Url `
         -ConfiguredBranch $submodule.Branch))
