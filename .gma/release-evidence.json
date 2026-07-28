@@ -1,0 +1,11 @@
+{
+    "schemaVersion":  1,
+    "repository":  "SadPossum/GMA-Framework",
+    "artifactName":  "gma-framework",
+    "releaseKind":  "source",
+    "releaseEvidence":  {
+                            "repository":  "SadPossum/GMA-Skeleton",
+                            "commit":  "4a1a6a857eff7524bc25821a89fe8b0260cb95a0"
+                        },
+    "sourceSetPath":  null
+}

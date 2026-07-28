@@ -139,17 +139,19 @@ public sealed class CompositionToolingTests
     }
 
     [Fact]
-    public void Solution_sync_keeps_repository_security_governance_discoverable()
+    public void Solution_sync_keeps_repository_governance_discoverable()
     {
         string source = ReadTool("sync-solution.ps1");
 
+        Assert.Contains("'.gma/release-evidence.json'", source, StringComparison.Ordinal);
         Assert.Contains("'.gma/repository-security.json'", source, StringComparison.Ordinal);
         Assert.Contains("'.gma/security-exceptions.json'", source, StringComparison.Ordinal);
         Assert.Contains("'SECURITY.md'", source, StringComparison.Ordinal);
+        Assert.Contains("'SUPPORT.md'", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Source_package_checks_accept_and_require_repository_security_governance()
+    public void Source_package_checks_accept_repository_governance()
     {
         string source = ReadTool("check-source-packages.ps1");
 
@@ -157,6 +159,7 @@ public sealed class CompositionToolingTests
         Assert.Contains("'.json'", source, StringComparison.Ordinal);
         Assert.Contains("'/.gma/'", source, StringComparison.Ordinal);
         Assert.Contains("'SECURITY.md'", source, StringComparison.Ordinal);
+        Assert.Contains("'SUPPORT.md'", source, StringComparison.Ordinal);
     }
 
     private static string ReadTool(string name) =>

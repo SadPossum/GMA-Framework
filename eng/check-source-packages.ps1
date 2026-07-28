@@ -51,7 +51,7 @@ $allowedFolders = @('/.github/', '/.gma/', '/Solution Items/', '/docs/', '/eng/'
 $allowedRootFiles = @(
     '.editorconfig', '.gitattributes', '.gitignore', 'Directory.Build.props',
     'Directory.Packages.props', 'global.json', 'Gma.SourceRoots.props.example',
-    'LICENSE', 'nuget.config', 'README.md', 'SECURITY.md'
+    'LICENSE', 'nuget.config', 'README.md', 'SECURITY.md', 'SUPPORT.md'
 )
 $errors = [System.Collections.Generic.List[string]]::new()
 $packages = [System.Collections.Generic.List[object]]::new()
