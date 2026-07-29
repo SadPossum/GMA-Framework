@@ -21,6 +21,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Check solution sync
+        shell: pwsh
+        run: ./eng/sync-solution.ps1 -RepositoryRoot . -Solution Gma.Framework.slnx -Check
+
       - name: Setup .NET
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with:
