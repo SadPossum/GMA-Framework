@@ -128,7 +128,7 @@ In the `GMA-Skeleton` composition repository, this framework repository is mount
 
 Scoping is the lightweight bridge between tenant and non-tenant hosts. Reusable modules that only need isolation depend on `Gma.Framework.Scoping`; tenant-specific semantics stay in `Gma.Framework.Tenancy` and bridge packages such as `Gma.Framework.Tenancy.Scoping`.
 
-Current logical module roots in the skeleton are `AccessControl/`, `Administration/`, `Auth/`, `Files/`, `Notifications/`, `TaskRuntime/`, `Tenancy/`, `Catalog/`, `Ordering/`, and `TaskSamples/`. Reusable roots resolve through source-root properties to mounted repositories; example roots resolve to skeleton-owned source folders.
+Current logical module roots in the skeleton are `AccessControl/`, `Administration/`, `Auth/`, `Files/`, `Notifications/`, `Organizations/`, `TaskRuntime/`, `Tenancy/`, `Catalog/`, `Ordering/`, and `TaskSamples/`. Reusable roots resolve through source-root properties to mounted repositories; example roots resolve to skeleton-owned source folders.
 
 ```text
 GMA-Skeleton/
@@ -140,6 +140,7 @@ GMA-Skeleton/
       auth/
       files/
       notifications/
+      organizations/
       task-runtime/
       tenancy/
   src/
