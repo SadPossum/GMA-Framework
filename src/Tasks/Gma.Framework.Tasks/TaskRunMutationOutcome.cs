@@ -9,5 +9,6 @@ public enum TaskRunMutationOutcome
     InvalidState = 4,
     LeaseLost = 5,
     Conflict = 6,
-    InvalidRequest = 7
+    InvalidRequest = 7,
+    ScopeClosed = 8
 }

@@ -1,10 +1,10 @@
 namespace Gma.Framework.Tests;
 
+using Gma.Framework.Messaging;
+using Gma.Framework.Messaging.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
-using Gma.Framework.Messaging;
-using Gma.Framework.Messaging.Infrastructure;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -66,6 +66,50 @@ public sealed class EfOutboxStoreTests
         Assert.Equal(dueId, Assert.Single(claimed).Id);
         Assert.Equal("worker-a", dueSnapshot.LockedBy);
         Assert.Equal(Now.AddSeconds(31), dueSnapshot.LockedUntilUtc);
+    }
+
+    [Fact]
+    public async Task Claim_admission_filter_can_suppress_module_owned_scopes()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        FilteringOutboxStore store = new(dbContext, "tenant-closed");
+        OutboxMessage open = CreateMessage(
+            Guid.Parse("61111111-1111-1111-1111-111111111111"),
+            Now,
+            "tenant-open");
+        OutboxMessage closed = CreateMessage(
+            Guid.Parse("62222222-2222-2222-2222-222222222222"),
+            Now,
+            "tenant-closed");
+        dbContext.OutboxMessages.AddRange(open, closed);
+        await dbContext.SaveChangesAsync();
+
+        IReadOnlyList<OutboxMessageRecord> claimed = await store
+            .ClaimPendingAsync(
+                10,
+                "worker-a",
+                Now,
+                TimeSpan.FromSeconds(30),
+                CancellationToken.None);
+
+        Assert.Equal(open.Id, Assert.Single(claimed).Id);
+        Assert.Null(closed.LockedBy);
+    }
+
+    [Fact]
+    public async Task Cleanup_can_be_specialized_by_a_module_owned_store()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        CleanupOutboxStore store = new(dbContext);
+        IOutboxCleanupStore cleanup = store;
+
+        int removed = await cleanup.DeleteProcessedBeforeAsync(
+            Now,
+            10,
+            CancellationToken.None);
+
+        Assert.Equal(37, removed);
+        Assert.True(store.WasInvoked);
     }
 
     [Fact]
@@ -149,13 +193,16 @@ public sealed class EfOutboxStoreTests
         return new TestDbContext(options);
     }
 
-    private static OutboxMessage CreateMessage(Guid id, DateTimeOffset createdAtUtc) =>
+    private static OutboxMessage CreateMessage(
+        Guid id,
+        DateTimeOffset createdAtUtc,
+        string scopeId = "tenant-a") =>
         new(
             id,
             "gma.auth.test.v1",
             "test",
             1,
-            "tenant-a",
+            scopeId,
             createdAtUtc,
             "{}",
             createdAtUtc);
@@ -165,6 +212,37 @@ public sealed class EfOutboxStoreTests
         string moduleName,
         OutboxOptions? options = null)
         : EfOutboxStore<TestDbContext>(dbContext, Options.Create(options ?? new OutboxOptions()), moduleName);
+
+    private sealed class FilteringOutboxStore(
+        TestDbContext dbContext,
+        string excludedScope)
+        : EfOutboxStore<TestDbContext>(
+            dbContext,
+            Options.Create(new OutboxOptions()),
+            "auth")
+    {
+        protected override IQueryable<OutboxMessage> ApplyClaimAdmission(
+            IQueryable<OutboxMessage> candidates) =>
+            candidates.Where(message => message.ScopeId != excludedScope);
+    }
+
+    private sealed class CleanupOutboxStore(TestDbContext dbContext)
+        : EfOutboxStore<TestDbContext>(
+            dbContext,
+            Options.Create(new OutboxOptions()),
+            "auth")
+    {
+        public bool WasInvoked { get; private set; }
+
+        public override Task<int> DeleteProcessedBeforeAsync(
+            DateTimeOffset processedBeforeUtc,
+            int maxMessages,
+            CancellationToken cancellationToken)
+        {
+            this.WasInvoked = true;
+            return Task.FromResult(37);
+        }
+    }
 
     private sealed class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
     {

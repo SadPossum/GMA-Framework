@@ -18,6 +18,19 @@ using Xunit;
 [Collection(MetricsTestGroupDefinition.Name)]
 public sealed class NatsJetStreamConsumerServiceTests
 {
+    [Theory]
+    [InlineData(InboxProcessStatus.Processed, true)]
+    [InlineData(InboxProcessStatus.Duplicate, true)]
+    [InlineData(InboxProcessStatus.Suppressed, true)]
+    [InlineData(InboxProcessStatus.Failed, false)]
+    [InlineData(InboxProcessStatus.Unknown, false)]
+    public void Inbox_outcome_controls_acknowledgement(
+        InboxProcessStatus status,
+        bool expected) =>
+        Assert.Equal(
+            expected,
+            NatsJetStreamConsumerService.ShouldAcknowledge(status));
+
     [Fact]
     public async Task Disabled_consumers_do_not_require_nats_connection()
     {

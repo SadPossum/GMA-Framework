@@ -40,6 +40,20 @@ public sealed class EfTransactionKeyLockTests
 
     [Theory]
     [InlineData(0)]
+    [InlineData(3)]
+    public async Task Acquire_rejects_an_invalid_mode(int mode)
+    {
+        await using TestDbContext dbContext = CreateDbContext();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            EfTransactionKeyLock.AcquireAsync(
+                dbContext,
+                "resource",
+                (EfTransactionKeyLockMode)mode));
+    }
+
+    [Theory]
+    [InlineData(0)]
     [InlineData(-1)]
     [InlineData(301)]
     public async Task Acquire_rejects_invalid_timeouts(int seconds)

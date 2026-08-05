@@ -17,10 +17,13 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Metadata Attribute Pipeline Refactor Task](architecture/metadata-attribute-pipeline-task.md)
 - [Messaging and Outbox](architecture/messaging-and-outbox.md)
 - [Messaging Consumers](architecture/messaging-consumers.md)
+- [Scoped Inbox Admission Task](architecture/scoped-inbox-admission-task.md)
 - [Durable Runtime Hardening Task](architecture/durable-runtime-hardening-task.md)
 - [Background Worker Host Task](architecture/background-worker-host-task.md)
 - [File Management](architecture/file-management.md)
+- [File Management Boundary Revalidation Task](architecture/file-management-boundary-revalidation-task.md)
 - [Tasks and Daemons](architecture/tasks-and-daemons.md)
+- [Task Schedule Streaming Task](architecture/task-schedule-streaming-task.md)
 - [Realtime](architecture/realtime.md)
 - [Notifications and Streaming](architecture/notifications-and-streaming.md)
 - [Observability](architecture/observability.md)
@@ -33,6 +36,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Scoped Resource Access](architecture/scoped-resource-access.md)
 - [Projection Rebuild Tasks](architecture/projection-rebuild-tasks.md)
 - [Scope Model Conventions Task](architecture/tenant-model-conventions-task.md)
+- [Ordinal Scope Storage Task](architecture/ordinal-scope-storage-task.md)
 
 ## Implementation Notes
 

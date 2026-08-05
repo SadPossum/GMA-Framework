@@ -2,11 +2,11 @@ namespace Gma.Framework.Messaging.Infrastructure;
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using Microsoft.Extensions.Options;
 using Gma.Framework.Messaging;
 using Gma.Framework.Observability;
 using Gma.Framework.Observability.Infrastructure;
 using Gma.Framework.Runtime;
+using Microsoft.Extensions.Options;
 
 public sealed class InboxMetrics
 {
@@ -51,6 +51,7 @@ public sealed class InboxMetrics
             InboxProcessStatus.Processed => "processed",
             InboxProcessStatus.Duplicate => "duplicate",
             InboxProcessStatus.Failed => "failed",
+            InboxProcessStatus.Suppressed => "suppressed",
             _ => "unknown"
         };
 }

@@ -2,6 +2,9 @@ namespace Gma.Framework.Messaging.Nats;
 
 using System.Diagnostics;
 using System.Text.Json;
+using Gma.Framework.Messaging;
+using Gma.Framework.Messaging.Infrastructure;
+using Gma.Framework.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,9 +12,6 @@ using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
-using Gma.Framework.Messaging;
-using Gma.Framework.Messaging.Infrastructure;
-using Gma.Framework.Runtime;
 
 internal sealed class NatsJetStreamConsumerService(
     IServiceProvider services,
@@ -198,7 +198,7 @@ internal sealed class NatsJetStreamConsumerService(
         }
         this.TryRecordInboxProcessed(subscription, result.Status, Stopwatch.GetElapsedTime(startedAt));
 
-        if (result.Status is InboxProcessStatus.Processed or InboxProcessStatus.Duplicate)
+        if (ShouldAcknowledge(result.Status))
         {
             await message.AckAsync(cancellationToken: stoppingToken).ConfigureAwait(false);
             return;
@@ -209,6 +209,12 @@ internal sealed class NatsJetStreamConsumerService(
         await message.NakAsync(new AckOpts { NakDelay = options.Value.EffectiveNakDelay }, stoppingToken)
             .ConfigureAwait(false);
     }
+
+    internal static bool ShouldAcknowledge(InboxProcessStatus status) =>
+        status is
+            InboxProcessStatus.Processed or
+            InboxProcessStatus.Duplicate or
+            InboxProcessStatus.Suppressed;
 
     private async Task RunAckProgressAsync(INatsJSMsg<string> message, CancellationToken cancellationToken)
     {

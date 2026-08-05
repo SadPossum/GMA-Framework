@@ -1,11 +1,11 @@
 namespace Gma.Framework.Tests;
 
+using Gma.Framework.Messaging;
+using Gma.Framework.Messaging.Infrastructure;
+using Gma.Framework.Runtime.Identity;
+using Gma.Framework.Runtime.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Gma.Framework.Runtime.Identity;
-using Gma.Framework.Messaging;
-using Gma.Framework.Runtime.Time;
-using Gma.Framework.Messaging.Infrastructure;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -77,6 +77,75 @@ public sealed class EfInboxStoreTests
             CancellationToken.None);
 
         Assert.Equal(InboxProcessStatus.Duplicate, duplicate.Status);
+    }
+
+    [Fact]
+    public async Task Process_async_suppresses_before_inbox_insert_or_handler()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        TestInboxStore store = new(dbContext, "ordering")
+        {
+            Admission = (_, _) => ValueTask.FromResult(false)
+        };
+        int calls = 0;
+
+        InboxProcessResult result = await store.ProcessAsync(
+            CreateMessageRecord(),
+            _ =>
+            {
+                calls++;
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Equal(InboxProcessStatus.Suppressed, result.Status);
+        Assert.Null(result.Error);
+        Assert.Equal(0, calls);
+        Assert.Empty(dbContext.InboxMessages);
+    }
+
+    [Fact]
+    public async Task Process_async_checks_processed_duplicate_before_admission()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        InboxMessageRecord message = CreateMessageRecord();
+        await new TestInboxStore(dbContext, "ordering").ProcessAsync(
+            message,
+            _ => Task.CompletedTask,
+            CancellationToken.None);
+        TestInboxStore denyingStore = new(dbContext, "ordering")
+        {
+            Admission = (_, _) => throw new InvalidOperationException(
+                "Admission should not run for a processed duplicate.")
+        };
+
+        InboxProcessResult result = await denyingStore.ProcessAsync(
+            message,
+            _ => throw new InvalidOperationException("Handler should not run."),
+            CancellationToken.None);
+
+        Assert.Equal(InboxProcessStatus.Duplicate, result.Status);
+    }
+
+    [Fact]
+    public async Task Process_async_suppresses_failure_evidence_when_admission_closes()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        int admissionCalls = 0;
+        TestInboxStore store = new(dbContext, "ordering")
+        {
+            Admission = (_, _) =>
+                ValueTask.FromResult(Interlocked.Increment(ref admissionCalls) == 1)
+        };
+
+        InboxProcessResult result = await store.ProcessAsync(
+            CreateMessageRecord(),
+            _ => throw new InvalidOperationException("handler failed"),
+            CancellationToken.None);
+
+        Assert.Equal(InboxProcessStatus.Suppressed, result.Status);
+        Assert.Equal(2, admissionCalls);
+        Assert.Empty(dbContext.InboxMessages);
     }
 
     [Fact]
@@ -159,8 +228,27 @@ public sealed class EfInboxStoreTests
             "tenant-a",
             Now);
 
-    private sealed class TestInboxStore(TestDbContext dbContext, string moduleName)
-        : EfInboxStore<TestDbContext>(dbContext, new TestClock(), new TestIdGenerator(), moduleName);
+    private sealed class TestInboxStore(
+        TestDbContext dbContext,
+        string moduleName)
+        : EfInboxStore<TestDbContext>(
+            dbContext,
+            new TestClock(),
+            new TestIdGenerator(),
+            moduleName)
+    {
+        public Func<
+            InboxMessageRecord,
+            CancellationToken,
+            ValueTask<bool>> Admission
+        { get; init; } =
+            (_, _) => ValueTask.FromResult(true);
+
+        protected override ValueTask<bool> IsAdmittedAsync(
+            InboxMessageRecord message,
+            CancellationToken cancellationToken) =>
+            this.Admission(message, cancellationToken);
+    }
 
     private sealed class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
     {

@@ -152,6 +152,9 @@ Tenant convention tests should prove both read and write isolation:
 - `IScopedEntity` mapped entities have a required `ScopeId` with `ScopeIds.MaxLength`;
 - `ScopeAwareDbContext<TContext>` rejects invalid, unnormalized, and mismatched scope ids before commit;
 - global or runtime/control-plane records are intentionally exempted and documented.
+- SQL Server and PostgreSQL relational coverage proves that scope ids differing
+  only by case remain distinct and that provider migrations preserve the
+  indexes and constraints attached to scope columns.
 
 Integration tests should use migrations:
 

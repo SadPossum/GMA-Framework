@@ -199,10 +199,24 @@ The scheduler, timeout scanner, metrics sampler, and worker loop are long-runnin
 
 The adapter is intentionally scheduler-neutral:
 
-- schedules are declared in module application code through `ScheduledTaskDefinition`;
+- schedules are declared in module application code through
+  `ScheduledTaskDefinition` and streamed from `ITaskScheduleProvider`;
 - it writes only to `ITaskRunStore`;
 - deterministic per-interval dedupe keys are generated as `schedule:<module>:<task>:<schedule>:v<payload-version>:<occurrence>`;
 - no domain/application code depends on Quartz.NET, Hangfire, or hosted-service APIs.
+
+The scheduler enqueues each definition as soon as the provider yields it. A
+provider that discovers schedules from a large cross-scope projection should
+use a cancellation-aware asynchronous database stream instead of materializing
+the tenant-wide result. Providers must yield a deterministic identity for the
+same logical schedule; ordering is useful for predictable operations but is not
+part of the deduplication identity.
+
+In-memory occurrence cursors are retained only for schedules observed during a
+complete successful tick. A vanished schedule is pruned after that tick, so a
+later reappearance receives normal `RunOnStart` behavior. A failed or canceled
+provider enumeration never prunes cursors from the incomplete snapshot, and
+the persistent task-store dedupe key remains the final duplicate barrier.
 
 External schedulers can still be added later as explicit adapters that create the same `TaskRunRequest` shape.
 

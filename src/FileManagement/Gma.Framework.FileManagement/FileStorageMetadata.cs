@@ -1,6 +1,7 @@
 namespace Gma.Framework.FileManagement;
 
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http.Headers;
 
 public static class FileStorageMetadata
 {
@@ -27,15 +28,17 @@ public static class FileStorageMetadata
             return false;
         }
 
-        string candidate = contentType.Trim().ToLowerInvariant();
+        string candidate = contentType.Trim();
         if (candidate.Length > FileManagementOptions.ContentTypeMaxLength ||
-            candidate.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)) ||
-            !candidate.Contains('/', StringComparison.Ordinal))
+            candidate.Any(char.IsControl) ||
+            !MediaTypeHeaderValue.TryParse(candidate, out MediaTypeHeaderValue? parsed) ||
+            string.IsNullOrWhiteSpace(parsed.MediaType) ||
+            parsed.MediaType.Contains('*', StringComparison.Ordinal))
         {
             return false;
         }
 
-        normalized = candidate;
+        normalized = parsed.MediaType.ToLowerInvariant();
         return true;
     }
 

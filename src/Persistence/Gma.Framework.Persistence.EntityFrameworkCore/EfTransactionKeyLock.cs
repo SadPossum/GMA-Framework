@@ -18,11 +18,41 @@ public static class EfTransactionKeyLock
         DbContext dbContext,
         string resource,
         CancellationToken cancellationToken = default) =>
-        AcquireAsync(dbContext, resource, DefaultTimeout, cancellationToken);
+        AcquireAsync(
+            dbContext,
+            resource,
+            EfTransactionKeyLockMode.Exclusive,
+            DefaultTimeout,
+            cancellationToken);
+
+    public static Task AcquireAsync(
+        DbContext dbContext,
+        string resource,
+        EfTransactionKeyLockMode mode,
+        CancellationToken cancellationToken = default) =>
+        AcquireAsync(
+            dbContext,
+            resource,
+            mode,
+            DefaultTimeout,
+            cancellationToken);
+
+    public static Task AcquireAsync(
+        DbContext dbContext,
+        string resource,
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default) =>
+        AcquireAsync(
+            dbContext,
+            resource,
+            EfTransactionKeyLockMode.Exclusive,
+            timeout,
+            cancellationToken);
 
     public static async Task AcquireAsync(
         DbContext dbContext,
         string resource,
+        EfTransactionKeyLockMode mode,
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
@@ -36,6 +66,15 @@ public static class EfTransactionKeyLock
         if (timeout <= TimeSpan.Zero || timeout > MaximumTimeout)
         {
             throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Transaction lock timeout must be positive and at most five minutes.");
+        }
+
+        if (mode is not (EfTransactionKeyLockMode.Shared or
+            EfTransactionKeyLockMode.Exclusive))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(mode),
+                mode,
+                "Transaction key lock mode is invalid.");
         }
 
         IDbContextTransaction? transaction = dbContext.Database.CurrentTransaction;
@@ -52,7 +91,9 @@ public static class EfTransactionKeyLock
 
         if (dbContext.Database.IsNpgsql())
         {
-            command.CommandText = "SELECT pg_advisory_xact_lock(@lock_key);";
+            command.CommandText = mode == EfTransactionKeyLockMode.Shared
+                ? "SELECT pg_advisory_xact_lock_shared(@lock_key);"
+                : "SELECT pg_advisory_xact_lock(@lock_key);";
             DbParameter parameter = command.CreateParameter();
             parameter.ParameterName = "lock_key";
             parameter.DbType = DbType.Int64;
@@ -68,7 +109,7 @@ public static class EfTransactionKeyLock
                 DECLARE @lock_result int;
                 EXEC @lock_result = sys.sp_getapplock
                     @Resource = @lock_resource,
-                    @LockMode = 'Exclusive',
+                    @LockMode = @lock_mode,
                     @LockOwner = 'Transaction',
                     @LockTimeout = @lock_timeout;
                 SELECT @lock_result;
@@ -78,6 +119,13 @@ public static class EfTransactionKeyLock
             resourceParameter.DbType = DbType.String;
             resourceParameter.Value = $"gma:{Convert.ToHexString(resourceHash)}";
             command.Parameters.Add(resourceParameter);
+            DbParameter modeParameter = command.CreateParameter();
+            modeParameter.ParameterName = "lock_mode";
+            modeParameter.DbType = DbType.String;
+            modeParameter.Value = mode == EfTransactionKeyLockMode.Shared
+                ? "Shared"
+                : "Exclusive";
+            command.Parameters.Add(modeParameter);
             DbParameter timeoutParameter = command.CreateParameter();
             timeoutParameter.ParameterName = "lock_timeout";
             timeoutParameter.DbType = DbType.Int32;
@@ -98,4 +146,10 @@ public static class EfTransactionKeyLock
         throw new InvalidOperationException(
             $"Transaction-scoped key locks do not support provider '{dbContext.Database.ProviderName}'.");
     }
+}
+
+public enum EfTransactionKeyLockMode
+{
+    Shared = 1,
+    Exclusive = 2
 }

@@ -24,6 +24,13 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             return new TaskRunEnqueueResult(ToDetails(existing), Created: false);
         }
 
+        if (!await this.IsScopeAcceptingNewWorkAsync(
+                request.ScopeId,
+                cancellationToken).ConfigureAwait(false))
+        {
+            throw new TaskScopeNotAcceptingWorkException();
+        }
+
         TaskRun taskRun = TaskRun.Enqueue(request);
         dbContext.Set<TaskRun>().Add(taskRun);
         try
@@ -273,7 +280,7 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
         return TaskRunMutationOutcome.Conflict;
     }
 
-    public async Task<TaskRunMutationOutcome> RetryAsync(
+    public virtual async Task<TaskRunMutationOutcome> RetryAsync(
         Guid runId,
         string? requestedBy,
         DateTimeOffset scheduledAtUtc,
@@ -292,6 +299,13 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
             if (taskRun.Status is not (TaskRunStatus.Failed or TaskRunStatus.TimedOut or TaskRunStatus.Canceled or TaskRunStatus.RetryScheduled))
             {
                 return TaskRunMutationOutcome.InvalidState;
+            }
+
+            if (!await this.IsScopeAcceptingNewWorkAsync(
+                    taskRun.ScopeId,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                return TaskRunMutationOutcome.ScopeClosed;
             }
 
             try
@@ -375,7 +389,7 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
         return staleRuns.Select(ToSummary).ToArray();
     }
 
-    public async Task<TaskControlMessageEnqueueOutcome> EnqueueControlMessageAsync(
+    public virtual async Task<TaskControlMessageEnqueueOutcome> EnqueueControlMessageAsync(
         TaskControlMessage message,
         CancellationToken cancellationToken)
     {
@@ -399,12 +413,21 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
                 return TaskControlMessageEnqueueOutcome.RunNotFound;
             }
 
+            if (!await this.IsScopeAcceptingNewWorkAsync(
+                    taskRun.ScopeId,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                return TaskControlMessageEnqueueOutcome.ScopeClosed;
+            }
+
             if (!taskRun.RecordControlMessageEnqueued())
             {
                 return TaskControlMessageEnqueueOutcome.RunTerminal;
             }
 
-            TaskControlMessageState state = TaskControlMessageState.Enqueue(message);
+            TaskControlMessageState state = TaskControlMessageState.Enqueue(
+                message,
+                taskRun.ScopeId);
             dbContext.Set<TaskControlMessageState>().Add(state);
             try
             {
@@ -761,4 +784,9 @@ public abstract class EfTaskRunStore<TDbContext>(TDbContext dbContext, ISystemCl
                     taskRun.LeaseGeneration == context.LeaseGeneration,
                 cancellationToken);
     }
+
+    protected virtual ValueTask<bool> IsScopeAcceptingNewWorkAsync(
+        string? scopeId,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult(true);
 }

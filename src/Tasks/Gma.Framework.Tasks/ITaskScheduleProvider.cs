@@ -2,5 +2,6 @@ namespace Gma.Framework.Tasks;
 
 public interface ITaskScheduleProvider
 {
-    Task<IReadOnlyList<ScheduledTaskDefinition>> GetSchedulesAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
+        CancellationToken cancellationToken);
 }

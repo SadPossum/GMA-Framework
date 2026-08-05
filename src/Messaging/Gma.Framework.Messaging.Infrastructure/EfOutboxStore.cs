@@ -12,13 +12,15 @@ public abstract class EfOutboxStore<TDbContext>(
     : IOutboxStore, IOutboxBacklogReader, IOutboxCleanupStore
     where TDbContext : DbContext
 {
+    protected TDbContext DbContext { get; } = dbContext;
+
     public string ModuleName { get; } = IntegrationEventNaming.NormalizeModuleName(moduleName);
 
     public async Task<OutboxBacklogSnapshot> GetBacklogAsync(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        IQueryable<OutboxMessage> pending = dbContext.Set<OutboxMessage>()
+        IQueryable<OutboxMessage> pending = this.DbContext.Set<OutboxMessage>()
             .AsNoTracking()
             .Where(message => message.ProcessedAtUtc == null);
 
@@ -50,17 +52,20 @@ public abstract class EfOutboxStore<TDbContext>(
     {
         var arguments = OutboxStoreGuards.ValidateClaimArguments(batchSize, workerId, nowUtc, lockDuration);
 
-        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction = await dbContext.Database
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction = await this.DbContext.Database
             .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
             .ConfigureAwait(false);
 
-        List<OutboxMessage> messages = await dbContext.Set<OutboxMessage>()
+        IQueryable<OutboxMessage> candidates = this.ApplyClaimAdmission(
+            this.DbContext.Set<OutboxMessage>()
             .Where(message =>
                 message.ProcessedAtUtc == null &&
                 message.Attempts < options.Value.EffectiveMaxAttempts &&
                 (message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= arguments.NowUtc) &&
-                (message.LockedUntilUtc == null || message.LockedUntilUtc <= arguments.NowUtc))
+                (message.LockedUntilUtc == null || message.LockedUntilUtc <= arguments.NowUtc)));
+        List<OutboxMessage> messages = await candidates
             .OrderBy(message => message.CreatedAtUtc)
+            .ThenBy(message => message.Id)
             .Take(arguments.BatchSize)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -70,7 +75,7 @@ public abstract class EfOutboxStore<TDbContext>(
             message.MarkClaimed(arguments.WorkerId, arguments.NowUtc, arguments.LockDuration);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return messages.Select(ToRecord).ToList();
@@ -84,7 +89,7 @@ public abstract class EfOutboxStore<TDbContext>(
     {
         var arguments = OutboxStoreGuards.ValidateMarkArguments(id, workerId, nowUtc);
 
-        OutboxMessage? message = await dbContext.Set<OutboxMessage>()
+        OutboxMessage? message = await this.DbContext.Set<OutboxMessage>()
             .FirstOrDefaultAsync(
                 item => item.Id == arguments.Id && item.LockedBy == arguments.WorkerId,
                 cancellationToken)
@@ -96,7 +101,7 @@ public abstract class EfOutboxStore<TDbContext>(
         }
 
         message.MarkProcessed(arguments.NowUtc);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task MarkFailedAsync(
@@ -108,7 +113,7 @@ public abstract class EfOutboxStore<TDbContext>(
     {
         var arguments = OutboxStoreGuards.ValidateMarkArguments(id, workerId, nowUtc);
 
-        OutboxMessage? message = await dbContext.Set<OutboxMessage>()
+        OutboxMessage? message = await this.DbContext.Set<OutboxMessage>()
             .FirstOrDefaultAsync(
                 item => item.Id == arguments.Id && item.LockedBy == arguments.WorkerId,
                 cancellationToken)
@@ -120,17 +125,20 @@ public abstract class EfOutboxStore<TDbContext>(
         }
 
         message.MarkFailed(error, arguments.NowUtc, options.Value.EffectiveMaxAttempts);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<int> DeleteProcessedBeforeAsync(
+    protected virtual IQueryable<OutboxMessage> ApplyClaimAdmission(
+        IQueryable<OutboxMessage> candidates) => candidates;
+
+    public virtual async Task<int> DeleteProcessedBeforeAsync(
         DateTimeOffset processedBeforeUtc,
         int maxMessages,
         CancellationToken cancellationToken)
     {
         ValidateCleanupArguments(processedBeforeUtc, maxMessages);
 
-        return await dbContext.Set<OutboxMessage>()
+        return await this.DbContext.Set<OutboxMessage>()
             .Where(message =>
                 message.ProcessedAtUtc != null &&
                 message.ProcessedAtUtc < processedBeforeUtc)

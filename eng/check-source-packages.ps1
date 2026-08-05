@@ -27,7 +27,7 @@ function Get-GmaPackageRequiredPaths {
 
         foreach ($file in Get-ChildItem -LiteralPath $absoluteRoot -Recurse -File |
             Where-Object {
-                $_.FullName -notmatch '\\(bin|obj)\\' -and
+                $_.FullName -notmatch '[\\/](bin|obj)[\\/]' -and
                 ($_.Extension -in @('.csproj', '.json', '.md', '.ps1', '.yml', '.yaml'))
             }) {
             $requiredPaths.Add((Get-GmaCompositionRelativePath -BasePath $PackageRoot -TargetPath $file.FullName).Replace('\', '/'))

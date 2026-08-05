@@ -15,6 +15,7 @@ public sealed record InboxProcessResult
 
     public static InboxProcessResult Processed() => new(InboxProcessStatus.Processed, null);
     public static InboxProcessResult Duplicate() => new(InboxProcessStatus.Duplicate, null);
+    public static InboxProcessResult Suppressed() => new(InboxProcessStatus.Suppressed, null);
     public static InboxProcessResult Failed(string error) => new(InboxProcessStatus.Failed, NormalizeError(error));
 
     public static string NormalizeError(string error)

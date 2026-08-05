@@ -55,13 +55,34 @@ public sealed class FileManagementTests
     {
         FileContentTypeDetectionResult result = FileContentTypeDetectionResult.Detected(
             " signature-detector ",
-            " IMAGE/PNG ");
+            " IMAGE/PNG; charset=utf-8 ");
 
         Assert.Equal(FileContentTypeDetectionStatus.Detected, result.Status);
         Assert.Equal("signature-detector", result.Detector);
         Assert.Equal("image/png", result.ContentType);
         Assert.Throws<ArgumentException>(() =>
             FileContentTypeDetectionResult.Detected("signature-detector", "not-a-media-type"));
+    }
+
+    [Theory]
+    [InlineData("text//plain")]
+    [InlineData("text/plain/extra")]
+    [InlineData("text,plain")]
+    [InlineData("*/*")]
+    [InlineData("image/*")]
+    [InlineData("text/plain\r\nX-Injected: true")]
+    public void Content_types_reject_malformed_ranges_and_header_injection(string contentType)
+    {
+        Assert.False(FileStorageMetadata.TryNormalizeContentType(contentType, out _));
+    }
+
+    [Fact]
+    public void Content_types_canonicalize_a_valid_parameterized_media_type_to_its_essence()
+    {
+        Assert.True(FileStorageMetadata.TryNormalizeContentType(
+            " Text/Plain; Charset=utf-8 ",
+            out string? normalized));
+        Assert.Equal("text/plain", normalized);
     }
 
     [Fact]

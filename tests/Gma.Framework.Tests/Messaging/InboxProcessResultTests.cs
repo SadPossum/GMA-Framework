@@ -10,11 +10,16 @@ public sealed class InboxProcessResultTests
     [Theory]
     [InlineData(InboxProcessStatus.Processed)]
     [InlineData(InboxProcessStatus.Duplicate)]
+    [InlineData(InboxProcessStatus.Suppressed)]
     public void Non_failed_results_have_no_error(InboxProcessStatus expectedStatus)
     {
-        InboxProcessResult result = expectedStatus == InboxProcessStatus.Processed
-            ? InboxProcessResult.Processed()
-            : InboxProcessResult.Duplicate();
+        InboxProcessResult result = expectedStatus switch
+        {
+            InboxProcessStatus.Processed => InboxProcessResult.Processed(),
+            InboxProcessStatus.Duplicate => InboxProcessResult.Duplicate(),
+            InboxProcessStatus.Suppressed => InboxProcessResult.Suppressed(),
+            _ => throw new InvalidOperationException()
+        };
 
         Assert.Equal(expectedStatus, result.Status);
         Assert.Null(result.Error);

@@ -225,7 +225,7 @@ Before writing tenant-scoped or scope-aware code, answer:
 - Are tenant-owned cache keys paired with `CachingCompositionFeatures.ScopeContextRequired(...)`?
 - Are integration events tenant-scoped?
 
-Use `ScopeIds` in reusable domain, application, infrastructure, and front-door code when accepting or storing a scope id from aggregates, commands, events, or configuration. Use `TenantIds` only at tenant-facing boundaries such as tenant headers, tenant catalogs, tenant-specific admin/RBAC records, and tenancy adapters. Both value families are trimmed, case-preserving, capped at 128 characters, and reject whitespace or control characters to match persistence mappings.
+Use `ScopeIds` in reusable domain, application, infrastructure, and front-door code when accepting or storing a scope id from aggregates, commands, events, or configuration. Use `TenantIds` only at tenant-facing boundaries such as tenant headers, tenant catalogs, tenant-specific admin/RBAC records, and tenancy adapters. Both value families are trimmed, case-preserving, capped at 128 characters, and reject whitespace or control characters to match persistence mappings. Scope-aware EF contexts get ordinal `ScopeId` storage from `ApplyScopeConventions(...)`; plain infrastructure contexts with scope-bearing rows must call `ApplyOrdinalScopeIdConventions(...)` after applying their mappings.
 
 Scope-owned models should make ownership visible with `ScopedAggregateRoot<TId>`, `ScopedEntity<TId>`, or a direct `IScopedEntity` implementation. Do not hide isolation behind shadow EF properties or host-side reflection. Scope-aware EF modules should inherit `ScopeAwareDbContext<TContext>` and call `ApplyScopeConventions(modelBuilder)` so `ScopeId` mapping, the named `ScopeFilter`, and write-side scope guards stay centralized.
 
@@ -281,6 +281,9 @@ Rules:
 - application handlers map domain events to integration events;
 - application handlers resolve the owning writer through `IOutboxWriterRegistry`;
 - module outbox writer stores integration events;
+- EF module outbox writers inject and forward the complete
+  `IEnumerable<IIntegrationEventScopeResolver>` pipeline; never replace it
+  with an empty collection to suppress scope propagation;
 - public integration events inherit `IntegrationEvent` so event id, occurrence time, event name, and version validation stay centralized;
 - scope-owned integration events inherit `ScopedIntegrationEvent` or implement `IScopedIntegrationEvent`; compose `AddTenantAwareMessaging()` only in tenant-aware hosts that need tenant context set from those events;
 - hosted publisher sends to `IEventBus` only in hosts that explicitly opt into publishing;

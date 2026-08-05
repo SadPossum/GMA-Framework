@@ -18,6 +18,8 @@ public abstract class EfInboxStore<TDbContext>(
 {
     private const string HandlerCanceledError = "Handler execution was canceled before completion.";
 
+    protected TDbContext DbContext { get; } = dbContext;
+
     public string ModuleName { get; } = IntegrationEventNaming.NormalizeModuleName(moduleName);
 
     public async Task<InboxProcessResult> ProcessAsync(
@@ -31,10 +33,10 @@ public abstract class EfInboxStore<TDbContext>(
         string workerId = WorkerIds.Create(Environment.MachineName, idGenerator.NewId());
 
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            await this.DbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
                 .ConfigureAwait(false);
 
-        InboxMessage? inboxMessage = await dbContext.Set<InboxMessage>()
+        InboxMessage? inboxMessage = await this.DbContext.Set<InboxMessage>()
             .SingleOrDefaultAsync(
                 item => item.Id == message.EventId && item.Handler == message.HandlerName,
                 cancellationToken)
@@ -44,6 +46,15 @@ public abstract class EfInboxStore<TDbContext>(
         {
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return InboxProcessResult.Duplicate();
+        }
+
+        if (!await this.IsAdmittedAsync(message, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            await SuppressAsync(this.DbContext, inboxMessage, cancellationToken)
+                .ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return InboxProcessResult.Suppressed();
         }
 
         DateTimeOffset nowUtc = clock.UtcNow;
@@ -58,17 +69,17 @@ public abstract class EfInboxStore<TDbContext>(
                 message.ScopeId,
                 message.OccurredAtUtc,
                 nowUtc);
-            dbContext.Set<InboxMessage>().Add(inboxMessage);
+            this.DbContext.Set<InboxMessage>().Add(inboxMessage);
         }
 
         inboxMessage.MarkProcessing(workerId, nowUtc);
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
             await InvokeHandlerAsync(handler, cancellationToken).ConfigureAwait(false);
             inboxMessage.MarkProcessed(clock.UtcNow);
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return InboxProcessResult.Processed();
         }
@@ -76,12 +87,20 @@ public abstract class EfInboxStore<TDbContext>(
         {
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             string error = GetFailureMessage(exception);
-            await this.RecordFailureAsync(message, workerId, error).ConfigureAwait(false);
-            return InboxProcessResult.Failed(error);
+            bool failureRecorded = await this.RecordFailureAsync(message, workerId, error)
+                .ConfigureAwait(false);
+            return failureRecorded
+                ? InboxProcessResult.Failed(error)
+                : InboxProcessResult.Suppressed();
         }
     }
 
-    public async Task<int> DeleteProcessedBeforeAsync(
+    protected virtual ValueTask<bool> IsAdmittedAsync(
+        InboxMessageRecord message,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult(true);
+
+    public virtual async Task<int> DeleteProcessedBeforeAsync(
         DateTimeOffset processedBeforeUtc,
         int maxMessages,
         CancellationToken cancellationToken)
@@ -95,7 +114,7 @@ public abstract class EfInboxStore<TDbContext>(
 
         ArgumentOutOfRangeException.ThrowIfLessThan(maxMessages, 1);
 
-        return await dbContext.Set<InboxMessage>()
+        return await this.DbContext.Set<InboxMessage>()
             .Where(message =>
                 message.Status == InboxMessageStatus.Processed &&
                 message.ProcessedAtUtc != null &&
@@ -130,18 +149,18 @@ public abstract class EfInboxStore<TDbContext>(
         return RuntimeFailureDescriptions.FromException("inbox-handler-failed", exception);
     }
 
-    private async Task RecordFailureAsync(
+    private async Task<bool> RecordFailureAsync(
         InboxMessageRecord message,
         string workerId,
         string error)
     {
-        dbContext.ChangeTracker.Clear();
+        this.DbContext.ChangeTracker.Clear();
 
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, CancellationToken.None)
+            await this.DbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, CancellationToken.None)
                 .ConfigureAwait(false);
 
-        InboxMessage? inboxMessage = await dbContext.Set<InboxMessage>()
+        InboxMessage? inboxMessage = await this.DbContext.Set<InboxMessage>()
             .SingleOrDefaultAsync(
                 item => item.Id == message.EventId && item.Handler == message.HandlerName,
                 CancellationToken.None)
@@ -150,7 +169,16 @@ public abstract class EfInboxStore<TDbContext>(
         if (inboxMessage?.IsProcessed == true)
         {
             await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
-            return;
+            return true;
+        }
+
+        if (!await this.IsAdmittedAsync(message, CancellationToken.None)
+                .ConfigureAwait(false))
+        {
+            await SuppressAsync(this.DbContext, inboxMessage, CancellationToken.None)
+                .ConfigureAwait(false);
+            await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            return false;
         }
 
         DateTimeOffset nowUtc = clock.UtcNow;
@@ -165,12 +193,29 @@ public abstract class EfInboxStore<TDbContext>(
                 message.ScopeId,
                 message.OccurredAtUtc,
                 nowUtc);
-            dbContext.Set<InboxMessage>().Add(inboxMessage);
+            this.DbContext.Set<InboxMessage>().Add(inboxMessage);
         }
 
         inboxMessage.MarkProcessing(workerId, nowUtc);
         inboxMessage.MarkFailed(error, clock.UtcNow);
-        await dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+        await this.DbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
         await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+        return true;
+    }
+
+    private static async Task SuppressAsync(
+        TDbContext context,
+        InboxMessage? inboxMessage,
+        CancellationToken cancellationToken)
+    {
+        if (inboxMessage is not null)
+        {
+            context.Set<InboxMessage>().Remove(inboxMessage);
+        }
+
+        if (context.ChangeTracker.HasChanges())
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 }

@@ -7,5 +7,6 @@ public enum TaskControlMessageEnqueueOutcome
     AlreadyExists = 2,
     RunNotFound = 3,
     RunTerminal = 4,
-    Conflict = 5
+    Conflict = 5,
+    ScopeClosed = 6
 }

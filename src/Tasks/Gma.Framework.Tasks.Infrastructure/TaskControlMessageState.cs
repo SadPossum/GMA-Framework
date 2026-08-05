@@ -9,6 +9,7 @@ public class TaskControlMessageState
 
     public Guid Id { get; private set; }
     public Guid RunId { get; private set; }
+    public string? ScopeId { get; private set; }
     public string CommandName { get; private set; } = string.Empty;
     public string Payload { get; private set; } = string.Empty;
     public DateTimeOffset EnqueuedAtUtc { get; private set; }
@@ -22,10 +23,13 @@ public class TaskControlMessageState
 
     private TaskControlMessageState() { }
 
-    private TaskControlMessageState(TaskControlMessage message)
+    private TaskControlMessageState(
+        TaskControlMessage message,
+        string? scopeId)
     {
         this.Id = message.MessageId;
         this.RunId = message.RunId;
+        this.ScopeId = scopeId;
         this.CommandName = message.CommandName;
         this.Payload = message.PayloadJson;
         this.EnqueuedAtUtc = message.EnqueuedAtUtc;
@@ -35,9 +39,17 @@ public class TaskControlMessageState
     }
 
     public static TaskControlMessageState Enqueue(TaskControlMessage message)
+        => Enqueue(message, scopeId: null);
+
+    public static TaskControlMessageState Enqueue(
+        TaskControlMessage message,
+        string? scopeId)
     {
         ArgumentNullException.ThrowIfNull(message);
-        return new TaskControlMessageState(message);
+        string? normalizedScopeId = string.IsNullOrWhiteSpace(scopeId)
+            ? null
+            : TaskNames.NormalizeScopeId(scopeId, nameof(scopeId));
+        return new TaskControlMessageState(message, normalizedScopeId);
     }
 
     public void MarkDelivered(DateTimeOffset nowUtc)

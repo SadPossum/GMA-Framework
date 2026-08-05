@@ -37,6 +37,15 @@ public sealed class EfOutboxWriterTests
     }
 
     [Fact]
+    public void Constructor_requires_scope_resolver_pipeline()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+
+        Assert.Throws<ArgumentNullException>(() =>
+            new NullScopeOutboxWriter(dbContext));
+    }
+
+    [Fact]
     public async Task Enqueue_tracks_outbox_message_without_saving()
     {
         using TestDbContext dbContext = CreateDbContext();
@@ -155,7 +164,15 @@ public sealed class EfOutboxWriterTests
             new TestClock(),
             Options.Create(new ApplicationIdentityOptions { Namespace = applicationNamespace }),
             moduleName,
-            scopeResolvers);
+            scopeResolvers ?? []);
+
+    private sealed class NullScopeOutboxWriter(TestDbContext dbContext)
+        : EfOutboxWriter<TestDbContext>(
+            dbContext,
+            new TestClock(),
+            Options.Create(new ApplicationIdentityOptions()),
+            "catalog",
+            null!);
 
     private sealed class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
     {

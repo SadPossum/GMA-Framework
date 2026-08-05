@@ -11,11 +11,14 @@ public abstract class EfOutboxWriter<TDbContext>(
     ISystemClock clock,
     IOptions<ApplicationIdentityOptions> applicationIdentity,
     string moduleName,
-    IEnumerable<IIntegrationEventScopeResolver>? scopeResolvers = null)
+    IEnumerable<IIntegrationEventScopeResolver> scopeResolvers)
     : IOutboxWriter
     where TDbContext : DbContext
 {
     private readonly string subjectPrefix = applicationIdentity.Value.EffectiveNamespace;
+    private readonly IIntegrationEventScopeResolver[] scopeResolvers =
+        scopeResolvers?.ToArray() ??
+        throw new ArgumentNullException(nameof(scopeResolvers));
 
     public string ModuleName { get; } = IntegrationEventNaming.NormalizeModuleName(moduleName);
 
@@ -28,7 +31,7 @@ public abstract class EfOutboxWriter<TDbContext>(
             this.ModuleName,
             integrationEvent,
             this.subjectPrefix,
-            scopeResolvers);
+            this.scopeResolvers);
 
         dbContext.Set<OutboxMessage>().Add(new OutboxMessage(
             envelope.EventId,

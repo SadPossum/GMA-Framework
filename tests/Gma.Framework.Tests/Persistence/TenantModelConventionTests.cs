@@ -1,6 +1,7 @@
 namespace Gma.Framework.Tests;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Gma.Framework.Domain;
 using Gma.Framework.Domain.Models;
@@ -34,6 +35,27 @@ public sealed class TenantModelConventionTests
     }
 
     [Fact]
+    public async Task Apply_tenant_conventions_uses_the_live_scope_after_context_construction()
+    {
+        string databaseName = Guid.NewGuid().ToString("N");
+        await using (TestTenantDbContext seed = CreateDbContext(databaseName, enabled: false, scopeId: null))
+        {
+            seed.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-a", "A"));
+            seed.TenantRecords.Add(new TestTenantRecord(Guid.NewGuid(), "tenant-b", "B"));
+            await seed.SaveChangesAsync();
+        }
+
+        MutableTestTenantContext scopeContext = new("pre-filter-scope");
+        await using TestTenantDbContext dbContext = CreateDbContext(databaseName, scopeContext);
+
+        scopeContext.ScopeId = "tenant-a";
+        Assert.Equal(["A"], await dbContext.TenantRecords.Select(record => record.Name).ToListAsync());
+
+        scopeContext.ScopeId = "tenant-b";
+        Assert.Equal(["B"], await dbContext.TenantRecords.Select(record => record.Name).ToListAsync());
+    }
+
+    [Fact]
     public void Apply_tenant_conventions_configures_tenant_property_and_named_filter()
     {
         using TestTenantDbContext dbContext = CreateDbContext(Guid.NewGuid().ToString("N"), enabled: true, scopeId: "tenant-a");
@@ -44,6 +66,30 @@ public sealed class TenantModelConventionTests
             ScopeIds.MaxLength,
             entityType.FindProperty(nameof(TestTenantRecord.ScopeId))?.GetMaxLength());
         Assert.Contains(ScopeFilterNames.ScopeFilter, entityType.GetDeclaredQueryFilters().Select(filter => filter.Key));
+    }
+
+    [Fact]
+    public void Apply_scope_conventions_configures_ordinal_sql_server_scope_ids_without_query_collation()
+    {
+        using TestTenantDbContext dbContext = CreateSqlServerDbContext(
+            enabled: true,
+            scopeId: "tenant-a");
+
+        IProperty[] scopeProperties = dbContext.GetService<IDesignTimeModel>()
+            .Model
+            .GetEntityTypes()
+            .Select(entityType => entityType.FindProperty(nameof(IScopedEntity.ScopeId)))
+            .Where(property => property is not null)
+            .Cast<IProperty>()
+            .ToArray();
+
+        Assert.NotEmpty(scopeProperties);
+        Assert.All(scopeProperties, property =>
+            Assert.Equal("Latin1_General_100_BIN2", property.GetCollation()));
+        Assert.DoesNotContain(
+            "COLLATE",
+            dbContext.TenantRecords.ToQueryString(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -114,9 +160,24 @@ public sealed class TenantModelConventionTests
     }
 
     private static TestTenantDbContext CreateDbContext(string databaseName, bool enabled, string? scopeId)
+        => CreateDbContext(databaseName, new TestTenantContext(enabled, scopeId));
+
+    private static TestTenantDbContext CreateDbContext(
+        string databaseName,
+        IScopeContext scopeContext)
     {
         DbContextOptions<TestTenantDbContext> options = new DbContextOptionsBuilder<TestTenantDbContext>()
             .UseInMemoryDatabase(databaseName)
+            .Options;
+
+        return new TestTenantDbContext(options, scopeContext);
+    }
+
+    private static TestTenantDbContext CreateSqlServerDbContext(bool enabled, string? scopeId)
+    {
+        DbContextOptions<TestTenantDbContext> options = new DbContextOptionsBuilder<TestTenantDbContext>()
+            .UseSqlServer(
+                "Server=(local);Database=gma_scope_conventions;Trusted_Connection=True;TrustServerCertificate=True")
             .Options;
 
         return new TestTenantDbContext(options, new TestTenantContext(enabled, scopeId));
@@ -129,12 +190,15 @@ public sealed class TenantModelConventionTests
         public DbSet<TestTenantRecord> TenantRecords => this.Set<TestTenantRecord>();
         public DbSet<MutableTenantRecord> MutableTenantRecords => this.Set<MutableTenantRecord>();
         public DbSet<TestGlobalRecord> GlobalRecords => this.Set<TestGlobalRecord>();
+        public DbSet<TestScopeInfrastructureRecord> ScopeInfrastructureRecords =>
+            this.Set<TestScopeInfrastructureRecord>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<TestTenantRecord>().ToTable("tenant_records");
             modelBuilder.Entity<MutableTenantRecord>().ToTable("mutable_tenant_records");
             modelBuilder.Entity<TestGlobalRecord>().ToTable("global_records");
+            modelBuilder.Entity<TestScopeInfrastructureRecord>().ToTable("scope_infrastructure_records");
             this.ApplyScopeConventions(modelBuilder);
         }
     }
@@ -143,6 +207,12 @@ public sealed class TenantModelConventionTests
     {
         public bool IsEnabled { get; } = enabled;
         public string? ScopeId { get; } = scopeId;
+    }
+
+    private sealed class MutableTestTenantContext(string? scopeId) : IScopeContext
+    {
+        public bool IsEnabled => true;
+        public string? ScopeId { get; set; } = scopeId;
     }
 
     private sealed class TestTenantRecord(Guid id, string scopeId, string name) : ScopedEntity<Guid>(id, scopeId)
@@ -162,5 +232,12 @@ public sealed class TenantModelConventionTests
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
+    }
+
+    [GlobalEntity]
+    private sealed class TestScopeInfrastructureRecord
+    {
+        public Guid Id { get; set; }
+        public string? ScopeId { get; set; }
     }
 }

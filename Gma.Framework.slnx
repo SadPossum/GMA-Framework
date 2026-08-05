@@ -53,6 +53,7 @@
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
     <File Path="docs/architecture/durable-runtime-hardening-task.md" />
     <File Path="docs/architecture/exception-safe-observability-task.md" />
+    <File Path="docs/architecture/file-management-boundary-revalidation-task.md" />
     <File Path="docs/architecture/file-management.md" />
     <File Path="docs/architecture/generic-access-control-rbac-task.md" />
     <File Path="docs/architecture/messaging-and-outbox.md" />
@@ -65,12 +66,14 @@
     <File Path="docs/architecture/notifications-and-streaming.md" />
     <File Path="docs/architecture/notifications-streaming-implementation-notes.md" />
     <File Path="docs/architecture/observability.md" />
+    <File Path="docs/architecture/ordinal-scope-storage-task.md" />
     <File Path="docs/architecture/overview.md" />
     <File Path="docs/architecture/persistence-and-tenancy.md" />
     <File Path="docs/architecture/production-readiness-backlog.md" />
     <File Path="docs/architecture/projection-rebuild-implementation-notes.md" />
     <File Path="docs/architecture/projection-rebuild-tasks.md" />
     <File Path="docs/architecture/realtime.md" />
+    <File Path="docs/architecture/scoped-inbox-admission-task.md" />
     <File Path="docs/architecture/scoped-resource-access.md" />
     <File Path="docs/architecture/scoping-and-tenancy.md" />
     <File Path="docs/architecture/semantic-enum-refactor-notes.md" />
@@ -78,6 +81,7 @@
     <File Path="docs/architecture/shared-access-policy-implementation-notes.md" />
     <File Path="docs/architecture/shared-dependency-boundary-refactor-notes.md" />
     <File Path="docs/architecture/standalone-solution-sync-verification-task.md" />
+    <File Path="docs/architecture/task-schedule-streaming-task.md" />
     <File Path="docs/architecture/tasks-and-daemons.md" />
     <File Path="docs/architecture/tenant-model-conventions-implementation-notes.md" />
     <File Path="docs/architecture/tenant-model-conventions-task.md" />

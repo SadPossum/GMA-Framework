@@ -24,6 +24,8 @@ The core `Gma.Framework.FileManagement` project deliberately has no NuGet packag
 
 The same neutral package defines `IFileContentTypeDetector`, `IFileContentInspector`, and companion readiness contracts. These are capability seams only: Framework does not choose a MIME library, malware scanner, quarantine policy, or product lifecycle. The Files module orchestrates them for its own upload front door; direct `IFileStorage` consumers keep ownership of their content policy.
 
+Framework parses content types as media types rather than opaque strings. Valid parameterized values are canonicalized to their lowercase media-type essence (for example, `Text/Plain; charset=utf-8` becomes `text/plain`); malformed values, wildcard ranges, and header injection are rejected. Storage allowlists therefore contain concrete canonical types.
+
 ## Configuration
 
 Local development:
@@ -82,7 +84,7 @@ builder.ValidateModuleComposition();
 
 Each adapter is a no-op unless `FileManagement:Enabled=true` and its provider is selected. A host may also register only the provider it deploys.
 
-When `FilesModule` is registered, it configures ASP.NET Core multipart parsing with `FileManagement:MaximumObjectBytes`. The command handler still validates the length, but the HTTP parser is also bounded before the file reaches application code.
+When `FilesModule` is registered, it configures each ASP.NET Core multipart section with `FileManagement:MaximumObjectBytes`. The POST endpoint separately caps the complete request at that object limit plus 64 KiB for framing. The command handler still validates the declared and copied lengths before bytes reach storage.
 
 Files-front-door policy is configured separately from storage:
 
@@ -97,23 +99,25 @@ Files-front-door policy is configured separately from storage:
 }
 ```
 
-Production startup requires both switches, a non-empty `FileManagement:AllowedContentTypes` list, and detector/inspector readiness. Required uploads are copied once into an ephemeral bounded quarantine file. The detector-derived canonical type controls allowlisting and stored metadata, then the inspector must return `Clean`; no caller-declared type is trusted for production policy.
+Production startup requires both switches, a non-empty `FileManagement:AllowedContentTypes` list, and detector/inspector readiness. Required uploads are copied once into an ephemeral bounded quarantine file. Each adapter receives a read-only, non-owning view for the duration of its call. The detector-derived canonical type controls allowlisting and stored metadata, then the inspector must return `Clean`; no caller-declared type is trusted for production policy.
 
 ## Files Module
 
-`Files` is the optional public front door:
+`Files` is the optional private-user HTTP front door:
 
 - `POST /api/files`
 - `GET /api/files/{fileId}`
 - `DELETE /api/files/{fileId}`
 
-The module requires authorization and tenant context. It resolves the caller into a user `AccessSubject`, verifies the token tenant matches the current tenant when tenancy is enabled, and stores objects under application-generated keys shaped like:
+The module requires authorization and scope context. It resolves the caller into a user `AccessSubject`, verifies the token scope matches the current scope when scoping is enabled, and stores new objects under application-generated keys shaped like:
 
 ```text
-files/{global-or-tenant-hash}/user-{subject-hash}/{file-id}
+files/v2/{global-or-full-scope-hash}/user-{full-subject-hash}/{file-id}
 ```
 
-The HTTP API never uses the user-supplied filename or raw user/tenant ids as a storage key. The filename is kept only as metadata after validation. Another user in the same tenant cannot download or delete a file by guessing its id because their subject hash resolves to a different object key.
+The HTTP API never uses the user-supplied filename or raw user/scope ids as a storage key. The filename is kept only as metadata after validation. Another user in the same scope cannot download or delete a file by guessing its id because their subject hash resolves to a different object key. Compatibility reads and deletes also inspect the legacy truncated-digest key; delete removes both representations so a migrated legacy copy cannot reappear.
+
+The POST endpoint opts out of ASP.NET Core antiforgery validation only because this generic API surface requires explicit non-cookie credentials such as bearer tokens or API keys. Hosts using ambient cookie authentication must own an antiforgery-protected upload endpoint instead.
 
 This front door is intentionally private-file oriented. Feature modules that need public files, cross-user sharing, business-specific ACLs, ownership transfer, review workflows, or lifecycle state should own those rules in their own module and use `Gma.Framework.FileManagement` as the byte-storage contract.
 

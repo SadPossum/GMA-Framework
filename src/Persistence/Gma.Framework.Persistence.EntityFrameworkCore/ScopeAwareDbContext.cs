@@ -10,8 +10,8 @@ public abstract class ScopeAwareDbContext<TContext>(
 {
     private readonly IScopeContext scopeContext = scopeContext;
 
-    public bool ScopeFilterEnabled { get; } = scopeContext.IsEnabled;
-    public string CurrentScopeId { get; } = scopeContext.ScopeId ?? string.Empty;
+    public bool ScopeFilterEnabled => this.scopeContext.IsEnabled;
+    public string CurrentScopeId => this.scopeContext.ScopeId ?? string.Empty;
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {

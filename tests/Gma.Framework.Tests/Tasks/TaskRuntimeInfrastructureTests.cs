@@ -1,5 +1,6 @@
 namespace Gma.Framework.Tests;
 
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -324,9 +325,12 @@ public sealed class TaskRuntimeInfrastructureTests
             Now,
             "operator",
             Now.AddMinutes(5));
-        TaskControlMessageState state = TaskControlMessageState.Enqueue(message);
+        TaskControlMessageState state = TaskControlMessageState.Enqueue(
+            message,
+            " Tenant-A ");
 
         Assert.True(state.IsReadableAt(Now));
+        Assert.Equal("Tenant-A", state.ScopeId);
 
         state.MarkDelivered(Now.AddSeconds(1));
         state.MarkFailed("bad input", Now.AddSeconds(2));
@@ -630,6 +634,108 @@ public sealed class TaskRuntimeInfrastructureTests
         Assert.Equal(
             "schedule:task-samples:generate-report:nightly-report:v1:20260703120000",
             request.DeduplicationKey);
+    }
+
+    [Fact]
+    public async Task Task_run_scheduler_enqueues_streamed_schedule_before_provider_completes()
+    {
+        RecordingTaskRunStore store = new();
+        GatedScheduleProvider provider = new();
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Tasks:Scheduler:Enabled"] = "true",
+            ["Tasks:Scheduler:PollInterval"] = "00:00:01",
+            ["Tasks:Scheduler:RequestedBy"] = "test-scheduler",
+        });
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<ITaskRunStore>(store);
+        builder.Services.AddSingleton<ISystemClock>(new FixedClock(Now));
+        builder.Services.AddSingleton<IIdGenerator>(new FixedIdGenerator(RunId));
+        builder.Services.AddSingleton<ITaskScheduleProvider>(provider);
+        builder.AddTaskRunScheduling();
+
+        using IHost host = builder.Build();
+        try
+        {
+            await host.StartAsync();
+            IReadOnlyList<TaskRunRequest> first =
+                await store.WaitForRequestsAsync(1, TimeSpan.FromSeconds(2));
+
+            _ = Assert.Single(first);
+            Assert.False(provider.EnumerationCompleted);
+
+            provider.Release();
+            IReadOnlyList<TaskRunRequest> both =
+                await store.WaitForRequestsAsync(2, TimeSpan.FromSeconds(2));
+
+            Assert.Equal(2, both.Count);
+        }
+        finally
+        {
+            provider.Release();
+            await host.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Task_run_scheduler_releases_cursor_for_removed_schedule()
+    {
+        RecordingTaskRunStore store = new();
+        ReappearingScheduleProvider provider = new();
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Tasks:Scheduler:Enabled"] = "true",
+            ["Tasks:Scheduler:PollInterval"] = "00:00:00.010",
+            ["Tasks:Scheduler:RequestedBy"] = "test-scheduler",
+        });
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<ITaskRunStore>(store);
+        builder.Services.AddSingleton<ISystemClock>(new FixedClock(Now));
+        builder.Services.AddSingleton<IIdGenerator>(new FixedIdGenerator(RunId));
+        builder.Services.AddSingleton<ITaskScheduleProvider>(provider);
+        builder.AddTaskRunScheduling();
+
+        using IHost host = builder.Build();
+        await host.StartAsync();
+        IReadOnlyList<TaskRunRequest> requests =
+            await store.WaitForRequestsAsync(2, TimeSpan.FromSeconds(2));
+        await host.StopAsync();
+
+        Assert.Equal(2, requests.Count);
+        Assert.True(provider.EnumerationCount >= 3);
+    }
+
+    [Fact]
+    public async Task Task_run_scheduler_does_not_prune_cursor_after_failed_snapshot()
+    {
+        RecordingTaskRunStore store = new();
+        FailingSnapshotScheduleProvider provider = new();
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Tasks:Scheduler:Enabled"] = "true",
+            ["Tasks:Scheduler:PollInterval"] = "00:00:00.010",
+            ["Tasks:Scheduler:RequestedBy"] = "test-scheduler",
+        });
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<ITaskRunStore>(store);
+        builder.Services.AddSingleton<ISystemClock>(new FixedClock(Now));
+        builder.Services.AddSingleton<IIdGenerator>(new FixedIdGenerator(RunId));
+        builder.Services.AddSingleton<ITaskScheduleProvider>(provider);
+        builder.AddTaskRunScheduling();
+
+        using IHost host = builder.Build();
+        await host.StartAsync();
+        Assert.True(await provider.WaitForEnumerationsAsync(
+            expectedCount: 3,
+            TimeSpan.FromSeconds(2)));
+        IReadOnlyList<TaskRunRequest> requests =
+            await store.WaitForRequestsAsync(2, TimeSpan.FromMilliseconds(100));
+        await host.StopAsync();
+
+        _ = Assert.Single(requests);
     }
 
     [Fact]
@@ -994,20 +1100,101 @@ public sealed class TaskRuntimeInfrastructureTests
 
     private sealed class SingleScheduleProvider : ITaskScheduleProvider
     {
-        public Task<IReadOnlyList<ScheduledTaskDefinition>> GetSchedulesAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ScheduledTaskDefinition>>(
-            [
-                new ScheduledTaskDefinition(
-                    "nightly-report",
-                    "task-samples",
-                    "generate-report",
-                    "{}",
-                    TimeSpan.FromMinutes(5),
-                    "samples",
-                    scopeId: "tenant-a",
-                    runOnStart: true)
-            ]);
+        public async IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return Schedule("nightly-report");
+        }
     }
+
+    private sealed class GatedScheduleProvider : ITaskScheduleProvider
+    {
+        private readonly TaskCompletionSource<bool> release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int enumerationCompleted;
+
+        public bool EnumerationCompleted =>
+            Volatile.Read(ref this.enumerationCompleted) == 1;
+
+        public async IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            yield return Schedule("first");
+            await this.release.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            yield return Schedule("second");
+            Volatile.Write(ref this.enumerationCompleted, 1);
+        }
+
+        public void Release() => this.release.TrySetResult(true);
+    }
+
+    private sealed class ReappearingScheduleProvider : ITaskScheduleProvider
+    {
+        private int enumerationCount;
+
+        public int EnumerationCount => Volatile.Read(ref this.enumerationCount);
+
+        public async IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            int count = Interlocked.Increment(ref this.enumerationCount);
+            if (count != 2)
+            {
+                yield return Schedule("reappearing");
+            }
+        }
+    }
+
+    private sealed class FailingSnapshotScheduleProvider : ITaskScheduleProvider
+    {
+        private int enumerationCount;
+
+        public async IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            int count = Interlocked.Increment(ref this.enumerationCount);
+            if (count == 2)
+            {
+                throw new InvalidOperationException("Schedule snapshot failed.");
+            }
+
+            yield return Schedule("stable");
+        }
+
+        public async Task<bool> WaitForEnumerationsAsync(
+            int expectedCount,
+            TimeSpan timeout)
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.Add(timeout);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                if (Volatile.Read(ref this.enumerationCount) >= expectedCount)
+                {
+                    return true;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+            }
+
+            return Volatile.Read(ref this.enumerationCount) >= expectedCount;
+        }
+    }
+
+    private static ScheduledTaskDefinition Schedule(string scheduleName) => new(
+        scheduleName,
+        "task-samples",
+        "generate-report",
+        "{}",
+        TimeSpan.FromMinutes(5),
+        "samples",
+        scopeId: "tenant-a",
+        runOnStart: true);
 
     private sealed class FixedClock(DateTimeOffset utcNow) : ISystemClock
     {

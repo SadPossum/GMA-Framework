@@ -3,6 +3,7 @@ namespace Gma.Framework.Persistence.EntityFrameworkCore;
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Gma.Framework.Domain;
 using Gma.Framework.Naming;
@@ -20,6 +21,8 @@ public static class ScopedEntityTypeBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         ArgumentNullException.ThrowIfNull(context);
+
+        modelBuilder.ApplyOrdinalScopeIdConventions(context);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -39,6 +42,38 @@ public static class ScopedEntityTypeBuilderExtensions
             ApplyScopeConventionsForEntityMethod
                 .MakeGenericMethod(clrType, typeof(TContext))
                 .Invoke(null, [modelBuilder, context]);
+        }
+
+        return modelBuilder;
+    }
+
+    public static ModelBuilder ApplyOrdinalScopeIdConventions(
+        this ModelBuilder modelBuilder,
+        DbContext context)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (!context.Database.IsSqlServer())
+        {
+            return modelBuilder;
+        }
+
+        foreach (IMutableProperty scopeProperty in modelBuilder.Model
+                     .GetEntityTypes()
+                     .Select(entityType => entityType.FindProperty(nameof(IScopedEntity.ScopeId)))
+                     .Where(property => property is not null)
+                     .Cast<IMutableProperty>()
+                     .Distinct())
+        {
+            if (scopeProperty.ClrType != typeof(string))
+            {
+                throw new InvalidOperationException(
+                    $"{scopeProperty.DeclaringType.Name}.{scopeProperty.Name} must be a string scope id.");
+            }
+
+            scopeProperty.SetCollation(
+                RelationalStringPropertyBuilderExtensions.SqlServerOrdinalCollation);
         }
 
         return modelBuilder;
