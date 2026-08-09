@@ -1,7 +1,8 @@
 # Transaction Coordination Failure Contract Task
 
-Status: in progress
+Status: completed
 Date: 2026-08-09
+Completed: 2026-08-09
 
 ## Goal
 
@@ -72,17 +73,17 @@ must continue through the sanitized unexpected-failure path.
 
 ## Delivery
 
-- [ ] Add the generic exception and semantic failure reasons.
-- [ ] Normalize PostgreSQL and SQL Server timeout, cancellation, and deadlock
+- [x] Add the generic exception and semantic failure reasons.
+- [x] Normalize PostgreSQL and SQL Server timeout, cancellation, and deadlock
   outcomes while preserving caller cancellation.
-- [ ] Add the production HTTP exception handler and sanitized retry response.
-- [ ] Add focused unit coverage for provider-result classification, HTTP
+- [x] Add the production HTTP exception handler and sanitized retry response.
+- [x] Add focused unit coverage for provider-result classification, HTTP
   behavior, and cancellation precedence.
-- [ ] Add Docker-backed PostgreSQL and SQL Server proofs in the owning Framework
+- [x] Add Docker-backed PostgreSQL and SQL Server proofs in the owning Framework
   suite for contention timeout, caller cancellation, rollback, and reacquisition.
-- [ ] Keep the normal Framework validation container-free and run provider
+- [x] Keep the normal Framework validation container-free and run provider
   proofs through the explicit Docker gate.
-- [ ] Run one completed-slice Framework gate and one focused Docker gate, then
+- [x] Run one completed-slice Framework gate and one focused Docker gate, then
   verify and publish Organizations, GMA Skeleton, and BunkFy consumer pins.
 
 ## Not In This Slice
@@ -92,3 +93,28 @@ must continue through the sanitized unexpected-failure path.
 - automatic command retries or endpoint-specific idempotency;
 - distributed locks outside the current database transaction;
 - exposing provider diagnostics in public responses.
+
+## Completion Evidence
+
+- Framework implementation checkpoint `6508523` passes a zero-warning solution
+  build, 1,116 non-Docker tests, solution synchronization, repository security
+  and release guards, and the transitive vulnerability audit.
+- The focused provider gate proves contention timeout, caller cancellation,
+  rollback, and reacquisition against PostgreSQL 16 and SQL Server 2022. It
+  caught and fixed SqlClient's cancellation-specific `SqlException` behavior
+  before publication.
+- Organizations source remains unchanged at `732b0d8` and passes its boundary
+  guard, zero-warning build, both-provider migration drift, 211 tests, and
+  vulnerability audit against Framework `6508523`.
+- GMA Skeleton checkpoint `2ae2a17` passes source-package and generated-selection
+  checks, a zero-warning build, all migration drift checks, 1,116 Framework
+  tests, 269 architecture tests, 17 integration tests, and all other fast
+  reusable-module and example suites.
+- BunkFy backend checkpoint `b5778e5` passes source synchronization, a
+  zero-warning build, all GMA and product migration drift checks, every fast
+  module and extension suite, 94 architecture tests, and 54 host integration
+  tests. Public endpoints, OpenAPI, generated TypeScript, and web behavior are
+  unchanged.
+- BunkFy root checkpoint `b539efa` records the backend pin, and its latest-head
+  guard confirms the backend, web, Framework, Extensions, and every reusable
+  module exactly match their configured `dev` branches.
