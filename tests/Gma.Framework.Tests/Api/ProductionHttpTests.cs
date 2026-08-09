@@ -1,6 +1,7 @@
 namespace Gma.Framework.Tests.Api;
 
 using Gma.Framework.Api.Production;
+using Gma.Framework.Cqrs;
 using Gma.Framework.ModuleComposition;
 using Gma.Framework.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
@@ -139,6 +140,7 @@ public sealed class ProductionHttpTests
             descriptor.ServiceType.Name.Contains("ProductionHttpRegistrationMarker", StringComparison.Ordinal));
         Assert.Collection(
             provider.GetServices<IExceptionHandler>(),
+            handler => Assert.IsType<TransactionCoordinationExceptionHandler>(handler),
             handler => Assert.IsType<OptimisticConcurrencyExceptionHandler>(handler),
             handler => Assert.IsType<SanitizedUnhandledExceptionHandler>(handler));
     }
@@ -293,6 +295,32 @@ public sealed class ProductionHttpTests
         Assert.Equal("0HMTESTTRACE0001", captured.ProblemDetails.Extensions["traceId"]);
         Assert.Null(captured.Exception);
         Assert.DoesNotContain(exceptionCanary, captured.ProblemDetails.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Transaction_coordination_handler_returns_a_sanitized_retryable_response()
+    {
+        CapturingProblemDetailsService problemDetailsService = new();
+        TransactionCoordinationExceptionHandler handler = new(problemDetailsService);
+        DefaultHttpContext httpContext = new()
+        {
+            TraceIdentifier = "0HMTESTTRACE0002"
+        };
+
+        bool handled = await handler.TryHandleAsync(
+            httpContext,
+            new TransactionCoordinationException(
+                TransactionCoordinationFailure.DeadlockVictim),
+            CancellationToken.None);
+
+        ProblemDetailsContext captured = Assert.IsType<ProblemDetailsContext>(problemDetailsService.Context);
+        Assert.True(handled);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, httpContext.Response.StatusCode);
+        Assert.Equal("1", httpContext.Response.Headers.RetryAfter);
+        Assert.Equal("Persistence.CoordinationUnavailable", captured.ProblemDetails.Title);
+        Assert.Equal("0HMTESTTRACE0002", captured.ProblemDetails.Extensions["traceId"]);
+        Assert.DoesNotContain("deadlock", captured.ProblemDetails.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(captured.Exception);
     }
 
     [Fact]

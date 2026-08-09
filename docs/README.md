@@ -37,6 +37,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Projection Rebuild Tasks](architecture/projection-rebuild-tasks.md)
 - [Scope Model Conventions Task](architecture/tenant-model-conventions-task.md)
 - [Ordinal Scope Storage Task](architecture/ordinal-scope-storage-task.md)
+- [Transaction Coordination Failure Contract Task](architecture/transaction-coordination-failure-task.md)
 
 ## Implementation Notes
 

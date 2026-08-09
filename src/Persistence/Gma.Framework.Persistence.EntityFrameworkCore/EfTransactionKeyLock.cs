@@ -5,8 +5,11 @@ using System.Data;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
+using Gma.Framework.Cqrs;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 public static class EfTransactionKeyLock
 {
@@ -87,10 +90,10 @@ public static class EfTransactionKeyLock
         DbConnection connection = dbContext.Database.GetDbConnection();
         await using DbCommand command = connection.CreateCommand();
         command.Transaction = transaction.GetDbTransaction();
-        command.CommandTimeout = Math.Max(1, (int)Math.Ceiling(timeout.TotalSeconds));
 
         if (dbContext.Database.IsNpgsql())
         {
+            command.CommandTimeout = ToCommandTimeoutSeconds(timeout);
             command.CommandText = mode == EfTransactionKeyLockMode.Shared
                 ? "SELECT pg_advisory_xact_lock_shared(@lock_key);"
                 : "SELECT pg_advisory_xact_lock(@lock_key);";
@@ -99,12 +102,49 @@ public static class EfTransactionKeyLock
             parameter.DbType = DbType.Int64;
             parameter.Value = BinaryPrimitives.ReadInt64BigEndian(resourceHash);
             command.Parameters.Add(parameter);
-            await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (PostgresException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                exception.SqlState == PostgresErrorCodes.LockNotAvailable)
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.TimedOut,
+                    exception);
+            }
+            catch (PostgresException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                exception.SqlState == PostgresErrorCodes.QueryCanceled)
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.CanceledByProvider,
+                    exception);
+            }
+            catch (PostgresException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                exception.SqlState == PostgresErrorCodes.DeadlockDetected)
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.DeadlockVictim,
+                    exception);
+            }
+            catch (NpgsqlException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                ContainsTimeout(exception))
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.TimedOut,
+                    exception);
+            }
+
             return;
         }
 
         if (dbContext.Database.IsSqlServer())
         {
+            command.CommandTimeout = checked(ToCommandTimeoutSeconds(timeout) + 5);
             command.CommandText = """
                 DECLARE @lock_result int;
                 EXEC @lock_result = sys.sp_getapplock
@@ -131,13 +171,46 @@ public static class EfTransactionKeyLock
             timeoutParameter.DbType = DbType.Int32;
             timeoutParameter.Value = checked((int)Math.Ceiling(timeout.TotalMilliseconds));
             command.Parameters.Add(timeoutParameter);
-            object? result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            object? result;
+            try
+            {
+                result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (SqlException exception) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(
+                    "Transaction coordination was canceled by the caller.",
+                    exception,
+                    cancellationToken);
+            }
+            catch (SqlException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                exception.Number == -2)
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.TimedOut,
+                    exception);
+            }
+            catch (SqlException exception) when (
+                !cancellationToken.IsCancellationRequested &&
+                exception.Number == 1205)
+            {
+                throw new TransactionCoordinationException(
+                    TransactionCoordinationFailure.DeadlockVictim,
+                    exception);
+            }
+
             int resultCode = result is null or DBNull
                 ? int.MinValue
                 : Convert.ToInt32(result, System.Globalization.CultureInfo.InvariantCulture);
+            if (resultCode == -2 && cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+
             if (resultCode < 0)
             {
-                throw new InvalidOperationException($"Could not acquire the transaction-scoped key lock (provider result {resultCode}).");
+                throw CreateSqlServerFailure(resultCode);
             }
 
             return;
@@ -145,6 +218,31 @@ public static class EfTransactionKeyLock
 
         throw new InvalidOperationException(
             $"Transaction-scoped key locks do not support provider '{dbContext.Database.ProviderName}'.");
+    }
+
+    internal static Exception CreateSqlServerFailure(int resultCode) => resultCode switch
+    {
+        -1 => new TransactionCoordinationException(TransactionCoordinationFailure.TimedOut),
+        -2 => new TransactionCoordinationException(TransactionCoordinationFailure.CanceledByProvider),
+        -3 => new TransactionCoordinationException(TransactionCoordinationFailure.DeadlockVictim),
+        _ => new InvalidOperationException(
+            "The transaction-scoped key lock provider rejected the request.")
+    };
+
+    private static int ToCommandTimeoutSeconds(TimeSpan timeout) =>
+        Math.Max(1, checked((int)Math.Ceiling(timeout.TotalSeconds)));
+
+    private static bool ContainsTimeout(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

@@ -85,6 +85,7 @@
     <File Path="docs/architecture/tasks-and-daemons.md" />
     <File Path="docs/architecture/tenant-model-conventions-implementation-notes.md" />
     <File Path="docs/architecture/tenant-model-conventions-task.md" />
+    <File Path="docs/architecture/transaction-coordination-failure-task.md" />
   </Folder>
   <Folder Name="/docs/guidelines/">
     <File Path="docs/guidelines/deployment-guidelines.md" />
@@ -111,6 +112,8 @@
     <File Path="eng/export-source-set.ps1" />
     <File Path="eng/new-module.ps1" />
     <File Path="eng/sync-solution.ps1" />
+    <File Path="eng/test-docker.ps1" />
+    <File Path="eng/test-fast.ps1" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Administration/Gma.Framework.Administration.AccessControl/Gma.Framework.Administration.AccessControl.csproj" />

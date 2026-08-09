@@ -47,6 +47,7 @@ public static class DependencyInjection
                 context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
             };
         });
+        builder.Services.AddExceptionHandler<TransactionCoordinationExceptionHandler>();
         builder.Services.AddExceptionHandler<OptimisticConcurrencyExceptionHandler>();
         builder.Services.AddExceptionHandler<SanitizedUnhandledExceptionHandler>();
         builder.Services.AddHealthChecks();

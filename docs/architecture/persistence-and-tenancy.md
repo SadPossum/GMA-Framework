@@ -125,6 +125,25 @@ EF Core `DbContext` is the practical unit of work. A module unit of work wraps:
 - EF Core commit;
 - domain event clearing after successful commit.
 
+## Transaction Coordination
+
+`EfTransactionKeyLock` provides provider-neutral, transaction-scoped shared and
+exclusive locks for PostgreSQL and SQL Server. Modules own the logical resource
+namespace and must acquire multiple resources in one documented deterministic
+order. The helper requires an active database transaction and never falls back
+to a process-local lock.
+
+Temporary lock timeout, provider cancellation, and deadlock-victim outcomes
+raise `TransactionCoordinationException`. A caller-requested cancellation stays
+an `OperationCanceledException`; invalid configuration, unsupported providers,
+and unclassified database failures remain non-transient failures. Production
+HTTP maps only the typed temporary failure to `503 Service Unavailable` with a
+short `Retry-After` value and a sanitized trace identifier.
+
+Do not retry only the lock statement or continue the current transaction after
+a coordination failure. Let the unit of work roll back and, when the command is
+safe to repeat, retry the complete operation from a fresh transaction.
+
 ## Tenancy Strategy
 
 V1 tenancy uses a shared database:

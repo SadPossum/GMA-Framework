@@ -1,5 +1,6 @@
 namespace Gma.Framework.Tests.Persistence;
 
+using Gma.Framework.Cqrs;
 using Gma.Framework.Persistence.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -62,6 +63,38 @@ public sealed class EfTransactionKeyLockTests
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             EfTransactionKeyLock.AcquireAsync(dbContext, "resource", TimeSpan.FromSeconds(seconds)));
+    }
+
+    [Theory]
+    [InlineData(-1, TransactionCoordinationFailure.TimedOut)]
+    [InlineData(-2, TransactionCoordinationFailure.CanceledByProvider)]
+    [InlineData(-3, TransactionCoordinationFailure.DeadlockVictim)]
+    public void Sql_server_transient_results_have_a_stable_failure_contract(
+        int resultCode,
+        TransactionCoordinationFailure expectedFailure)
+    {
+        TransactionCoordinationException exception = Assert.IsType<TransactionCoordinationException>(
+            EfTransactionKeyLock.CreateSqlServerFailure(resultCode));
+
+        Assert.Equal(expectedFailure, exception.Failure);
+        Assert.DoesNotContain(resultCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(-999)]
+    [InlineData(-4)]
+    [InlineData(int.MinValue)]
+    public void Sql_server_non_transient_results_remain_unexpected_failures(int resultCode)
+    {
+        Exception exception = EfTransactionKeyLock.CreateSqlServerFailure(resultCode);
+
+        Assert.IsType<InvalidOperationException>(exception);
+        Assert.IsNotType<TransactionCoordinationException>(exception);
+        Assert.DoesNotContain(resultCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            exception.Message,
+            StringComparison.Ordinal);
     }
 
     private static TestDbContext CreateDbContext() => new(

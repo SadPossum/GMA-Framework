@@ -95,7 +95,7 @@ Docker tests run only `Category=Docker`, set `GMA_REQUIRE_DOCKER_TESTS=true`, an
 From the framework package root, validate the framework package through its focused solution:
 
 ```powershell
-dotnet test Gma.Framework.slnx --no-build --logger "console;verbosity=minimal"
+.\eng\test-fast.ps1 -NoBuild
 ```
 
 From the skeleton composition root, validate the all-up host, reusable modules, examples, and composition tests through the skeleton solution:
