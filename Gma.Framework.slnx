@@ -56,6 +56,7 @@
     <File Path="docs/architecture/file-management-boundary-revalidation-task.md" />
     <File Path="docs/architecture/file-management.md" />
     <File Path="docs/architecture/generic-access-control-rbac-task.md" />
+    <File Path="docs/architecture/inbox-transaction-isolation-task.md" />
     <File Path="docs/architecture/messaging-and-outbox.md" />
     <File Path="docs/architecture/messaging-consumers.md" />
     <File Path="docs/architecture/metadata-attribute-pipeline-task.md" />

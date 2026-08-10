@@ -1,5 +1,6 @@
 namespace Gma.Framework.Tests;
 
+using System.Data;
 using Gma.Framework.Messaging;
 using Gma.Framework.Messaging.Infrastructure;
 using Gma.Framework.Runtime.Identity;
@@ -12,6 +13,14 @@ using Xunit;
 public sealed class EfInboxStoreTests
 {
     private static readonly DateTimeOffset Now = new(2026, 7, 2, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void Processing_transactions_use_read_committed_isolation()
+    {
+        Assert.Equal(
+            IsolationLevel.ReadCommitted,
+            EfInboxStore<TestDbContext>.TransactionIsolationLevel);
+    }
 
     [Fact]
     public void Constructor_normalizes_module_name_through_integration_contracts()

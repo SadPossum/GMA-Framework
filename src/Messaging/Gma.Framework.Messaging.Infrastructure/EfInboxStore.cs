@@ -16,6 +16,8 @@ public abstract class EfInboxStore<TDbContext>(
     : IInboxStore, IInboxCleanupStore
     where TDbContext : DbContext
 {
+    internal const IsolationLevel TransactionIsolationLevel = IsolationLevel.ReadCommitted;
+
     private const string HandlerCanceledError = "Handler execution was canceled before completion.";
 
     protected TDbContext DbContext { get; } = dbContext;
@@ -33,7 +35,7 @@ public abstract class EfInboxStore<TDbContext>(
         string workerId = WorkerIds.Create(Environment.MachineName, idGenerator.NewId());
 
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await this.DbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            await this.DbContext.Database.BeginTransactionAsync(TransactionIsolationLevel, cancellationToken)
                 .ConfigureAwait(false);
 
         InboxMessage? inboxMessage = await this.DbContext.Set<InboxMessage>()
@@ -157,7 +159,7 @@ public abstract class EfInboxStore<TDbContext>(
         this.DbContext.ChangeTracker.Clear();
 
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction =
-            await this.DbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, CancellationToken.None)
+            await this.DbContext.Database.BeginTransactionAsync(TransactionIsolationLevel, CancellationToken.None)
                 .ConfigureAwait(false);
 
         InboxMessage? inboxMessage = await this.DbContext.Set<InboxMessage>()

@@ -17,6 +17,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Metadata Attribute Pipeline Refactor Task](architecture/metadata-attribute-pipeline-task.md)
 - [Messaging and Outbox](architecture/messaging-and-outbox.md)
 - [Messaging Consumers](architecture/messaging-consumers.md)
+- [Inbox Transaction Isolation Task](architecture/inbox-transaction-isolation-task.md)
 - [Scoped Inbox Admission Task](architecture/scoped-inbox-admission-task.md)
 - [Durable Runtime Hardening Task](architecture/durable-runtime-hardening-task.md)
 - [Background Worker Host Task](architecture/background-worker-host-task.md)
