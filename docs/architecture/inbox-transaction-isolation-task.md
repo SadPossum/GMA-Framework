@@ -1,6 +1,6 @@
 # Inbox Transaction Isolation Task
 
-Status: active
+Status: complete
 
 Date: 2026-08-10
 
@@ -41,3 +41,10 @@ This is reusable messaging infrastructure and belongs in GMA Framework. Product 
 - Skeleton integration coverage consumes the published Framework revision.
 - Downstream composition updates only the Framework pointer; no product concept enters GMA.
 - Production-shaped evidence confirms the contention regression is removed while the workflow still completes.
+
+## Completion Evidence
+
+- Framework solution sync and the complete non-Docker suite passed with 1,117 tests.
+- Skeleton's existing PostgreSQL rollback/retry test observed `ReadCommitted` inside both failed and successful handler attempts, and its complete non-Docker suite passed.
+- An exact downstream candidate repeated the same production-shaped concurrent rehearsal: its invitation, enrollment, and umbrella checks all passed and cleanup completed without failures.
+- Fresh Worker logs from the candidate start through rehearsal completion contained no `40001`, serialization failure, warning, error, exception, or SQL-state matches. The corresponding API window was also clean.
