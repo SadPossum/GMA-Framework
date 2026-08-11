@@ -54,9 +54,13 @@ The worker can publish only module outbox stores registered in that worker proce
 Lower-level test or custom hosts can still reference `Gma.Framework.Messaging.Nats`, provide `INatsConnection` themselves, and call `AddNatsJetStreamMessaging()` directly, but production hosts should use the configured Aspire adapter so connection-string behavior stays consistent.
 The low-level messaging methods compose `AddMessagingInfrastructure()` idempotently, and that composes `AddRuntimeInfrastructure()` for shared clocks and id generation without pulling in CQRS or domain-event dispatch.
 
-The NATS JetStream adapter publishes each outbox row with the outbox message id as `NatsJSPubOpts.MsgId`.
+The NATS JetStream adapter publishes each outbox row with a fixed-length `NatsJSPubOpts.MsgId`: the lowercase SHA-256 digest of the normalized subject plus the outbox message id. Scoping broker de-duplication to both values preserves idempotent retries for one subject without suppressing a different event subject that deliberately shares the same logical event id.
 If the broker accepted a message but the local outbox mark-processed step failed, a later retry may publish the same outbox row again. JetStream duplicate tracking then returns a duplicate ack instead of storing another message, and the adapter treats that ack as a successful idempotent publish.
 Consumers must still keep inbox idempotency because delivery remains at-least-once.
+
+The subject-scoped identifier replaced the earlier GUID-only broker identifier. During an upgrade, a row first published by the earlier adapter and retried by the updated adapter can be stored once under each identifier; drain the publishing backlog before rollout when that overlap is unacceptable, and always retain consumer inbox idempotency.
+
+This broker-level subject scoping does not change module outbox storage: each module outbox table remains keyed by its GUID message id. Producers must keep integration-event ids globally collision-resistant because two rows with the same id cannot coexist in one module outbox even when their subjects differ.
 
 ## Subject Format
 
