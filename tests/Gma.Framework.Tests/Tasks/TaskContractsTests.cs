@@ -577,7 +577,8 @@ public sealed class TaskContractsTests
             payloadVersion: 2,
             kind: ModuleTaskKind.Daemon,
             supportsControlMessages: true,
-            metadata: [TenantScopeMetadataItem.Instance]);
+            metadata: [TenantScopeMetadataItem.Instance],
+            handlerTimeout: TimeSpan.FromMinutes(3));
 
         Assert.Equal("catalog", registration.ModuleName);
         Assert.Equal("rebuild-search", registration.TaskName);
@@ -588,6 +589,7 @@ public sealed class TaskContractsTests
         Assert.True(registration.IsTenantScoped());
         Assert.Equal(2, registration.PayloadVersion);
         Assert.True(registration.SupportsControlMessages);
+        Assert.Equal(TimeSpan.FromMinutes(3), registration.HandlerTimeout);
     }
 
     [Fact]
@@ -663,6 +665,23 @@ public sealed class TaskContractsTests
     }
 
     [Fact]
+    public void Task_handler_registration_rejects_unsafe_timeouts()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            TaskHandlerRegistration.Create<TestTaskPayload, TestTaskHandler>(
+                "catalog",
+                "rebuild-search",
+                handlerTimeout: TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            TaskHandlerRegistration.Create<TestTaskPayload, TestTaskHandler>(
+                "catalog",
+                "rebuild-search",
+                handlerTimeout:
+                    TaskHandlerRegistration.MaximumSupportedHandlerTimeout +
+                    TimeSpan.FromMilliseconds(1)));
+    }
+
+    [Fact]
     public void Task_handler_registry_rejects_duplicate_task_handlers()
     {
         TaskHandlerRegistration first = TaskHandlerRegistration.Create<TestTaskPayload, TestTaskHandler>(
@@ -717,6 +736,23 @@ public sealed class TaskContractsTests
             "catalog",
             "rebuild-search",
             supportsControlMessages: true));
+    }
+
+    [Fact]
+    public void Task_handler_service_registration_rejects_different_timeouts()
+    {
+        ServiceCollection services = new();
+
+        services.AddTaskHandler<TestTaskPayload, TestTaskHandler>(
+            "catalog",
+            "rebuild-search",
+            handlerTimeout: TimeSpan.FromMinutes(1));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            services.AddTaskHandler<TestTaskPayload, TestTaskHandler>(
+                "catalog",
+                "rebuild-search",
+                handlerTimeout: TimeSpan.FromMinutes(2)));
     }
 
     [Theory]

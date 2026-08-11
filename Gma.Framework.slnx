@@ -82,6 +82,7 @@
     <File Path="docs/architecture/shared-access-policy-implementation-notes.md" />
     <File Path="docs/architecture/shared-dependency-boundary-refactor-notes.md" />
     <File Path="docs/architecture/standalone-solution-sync-verification-task.md" />
+    <File Path="docs/architecture/task-handler-timeout-override-task.md" />
     <File Path="docs/architecture/task-schedule-streaming-task.md" />
     <File Path="docs/architecture/tasks-and-daemons.md" />
     <File Path="docs/architecture/tenant-model-conventions-implementation-notes.md" />

@@ -251,7 +251,9 @@ internal sealed class TaskWorkerService(
         {
             using CancellationTokenSource timeout =
                 CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-            timeout.CancelAfter(currentOptions.EffectiveHandlerTimeout);
+            timeout.CancelAfter(
+                registration.HandlerTimeout ??
+                currentOptions.EffectiveHandlerTimeout);
             using CancellationTokenSource heartbeatStop = new();
             Task heartbeat = this.RunAutomaticHeartbeatAsync(
                 context,

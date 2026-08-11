@@ -25,6 +25,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [File Management Boundary Revalidation Task](architecture/file-management-boundary-revalidation-task.md)
 - [Tasks and Daemons](architecture/tasks-and-daemons.md)
 - [Task Schedule Streaming Task](architecture/task-schedule-streaming-task.md)
+- [Task Handler Timeout Override Task](architecture/task-handler-timeout-override-task.md)
 - [Realtime](architecture/realtime.md)
 - [Notifications and Streaming](architecture/notifications-and-streaming.md)
 - [Observability](architecture/observability.md)

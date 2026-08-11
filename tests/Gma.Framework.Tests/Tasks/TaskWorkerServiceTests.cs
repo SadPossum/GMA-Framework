@@ -79,6 +79,53 @@ public sealed class TaskWorkerServiceTests
     }
 
     [Fact]
+    public async Task Worker_uses_registration_timeout_before_global_fallback()
+    {
+        WorkerTestStore store = new();
+        WorkerGate gate = new();
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(
+            store,
+            gate,
+            ["alpha"],
+            maxConcurrency: 1,
+            batchSize: 1,
+            handlerTimeout: TimeSpan.FromMilliseconds(100),
+            registrationHandlerTimeout: TimeSpan.FromSeconds(5));
+        await host.StartAsync();
+        Assert.True(await store.WaitForStartedAsync(1, TimeSpan.FromSeconds(2)));
+
+        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        Assert.Equal(0, store.FailedCount);
+
+        gate.Release();
+        Assert.True(await store.WaitForSucceededAsync(1, TimeSpan.FromSeconds(2)));
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public async Task Worker_uses_global_timeout_when_registration_has_no_override()
+    {
+        WorkerTestStore store = new();
+        WorkerGate gate = new();
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(
+            store,
+            gate,
+            ["alpha"],
+            maxConcurrency: 1,
+            batchSize: 1,
+            handlerTimeout: TimeSpan.FromMilliseconds(100));
+        await host.StartAsync();
+
+        Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
+        Assert.Equal("Task handler timed out.", store.LastFailure);
+        await host.StopAsync();
+    }
+
+    [Fact]
     public async Task Worker_cancels_and_fails_a_handler_when_automatic_heartbeat_fails()
     {
         WorkerTestStore store = new()
@@ -193,7 +240,9 @@ public sealed class TaskWorkerServiceTests
         int batchSize,
         TimeSpan? leaseDuration = null,
         TimeSpan? heartbeatInterval = null,
-        ITaskExecutionContextContributor? contextContributor = null)
+        ITaskExecutionContextContributor? contextContributor = null,
+        TimeSpan? handlerTimeout = null,
+        TimeSpan? registrationHandlerTimeout = null)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         Dictionary<string, string?> configuration = new()
@@ -204,7 +253,8 @@ public sealed class TaskWorkerServiceTests
             ["Tasks:Worker:PollInterval"] = "00:00:00.010",
             ["Tasks:Worker:LeaseDuration"] = (leaseDuration ?? TimeSpan.FromSeconds(1)).ToString("c"),
             ["Tasks:Worker:HeartbeatInterval"] = (heartbeatInterval ?? TimeSpan.FromMilliseconds(100)).ToString("c"),
-            ["Tasks:Worker:HandlerTimeout"] = "00:00:05",
+            ["Tasks:Worker:HandlerTimeout"] =
+                (handlerTimeout ?? TimeSpan.FromSeconds(5)).ToString("c"),
             ["Tasks:Worker:TimeoutScannerEnabled"] = "false",
             ["Tasks:Worker:MetricsSamplerEnabled"] = "false",
             ["Tasks:Worker:WorkerId"] = "worker-test",
@@ -229,7 +279,8 @@ public sealed class TaskWorkerServiceTests
             builder.Services.AddTaskHandler<WorkerTestPayload, BlockingWorkerHandler>(
                 "task-tests",
                 $"run-{workerGroup}",
-                workerGroup);
+                workerGroup,
+                handlerTimeout: registrationHandlerTimeout);
         }
 
         builder.AddTaskWorkerRuntime();
@@ -302,6 +353,7 @@ public sealed class TaskWorkerServiceTests
         public IReadOnlyCollection<TaskWorkerClaim> Claims => this.claims.ToArray();
         public IReadOnlyCollection<string> StartedGroups => this.startedGroups.ToArray();
         public int ClaimedCount => Volatile.Read(ref this.claimedCount);
+        public int FailedCount => Volatile.Read(ref this.failedCount);
         public int SucceededCount => Volatile.Read(ref this.succeededCount);
         public int HeartbeatCount => Volatile.Read(ref this.heartbeatCount);
         public string LastFailure { get; private set; } = string.Empty;

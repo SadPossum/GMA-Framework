@@ -36,9 +36,12 @@ internal sealed class TaskWorkerOptionsValidator : IValidateOptions<TaskWorkerOp
                 $"{TaskWorkerOptions.SectionName}:HeartbeatInterval must be positive and shorter than LeaseDuration when configured.");
         }
 
-        if (options.HandlerTimeout <= TimeSpan.Zero)
+        if (options.HandlerTimeout <= TimeSpan.Zero ||
+            options.HandlerTimeout >
+                TaskHandlerRegistration.MaximumSupportedHandlerTimeout)
         {
-            failures.Add($"{TaskWorkerOptions.SectionName}:HandlerTimeout must be positive.");
+            failures.Add(
+                $"{TaskWorkerOptions.SectionName}:HandlerTimeout must be positive and no greater than {TaskHandlerRegistration.MaximumSupportedHandlerTimeout}.");
         }
 
         if (options.RetryBaseDelay <= TimeSpan.Zero)

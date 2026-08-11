@@ -21,7 +21,9 @@ internal static class TaskPayloadMetadataReader
             ModuleMetadataAttributeReader.Read(payloadType).Items);
     }
 
-    public static TaskHandlerRegistration CreateRegistration<TPayload, THandler>(string moduleName)
+    public static TaskHandlerRegistration CreateRegistration<TPayload, THandler>(
+        string moduleName,
+        TimeSpan? handlerTimeout)
         where TPayload : ITaskPayload
         where THandler : class, ITaskHandler<TPayload>
     {
@@ -37,6 +39,7 @@ internal static class TaskPayloadMetadataReader
             payloadVersion.PayloadVersion,
             kind.Kind,
             SupportsTaskControlAttribute.IsDefinedOn(typeof(TPayload)),
-            ModuleMetadataAttributeReader.Read(typeof(TPayload)).Items);
+            ModuleMetadataAttributeReader.Read(typeof(TPayload)).Items,
+            handlerTimeout);
     }
 }

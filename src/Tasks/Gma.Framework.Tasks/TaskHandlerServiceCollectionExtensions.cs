@@ -8,14 +8,17 @@ public static class TaskHandlerServiceCollectionExtensions
 {
     public static IServiceCollection AddTaskHandler<TPayload, THandler>(
         this IServiceCollection services,
-        string moduleName)
+        string moduleName,
+        TimeSpan? handlerTimeout = null)
         where TPayload : ITaskPayload
         where THandler : class, ITaskHandler<TPayload>
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleName);
 
-        TaskHandlerRegistration registration = TaskHandlerRegistration.Create<TPayload, THandler>(moduleName);
+        TaskHandlerRegistration registration = TaskHandlerRegistration.Create<TPayload, THandler>(
+            moduleName,
+            handlerTimeout);
 
         services.TryAddSingleton<ITaskHandlerRegistry, TaskHandlerRegistry>();
         services.TryAddScoped<THandler>();
@@ -32,7 +35,8 @@ public static class TaskHandlerServiceCollectionExtensions
         int payloadVersion = 1,
         ModuleTaskKind kind = ModuleTaskKind.OneShot,
         bool supportsControlMessages = false,
-        IReadOnlyList<ModuleMetadataItem>? metadata = null)
+        IReadOnlyList<ModuleMetadataItem>? metadata = null,
+        TimeSpan? handlerTimeout = null)
         where TPayload : ITaskPayload
         where THandler : class, ITaskHandler<TPayload>
     {
@@ -45,7 +49,8 @@ public static class TaskHandlerServiceCollectionExtensions
             payloadVersion,
             kind,
             supportsControlMessages,
-            metadata);
+            metadata,
+            handlerTimeout);
 
         services.TryAddSingleton<ITaskHandlerRegistry, TaskHandlerRegistry>();
         services.TryAddScoped<THandler>();
@@ -89,5 +94,6 @@ public static class TaskHandlerServiceCollectionExtensions
         existing.Kind == registration.Kind &&
         existing.PayloadVersion == registration.PayloadVersion &&
         existing.SupportsControlMessages == registration.SupportsControlMessages &&
+        existing.HandlerTimeout == registration.HandlerTimeout &&
         existing.Metadata == registration.Metadata;
 }

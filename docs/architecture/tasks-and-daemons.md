@@ -184,6 +184,14 @@ The hosted worker:
 - emits bounded `{ApplicationIdentity:Namespace}.tasks` metrics for claimed, completed, duration, timed-out, queue-depth, and active-run measurements;
 - runs an optional stale timeout scanner that marks abandoned leases/runs as `TimedOut`.
 
+Task-handler registration accepts an optional `handlerTimeout`. A configured
+handler timeout takes precedence for that exact module, task, and payload
+version; handlers without one continue to use
+`Tasks:Worker:HandlerTimeout`. This keeps a bounded long-running task from
+forcing unrelated handlers to share its recovery window. Both values must fit
+the runtime cancellation-timer range, and timeout cancellation retains the same
+heartbeat, retry, lease-generation, and host-shutdown behavior.
+
 The metrics sampler reads `ITaskRunStore.GetStatsAsync(...)` and updates observable gauges:
 
 - `{ApplicationIdentity:Namespace}.tasks.queue.depth` for `Queued` and `RetryScheduled` runs;
