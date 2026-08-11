@@ -594,12 +594,23 @@ internal sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outb
         Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}InboxStore.cs") @"
 namespace $projectName.Persistence;
 
+using Gma.Framework.Application.Events;
 using Gma.Framework.Messaging.Infrastructure;
+using Gma.Framework.Persistence.EntityFrameworkCore;
 using Gma.Framework.Runtime.Identity;
 using Gma.Framework.Runtime.Time;
 
-internal sealed class ${Name}InboxStore(${Name}DbContext dbContext, ISystemClock clock, IIdGenerator idGenerator)
-    : EfInboxStore<${Name}DbContext>(dbContext, clock, idGenerator, ${Name}Migrations.Schema);
+internal sealed class ${Name}InboxStore(
+    ${Name}DbContext dbContext,
+    ISystemClock clock,
+    IIdGenerator idGenerator,
+    IDomainEventDispatcher domainEventDispatcher)
+    : EfDomainEventInboxStore<${Name}DbContext>(
+        dbContext,
+        clock,
+        idGenerator,
+        domainEventDispatcher,
+        ${Name}Migrations.Schema);
 "@
 
         Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\Configurations\InboxMessageConfiguration.cs") @"

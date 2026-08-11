@@ -62,7 +62,7 @@ Consumer runtime values are validated at startup. A configured `DurablePrefix` m
 
 ## Inbox
 
-Each module maps `InboxMessage` into its own schema. EF-backed modules should use `ConfigureInboxMessage(...)` from `Gma.Framework.Messaging.Infrastructure`; the shared `EfInboxStore<TDbContext>` handles the common idempotency flow, but the table belongs to the module.
+Each module maps `InboxMessage` into its own schema. EF-backed modules should use `ConfigureInboxMessage(...)` from `Gma.Framework.Messaging.Infrastructure`; the shared `EfInboxStore<TDbContext>` handles the common idempotency flow, but the table belongs to the module. Projection-only consumers may inherit that base directly. Consumers that can mutate aggregate roots should inherit `EfDomainEventInboxStore<TDbContext>` from `Gma.Framework.Persistence.EntityFrameworkCore` so tracked domain events are dispatched, saved with their outbox records, and cleared inside the same inbox transaction.
 Inbox processing and failure-recording transactions use `ReadCommitted`. This avoids treating independent same-scope events as serializable conflicts while preserving the framework's actual guarantees: the `(event id, handler)` inbox key rejects duplicate delivery, handler effects and inbox completion share one transaction, and module-owned admission fences coordinate lifecycle transitions such as close or freeze. A module must not rely on the inbox transaction's isolation level as its lifecycle lock; implement that rule in `IsAdmittedAsync(...)` with the owning module's transaction-scoped fence or concurrency token.
 On success, handler effects and the inbox processed marker commit in the same transaction.
 On failure, handler effects are rolled back before failure metadata is recorded.

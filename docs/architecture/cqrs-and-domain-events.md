@@ -89,7 +89,7 @@ The module unit of work:
 5. Clears domain events only after successful commit.
 
 This allows a domain event handler to write outbox records in the same database transaction as the aggregate change.
-EF-backed modules with domain events should inherit `EfDomainEventUnitOfWork<TDbContext>` from `Gma.Framework.Persistence.EntityFrameworkCore` and pass their module schema/name constant into the base constructor. Module-specific unit-of-work classes should stay thin; the shared base owns the dispatch/save/clear ordering.
+EF-backed modules with domain events should inherit `EfDomainEventUnitOfWork<TDbContext>` from `Gma.Framework.Persistence.EntityFrameworkCore` and pass their module schema/name constant into the base constructor. Module-specific unit-of-work classes should stay thin; the shared base owns the dispatch/save/clear ordering. Their inbox stores should use `EfDomainEventInboxStore<TDbContext>` for the same reason: integration-event handlers are another application entry point, and aggregate domain events must not be skipped merely because the mutation arrived from the broker.
 
 ## Domain Event Handlers
 

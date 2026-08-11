@@ -75,13 +75,13 @@ public abstract class EfInboxStore<TDbContext>(
         }
 
         inboxMessage.MarkProcessing(workerId, nowUtc);
-        await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await this.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
             await InvokeHandlerAsync(handler, cancellationToken).ConfigureAwait(false);
             inboxMessage.MarkProcessed(clock.UtcNow);
-            await this.DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await this.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return InboxProcessResult.Processed();
         }
@@ -101,6 +101,9 @@ public abstract class EfInboxStore<TDbContext>(
         InboxMessageRecord message,
         CancellationToken cancellationToken) =>
         ValueTask.FromResult(true);
+
+    protected virtual Task SaveChangesAsync(CancellationToken cancellationToken) =>
+        this.DbContext.SaveChangesAsync(cancellationToken);
 
     public virtual async Task<int> DeleteProcessedBeforeAsync(
         DateTimeOffset processedBeforeUtc,
