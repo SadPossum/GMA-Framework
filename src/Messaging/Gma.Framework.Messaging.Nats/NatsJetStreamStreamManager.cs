@@ -64,11 +64,14 @@ public sealed class NatsJetStreamStreamManager(
             MaxAge = this.options.MaxAge,
             MaxBytes = this.options.MaxBytes,
             MaxMsgs = this.options.MaxMessages,
+            MaxMsgSize = this.options.MaxMessageSize,
             NumReplicas = this.options.Replicas,
             Storage = this.options.Storage == NatsStreamStorage.File
                 ? StreamConfigStorage.File
                 : StreamConfigStorage.Memory,
-            Discard = StreamConfigDiscard.Old,
+            Discard = this.options.DiscardPolicy == NatsStreamDiscardPolicy.Old
+                ? StreamConfigDiscard.Old
+                : StreamConfigDiscard.New,
             DuplicateWindow = this.options.DuplicateWindow,
         };
 
@@ -86,8 +89,10 @@ public sealed class NatsJetStreamStreamManager(
         AddMismatch(mismatches, nameof(StreamConfig.MaxAge), expected.MaxAge, actual.MaxAge);
         AddMismatch(mismatches, nameof(StreamConfig.MaxBytes), expected.MaxBytes, actual.MaxBytes);
         AddMismatch(mismatches, nameof(StreamConfig.MaxMsgs), expected.MaxMsgs, actual.MaxMsgs);
+        AddMismatch(mismatches, nameof(StreamConfig.MaxMsgSize), expected.MaxMsgSize, actual.MaxMsgSize);
         AddMismatch(mismatches, nameof(StreamConfig.NumReplicas), expected.NumReplicas, actual.NumReplicas);
         AddMismatch(mismatches, nameof(StreamConfig.Storage), expected.Storage, actual.Storage);
+        AddMismatch(mismatches, nameof(StreamConfig.Discard), expected.Discard, actual.Discard);
         AddMismatch(
             mismatches,
             nameof(StreamConfig.DuplicateWindow),

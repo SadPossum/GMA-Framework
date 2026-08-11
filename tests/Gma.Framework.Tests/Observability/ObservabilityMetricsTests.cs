@@ -9,6 +9,7 @@ using Gma.Framework.Cqrs;
 using Gma.Framework.Messaging;
 using Gma.Framework.Observability;
 using Gma.Framework.Runtime;
+using Gma.Framework.Runtime.Time;
 using Gma.Framework.Tasks;
 using Gma.Framework.Results;
 using Gma.Framework.Caching.Infrastructure;
@@ -283,6 +284,53 @@ public sealed class ObservabilityMetricsTests
             item => item.InstrumentName == ObservabilityInstrumentNames.InboxMessages);
 
         Assert.Equal("unknown", messages.Tags[ObservabilityTagNames.Result]);
+    }
+
+    [Fact]
+    public async Task Message_journal_cleanup_metrics_report_bounded_lifecycle_state()
+    {
+        List<MetricMeasurement> measurements = [];
+        using MeterListener listener = CreateListener(measurements, ObservabilityMeterNames.Messaging);
+        ServiceCollection services = new();
+        services.AddMetrics();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        TestClock clock = new(new DateTimeOffset(2026, 8, 11, 20, 0, 0, TimeSpan.Zero));
+        MessageJournalMetrics metrics = new(
+            provider.GetRequiredService<IMeterFactory>(),
+            ApplicationIdentity(),
+            clock);
+
+        metrics.RecordDeleted(" Auth ", "outbox", 3);
+        metrics.RecordFailure(" Auth ", "outbox");
+        metrics.RecordDuration(" Auth ", "outbox", TimeSpan.FromMilliseconds(12));
+        metrics.SetOldestProcessed(" Auth ", "outbox", clock.UtcNow.AddHours(-2));
+        listener.RecordObservableInstruments();
+
+        MetricMeasurement deleted = Assert.Single(
+            measurements,
+            item => item.InstrumentName == ObservabilityInstrumentNames.MessageJournalDeleted);
+        MetricMeasurement failure = Assert.Single(
+            measurements,
+            item => item.InstrumentName == ObservabilityInstrumentNames.MessageJournalCleanupFailures);
+        MetricMeasurement duration = Assert.Single(
+            measurements,
+            item => item.InstrumentName == ObservabilityInstrumentNames.MessageJournalCleanupDuration);
+        MetricMeasurement oldest = Assert.Single(
+            measurements,
+            item => item.InstrumentName == ObservabilityInstrumentNames.MessageJournalOldestProcessedAge);
+
+        Assert.Equal(3, deleted.Value);
+        Assert.Equal(1, failure.Value);
+        Assert.Equal(12, duration.Value);
+        Assert.Equal(7200, oldest.Value);
+        Assert.All([deleted, failure, duration, oldest], measurement =>
+        {
+            Assert.Equal("auth", measurement.Tags[ObservabilityTagNames.Module]);
+            Assert.Equal("outbox", measurement.Tags[ObservabilityTagNames.Operation]);
+            Assert.DoesNotContain(
+                measurement.Tags.Keys,
+                key => key.Contains("tenant", StringComparison.OrdinalIgnoreCase));
+        });
     }
 
     [Fact]
@@ -702,6 +750,11 @@ public sealed class ObservabilityMetricsTests
         string InstrumentName,
         double Value,
         Dictionary<string, object?> Tags);
+
+    private sealed class TestClock(DateTimeOffset utcNow) : ISystemClock
+    {
+        public DateTimeOffset UtcNow { get; } = utcNow;
+    }
 
     private sealed class TestScopeContributor(string key, object? value) : ICqrsLogScopeContributor
     {

@@ -24,6 +24,11 @@ public sealed class NatsJetStreamOptionsValidator : IValidateOptions<NatsJetStre
             failures.Add($"{NatsJetStreamOptions.SectionName}:Storage is invalid.");
         }
 
+        if (!Enum.IsDefined(options.DiscardPolicy))
+        {
+            failures.Add($"{NatsJetStreamOptions.SectionName}:DiscardPolicy is invalid.");
+        }
+
         if (options.MaxAge <= TimeSpan.Zero)
         {
             failures.Add($"{NatsJetStreamOptions.SectionName}:MaxAge must be positive.");
@@ -37,6 +42,11 @@ public sealed class NatsJetStreamOptionsValidator : IValidateOptions<NatsJetStre
         if (options.MaxMessages <= 0)
         {
             failures.Add($"{NatsJetStreamOptions.SectionName}:MaxMessages must be positive.");
+        }
+
+        if (options.MaxMessageSize <= 0)
+        {
+            failures.Add($"{NatsJetStreamOptions.SectionName}:MaxMessageSize must be positive.");
         }
 
         if (options.Replicas is < 1 or > 5)

@@ -41,7 +41,8 @@ Recommended production configuration:
 - `MessageJournalCleanup:ProcessedInboxRetention` greater than or equal to `MessageJournalCleanup:BrokerReplayHorizon`
 - `MessageJournalCleanup:BatchSize` and `MessageJournalCleanup:MaxBatchesPerStorePerCycle`
 - `NatsJetStream:Enabled`
-- `NatsJetStream:ManagementMode`, finite `MaxAge`, `MaxBytes`, and `MaxMessages`
+- `NatsJetStream:ManagementMode`, finite `MaxAge`, `MaxBytes`, `MaxMessages`,
+  and `MaxMessageSize`, plus the intended `DiscardPolicy`
 - `NatsJetStream:Storage` and a cluster-appropriate `Replicas` value
 - optional `NatsJetStream:StreamName` only when broker naming must differ from `ApplicationIdentity:Namespace`
 - `ConnectionStrings:nats` when JetStream publishing is enabled

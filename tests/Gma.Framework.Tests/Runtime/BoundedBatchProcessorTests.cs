@@ -48,4 +48,23 @@ public sealed class BoundedBatchProcessorTests
             (_, _) => Task.FromResult(6),
             CancellationToken.None));
     }
+
+    [Fact]
+    public async Task ExecuteAsync_observes_completed_batches_before_a_later_failure()
+    {
+        int observed = 0;
+        int invocations = 0;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => BoundedBatchProcessor.ExecuteAsync(
+            batchSize: 5,
+            maximumBatches: 3,
+            (_, _) => ++invocations == 1
+                ? Task.FromResult(5)
+                : Task.FromException<int>(new InvalidOperationException("cleanup failed")),
+            processed => observed += processed,
+            CancellationToken.None));
+
+        Assert.Equal(5, observed);
+        Assert.Equal(2, invocations);
+    }
 }

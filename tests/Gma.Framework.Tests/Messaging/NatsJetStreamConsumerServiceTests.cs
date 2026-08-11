@@ -161,6 +161,7 @@ public sealed class NatsJetStreamConsumerServiceTests
             MaxAge = TimeSpan.Zero,
             MaxBytes = 0,
             MaxMessages = 0,
+            MaxMessageSize = 0,
         };
 
         ValidateOptionsResult result = new NatsJetStreamOptionsValidator().Validate(null, options);
@@ -169,6 +170,21 @@ public sealed class NatsJetStreamConsumerServiceTests
         Assert.Contains(result.Failures, failure => failure.Contains("MaxAge", StringComparison.Ordinal));
         Assert.Contains(result.Failures, failure => failure.Contains("MaxBytes", StringComparison.Ordinal));
         Assert.Contains(result.Failures, failure => failure.Contains("MaxMessages", StringComparison.Ordinal));
+        Assert.Contains(result.Failures, failure => failure.Contains("MaxMessageSize", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Jetstream_options_reject_unknown_discard_policy()
+    {
+        NatsJetStreamOptions options = new()
+        {
+            DiscardPolicy = (NatsStreamDiscardPolicy)int.MaxValue,
+        };
+
+        ValidateOptionsResult result = new NatsJetStreamOptionsValidator().Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("DiscardPolicy", StringComparison.Ordinal));
     }
 
     [Fact]

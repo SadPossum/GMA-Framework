@@ -138,6 +138,8 @@ NATS stream options:
     "MaxAge": "7.00:00:00",
     "MaxBytes": 1073741824,
     "MaxMessages": 10000000,
+    "MaxMessageSize": 1048576,
+    "DiscardPolicy": "Old",
     "Replicas": 1,
     "DuplicateWindow": "00:02:00"
   }
@@ -146,7 +148,7 @@ NATS stream options:
 
 `StreamName` is optional. When it is absent, infrastructure derives a stream name from `ApplicationIdentity:Namespace`, for example `gma` becomes `GMA_EVENTS` and `acme-orders` becomes `ACME_ORDERS_EVENTS`. Override `NatsJetStream:StreamName` only when an existing broker naming policy requires it. The skeleton intentionally accepts only ASCII letters, digits, `-`, and `_` for stream names. That follows the portable subset of [NATS JetStream naming guidance](https://docs.nats.io/nats-concepts/jetstream/streams): stream names must not contain whitespace, `.`, `*`, `>`, path separators, or non-printable characters.
 
-`ManagementMode=Managed` makes GMA create or update the stream to the configured finite limits. `ManagementMode=External` never mutates the stream; startup reads it and fails if subjects, retention, storage, replica count, or duplicate window drift from configuration. Production deployments should normally use file storage and a replica count appropriate to the NATS cluster. `MaxAge`, `MaxBytes`, and `MaxMessages` are required positive bounds in both modes.
+`ManagementMode=Managed` makes GMA create or update the stream to the configured finite limits. `ManagementMode=External` never mutates the stream; startup reads it and fails if subjects, retention, storage, discard policy, replica count, message-size limit, or duplicate window drift from configuration. Production deployments should normally use file storage, `DiscardPolicy=Old`, and a replica count appropriate to the NATS cluster. `MaxAge`, `MaxBytes`, `MaxMessages`, and `MaxMessageSize` are required positive bounds in both modes.
 
 ## Claiming and Retry
 

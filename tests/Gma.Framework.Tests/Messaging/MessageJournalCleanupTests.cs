@@ -131,6 +131,11 @@ public sealed class MessageJournalCleanupTests
             return Task.FromResult(deleted);
         }
 
+        public Task<DateTimeOffset?> GetOldestProcessedAtUtcAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<DateTimeOffset?>(
+                this.remaining > 0 ? DateTimeOffset.UtcNow.AddDays(-1) : null);
+
         public Task<bool> WaitForCallsAsync(int expected, TimeSpan timeout) =>
             WaitForCountAsync(() => this.CallCount, expected, timeout);
 

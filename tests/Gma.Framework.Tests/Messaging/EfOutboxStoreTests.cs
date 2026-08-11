@@ -113,6 +113,25 @@ public sealed class EfOutboxStoreTests
     }
 
     [Fact]
+    public async Task Cleanup_reports_oldest_retained_processed_message()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        TestOutboxStore store = new(dbContext, "auth");
+        OutboxMessage oldest = CreateMessage(Guid.NewGuid(), Now.AddMinutes(-10));
+        oldest.MarkClaimed("worker-a", Now.AddMinutes(-9), TimeSpan.FromMinutes(1));
+        oldest.MarkProcessed(Now.AddMinutes(-8));
+        OutboxMessage newest = CreateMessage(Guid.NewGuid(), Now.AddMinutes(-5));
+        newest.MarkClaimed("worker-a", Now.AddMinutes(-4), TimeSpan.FromMinutes(1));
+        newest.MarkProcessed(Now.AddMinutes(-3));
+        dbContext.OutboxMessages.AddRange(oldest, newest);
+        await dbContext.SaveChangesAsync();
+
+        DateTimeOffset? observed = await store.GetOldestProcessedAtUtcAsync(CancellationToken.None);
+
+        Assert.Equal(Now.AddMinutes(-8), observed);
+    }
+
+    [Fact]
     public async Task Mark_processed_is_noop_for_wrong_worker_and_processes_for_owner()
     {
         using TestDbContext dbContext = CreateDbContext();

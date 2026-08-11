@@ -130,6 +130,16 @@ public abstract class EfInboxStore<TDbContext>(
             .ConfigureAwait(false);
     }
 
+    public virtual async Task<DateTimeOffset?> GetOldestProcessedAtUtcAsync(
+        CancellationToken cancellationToken) =>
+        await this.DbContext.Set<InboxMessage>()
+            .AsNoTracking()
+            .Where(message =>
+                message.Status == InboxMessageStatus.Processed &&
+                message.ProcessedAtUtc != null)
+            .MinAsync(message => message.ProcessedAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+
     private static async Task InvokeHandlerAsync(
         Func<CancellationToken, Task> handler,
         CancellationToken cancellationToken)

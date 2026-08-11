@@ -13,7 +13,9 @@ public sealed class NatsJetStreamOptions
     public TimeSpan MaxAge { get; set; } = TimeSpan.FromDays(7);
     public long MaxBytes { get; set; } = 1_073_741_824;
     public long MaxMessages { get; set; } = 10_000_000;
+    public int MaxMessageSize { get; set; } = 1_048_576;
     public int Replicas { get; set; } = 1;
+    public NatsStreamDiscardPolicy DiscardPolicy { get; set; } = NatsStreamDiscardPolicy.Old;
     public TimeSpan DuplicateWindow { get; set; } = TimeSpan.FromMinutes(2);
 
     public string EffectiveStreamName(string applicationNamespace) =>

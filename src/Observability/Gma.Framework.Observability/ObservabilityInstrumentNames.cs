@@ -19,6 +19,9 @@ public static class ObservabilityInstrumentNames
     public const string InboxMessages = ApplicationNamespaces.Default + ".inbox.messages";
     public const string InboxProcessDuration = ApplicationNamespaces.Default + ".inbox.process.duration";
     public const string MessageJournalDeleted = ApplicationNamespaces.Default + ".message_journal.deleted";
+    public const string MessageJournalCleanupFailures = ApplicationNamespaces.Default + ".message_journal.cleanup.failures";
+    public const string MessageJournalCleanupDuration = ApplicationNamespaces.Default + ".message_journal.cleanup.duration";
+    public const string MessageJournalOldestProcessedAge = ApplicationNamespaces.Default + ".message_journal.oldest_processed.age";
 
     public const string CacheRequests = ApplicationNamespaces.Default + ".cache.requests";
     public const string CacheDuration = ApplicationNamespaces.Default + ".cache.duration";
@@ -40,6 +43,10 @@ public static class ObservabilityInstrumentNames
     public const string TaskTimedOut = ApplicationNamespaces.Default + ".tasks.timed_out";
     public const string TaskQueueDepth = ApplicationNamespaces.Default + ".tasks.queue.depth";
     public const string TaskActiveRuns = ApplicationNamespaces.Default + ".tasks.active.runs";
+    public const string TaskRetentionDeleted = ApplicationNamespaces.Default + ".tasks.retention.deleted";
+    public const string TaskRetentionFailures = ApplicationNamespaces.Default + ".tasks.retention.failures";
+    public const string TaskRetentionDuration = ApplicationNamespaces.Default + ".tasks.retention.duration";
+    public const string TaskRetentionOldestTerminalAge = ApplicationNamespaces.Default + ".tasks.retention.oldest_terminal.age";
     public const string SecuritySignals = ApplicationNamespaces.Default + ".security.signals";
 
     public static string CommandsExecutedFor(string applicationNamespace) =>
@@ -83,6 +90,15 @@ public static class ObservabilityInstrumentNames
 
     public static string MessageJournalDeletedFor(string applicationNamespace) =>
         Create(applicationNamespace, "message_journal.deleted");
+
+    public static string MessageJournalCleanupFailuresFor(string applicationNamespace) =>
+        Create(applicationNamespace, "message_journal.cleanup.failures");
+
+    public static string MessageJournalCleanupDurationFor(string applicationNamespace) =>
+        Create(applicationNamespace, "message_journal.cleanup.duration");
+
+    public static string MessageJournalOldestProcessedAgeFor(string applicationNamespace) =>
+        Create(applicationNamespace, "message_journal.oldest_processed.age");
 
     public static string CacheRequestsFor(string applicationNamespace) =>
         Create(applicationNamespace, "cache.requests");
@@ -137,6 +153,18 @@ public static class ObservabilityInstrumentNames
 
     public static string TaskActiveRunsFor(string applicationNamespace) =>
         Create(applicationNamespace, "tasks.active.runs");
+
+    public static string TaskRetentionDeletedFor(string applicationNamespace) =>
+        Create(applicationNamespace, "tasks.retention.deleted");
+
+    public static string TaskRetentionFailuresFor(string applicationNamespace) =>
+        Create(applicationNamespace, "tasks.retention.failures");
+
+    public static string TaskRetentionDurationFor(string applicationNamespace) =>
+        Create(applicationNamespace, "tasks.retention.duration");
+
+    public static string TaskRetentionOldestTerminalAgeFor(string applicationNamespace) =>
+        Create(applicationNamespace, "tasks.retention.oldest_terminal.age");
 
     public static string SecuritySignalsFor(string applicationNamespace) =>
         Create(applicationNamespace, "security.signals");

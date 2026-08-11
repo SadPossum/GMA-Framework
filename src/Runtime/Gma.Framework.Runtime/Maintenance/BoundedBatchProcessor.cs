@@ -6,11 +6,25 @@ public static class BoundedBatchProcessor
         int batchSize,
         int maximumBatches,
         Func<int, CancellationToken, Task<int>> processBatch,
+        CancellationToken cancellationToken) =>
+        await ExecuteAsync(
+            batchSize,
+            maximumBatches,
+            processBatch,
+            static _ => { },
+            cancellationToken).ConfigureAwait(false);
+
+    public static async Task<int> ExecuteAsync(
+        int batchSize,
+        int maximumBatches,
+        Func<int, CancellationToken, Task<int>> processBatch,
+        Action<int> observeProcessedBatch,
         CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumBatches, 1);
         ArgumentNullException.ThrowIfNull(processBatch);
+        ArgumentNullException.ThrowIfNull(observeProcessedBatch);
 
         int processedTotal = 0;
         for (int batch = 0; batch < maximumBatches; batch++)
@@ -23,6 +37,7 @@ public static class BoundedBatchProcessor
                     $"Bounded batch processor received invalid batch count {processed}; expected 0 through {batchSize}.");
             }
 
+            observeProcessedBatch(processed);
             processedTotal = checked(processedTotal + processed);
             if (processed < batchSize)
             {
