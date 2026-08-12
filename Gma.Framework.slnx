@@ -61,6 +61,7 @@
     <File Path="docs/architecture/messaging-consumers.md" />
     <File Path="docs/architecture/metadata-attribute-pipeline-task.md" />
     <File Path="docs/architecture/metadata-attributes-refactor-notes.md" />
+    <File Path="docs/architecture/method-aware-http-rate-limiting-task.md" />
     <File Path="docs/architecture/module-composition-features-task.md" />
     <File Path="docs/architecture/module-descriptor-builder-refactor-notes.md" />
     <File Path="docs/architecture/module-system.md" />
