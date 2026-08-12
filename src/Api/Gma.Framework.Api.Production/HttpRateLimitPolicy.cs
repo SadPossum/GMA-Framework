@@ -10,10 +10,17 @@ internal static class HttpRateLimitPolicy
     public static bool IsSensitive(
         HttpContext context,
         RateLimitingSettings options) =>
-        options.SensitivePathPrefixes.Any(prefix =>
-            context.Request.Path.StartsWithSegments(
-                prefix,
-                StringComparison.OrdinalIgnoreCase));
+        MatchesLegacySensitivePolicy(context, options) ||
+        options.Policies.Any(policy => Matches(context, policy));
+
+    public static bool Matches(
+        HttpContext context,
+        HttpRateLimitPolicySettings policy) =>
+        (policy.Methods.Length == 0 ||
+         policy.Methods.Contains(
+             context.Request.Method,
+             StringComparer.OrdinalIgnoreCase)) &&
+        policy.PathPrefixes.Any(prefix => PathMatches(context, prefix));
 
     public static string ClientPartition(HttpContext context)
     {
@@ -35,11 +42,21 @@ internal static class HttpRateLimitPolicy
 
         if (IsSensitive(context, options))
         {
-            partitions.Add(
-                new FixedWindowRateLimitPartition(
-                    "http-sensitive",
-                    options.SensitivePermitLimit,
-                    window));
+            if (MatchesLegacySensitivePolicy(context, options))
+            {
+                partitions.Add(
+                    new FixedWindowRateLimitPartition(
+                        "http-sensitive",
+                        options.SensitivePermitLimit,
+                        window));
+            }
+
+            partitions.AddRange(options.Policies
+                .Where(policy => Matches(context, policy))
+                .Select(policy => new FixedWindowRateLimitPartition(
+                    $"http-policy-{policy.Name}",
+                    policy.PermitLimit,
+                    window)));
         }
 
         return new MultiPartitionRateLimitRequest(
@@ -47,4 +64,14 @@ internal static class HttpRateLimitPolicy
             permitCount: 1,
             partitions);
     }
+
+    public static bool MatchesLegacySensitivePolicy(
+        HttpContext context,
+        RateLimitingSettings options) =>
+        options.SensitivePathPrefixes.Any(prefix => PathMatches(context, prefix));
+
+    private static bool PathMatches(HttpContext context, string prefix) =>
+        context.Request.Path.StartsWithSegments(
+            prefix,
+            StringComparison.OrdinalIgnoreCase);
 }

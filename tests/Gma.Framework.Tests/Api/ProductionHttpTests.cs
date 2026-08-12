@@ -199,6 +199,125 @@ public sealed class ProductionHttpTests
     }
 
     [Fact]
+    public void Method_aware_policies_exclude_reads_and_atomically_apply_overlapping_writes()
+    {
+        DefaultHttpContext context = new();
+        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.42");
+        context.Request.Path = "/api/workspace-staff-enrollment/applications";
+        RateLimitingSettings settings = new()
+        {
+            GlobalPermitLimit = 100,
+            SensitivePermitLimit = 5,
+            WindowSeconds = 60,
+            SensitivePathPrefixes = [],
+            Policies =
+            [
+                new HttpRateLimitPolicySettings
+                {
+                    Name = "workspace-write",
+                    PermitLimit = 20,
+                    PathPrefixes = ["/api/workspace-staff-enrollment"],
+                    Methods = ["POST"]
+                },
+                new HttpRateLimitPolicySettings
+                {
+                    Name = "application-write",
+                    PermitLimit = 10,
+                    PathPrefixes = ["/api/workspace-staff-enrollment/applications"],
+                    Methods = ["POST"]
+                }
+            ]
+        };
+
+        context.Request.Method = HttpMethods.Get;
+        MultiPartitionRateLimitRequest read =
+            HttpRateLimitPolicy.CreateDistributedRequest(context, settings);
+
+        context.Request.Method = HttpMethods.Post;
+        MultiPartitionRateLimitRequest write =
+            HttpRateLimitPolicy.CreateDistributedRequest(context, settings);
+
+        Assert.Equal("http-general", Assert.Single(read.Partitions).Identity);
+        Assert.Collection(
+            write.Partitions,
+            general => Assert.Equal("http-general", general.Identity),
+            workspace => Assert.Equal("http-policy-workspace-write", workspace.Identity),
+            application => Assert.Equal("http-policy-application-write", application.Identity));
+        Assert.DoesNotContain(
+            write.Partitions,
+            partition => partition.Identity == "http-sensitive");
+    }
+
+    [Fact]
+    public void Validation_rejects_ambiguous_or_unbounded_rate_limit_policies()
+    {
+        ProductionHttpOptions options = new()
+        {
+            RateLimiting = new RateLimitingSettings
+            {
+                SensitivePathPrefixes = [],
+                Policies =
+                [
+                    new HttpRateLimitPolicySettings
+                    {
+                        Name = "Duplicate",
+                        PermitLimit = 0,
+                        PathPrefixes = ["relative"],
+                        Methods = ["post", "post"]
+                    },
+                    new HttpRateLimitPolicySettings
+                    {
+                        Name = "Duplicate",
+                        PathPrefixes = ["/api/example"]
+                    }
+                ]
+            }
+        };
+
+        string[] failures = ProductionHttpOptionsValidation.Validate(
+            options,
+            isDevelopment: true,
+            allowedHosts: "*");
+
+        Assert.Contains(failures, failure => failure.Contains("unique names", StringComparison.Ordinal));
+        Assert.Contains(failures, failure => failure.Contains("lowercase", StringComparison.Ordinal));
+        Assert.Contains(failures, failure => failure.Contains("PermitLimit", StringComparison.Ordinal));
+        Assert.Contains(failures, failure => failure.Contains("PathPrefixes", StringComparison.Ordinal));
+        Assert.Contains(failures, failure => failure.Contains("standard HTTP methods", StringComparison.Ordinal));
+        Assert.Contains(failures, failure => failure.Contains("duplicates", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validation_bounds_named_policies_to_the_atomic_provider_contract()
+    {
+        ProductionHttpOptions options = new()
+        {
+            RateLimiting = new RateLimitingSettings
+            {
+                SensitivePathPrefixes = [],
+                Policies = [.. Enumerable.Range(1, 8).Select(index =>
+                    new HttpRateLimitPolicySettings
+                    {
+                        Name = $"policy-{index}",
+                        PathPrefixes = [$"/api/policy-{index}"]
+                    })]
+            }
+        };
+
+        string[] failures = ProductionHttpOptionsValidation.Validate(
+            options,
+            isDevelopment: true,
+            allowedHosts: "*");
+
+        Assert.Contains(
+            failures,
+            failure => failure.Contains("cannot contain more", StringComparison.Ordinal));
+        Assert.Contains(
+            failures,
+            failure => failure.Contains("global budget remains atomic", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Distributed_middleware_fails_closed_when_the_provider_is_unavailable()
     {
         using ServiceProvider services = new ServiceCollection()

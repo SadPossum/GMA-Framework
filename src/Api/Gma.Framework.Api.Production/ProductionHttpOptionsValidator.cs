@@ -83,16 +83,119 @@ internal static class ProductionHttpOptionsValidation
             }
 
             string[] invalidPrefixes = options.RateLimiting.SensitivePathPrefixes
-                .Where(path => string.IsNullOrWhiteSpace(path) || !path.StartsWith('/'))
+                .Where(path => !IsValidPathPrefix(path))
                 .ToArray();
             if (invalidPrefixes.Length > 0)
             {
                 failures.Add("Http:RateLimiting:SensitivePathPrefixes must contain nonblank absolute application paths.");
             }
+
+            ValidateRateLimitPolicies(options.RateLimiting, failures);
         }
 
         return [.. failures];
     }
+
+    private static void ValidateRateLimitPolicies(
+        RateLimitingSettings options,
+        List<string> failures)
+    {
+        if (options.Policies.Length > RateLimitingSettings.MaximumAdditionalPolicies)
+        {
+            failures.Add(
+                $"Http:RateLimiting:Policies cannot contain more than {RateLimitingSettings.MaximumAdditionalPolicies} policies.");
+        }
+
+        string[] duplicateNames = options.Policies
+            .Where(policy => policy is not null)
+            .GroupBy(policy => policy.Name, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+        if (duplicateNames.Length > 0)
+        {
+            failures.Add("Http:RateLimiting:Policies must use unique names.");
+        }
+
+        foreach (HttpRateLimitPolicySettings? policy in options.Policies)
+        {
+            if (policy is null)
+            {
+                failures.Add("Http:RateLimiting:Policies cannot contain null entries.");
+                continue;
+            }
+
+            if (!IsValidPolicyName(policy.Name))
+            {
+                failures.Add(
+                    "Http:RateLimiting:Policies names must be 1-64 lowercase letters, digits, or hyphens and start with a letter or digit.");
+            }
+
+            if (policy.PermitLimit is < 1 or > 100_000)
+            {
+                failures.Add(
+                    $"Http:RateLimiting:Policies:{policy.Name}:PermitLimit must be between 1 and 100000.");
+            }
+
+            if (policy.PathPrefixes.Length == 0 ||
+                policy.PathPrefixes.Any(path => !IsValidPathPrefix(path)))
+            {
+                failures.Add(
+                    $"Http:RateLimiting:Policies:{policy.Name}:PathPrefixes must contain nonblank absolute application paths.");
+            }
+
+            if (policy.Methods.Any(method => !StandardHttpMethods.Contains(method)))
+            {
+                failures.Add(
+                    $"Http:RateLimiting:Policies:{policy.Name}:Methods must contain uppercase standard HTTP methods.");
+            }
+
+            if (policy.Methods.Distinct(StringComparer.Ordinal).Count() != policy.Methods.Length)
+            {
+                failures.Add(
+                    $"Http:RateLimiting:Policies:{policy.Name}:Methods cannot contain duplicates.");
+            }
+        }
+
+        int maximumMatchingPolicyCount = options.Policies.Length +
+            (options.SensitivePathPrefixes.Length > 0 ? 1 : 0);
+        if (maximumMatchingPolicyCount >=
+            Gma.Framework.RateLimiting.MultiPartitionRateLimitRequest.MaxPartitions)
+        {
+            failures.Add(
+                $"Http:RateLimiting allows at most {Gma.Framework.RateLimiting.MultiPartitionRateLimitRequest.MaxPartitions - 1} combined legacy and named policies so the global budget remains atomic.");
+        }
+    }
+
+    private static bool IsValidPathPrefix(string? path) =>
+        !string.IsNullOrWhiteSpace(path) &&
+        path.StartsWith('/') &&
+        !path.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)) &&
+        !path.Contains('?') &&
+        !path.Contains('#');
+
+    private static bool IsValidPolicyName(string? name) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        name.Length <= 64 &&
+        char.IsAsciiLetterOrDigit(name[0]) &&
+        name.All(character =>
+            char.IsAsciiLetterLower(character) ||
+            char.IsAsciiDigit(character) ||
+            character == '-');
+
+    private static readonly HashSet<string> StandardHttpMethods = new(
+        [
+            "CONNECT",
+            "DELETE",
+            "GET",
+            "HEAD",
+            "OPTIONS",
+            "PATCH",
+            "POST",
+            "PUT",
+            "TRACE"
+        ],
+        StringComparer.Ordinal);
 
     private static bool IsUnrestrictedAllowedHosts(string? value) =>
         string.IsNullOrWhiteSpace(value) ||

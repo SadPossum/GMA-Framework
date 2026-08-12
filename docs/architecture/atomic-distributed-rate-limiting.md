@@ -28,6 +28,40 @@ the provider cannot make an admission decision. Forwarded addresses are
 resolved before admission and are trusted only through configured proxy IPs or
 CIDR networks.
 
+Applications can keep the backward-compatible `SensitivePathPrefixes` budget
+or configure named method-aware policies. Every matching named policy joins the
+global client budget in the same admission decision:
+
+```json
+{
+  "Http": {
+    "RateLimiting": {
+      "GlobalPermitLimit": 300,
+      "SensitivePathPrefixes": [],
+      "Policies": [
+        {
+          "Name": "authentication-write",
+          "PermitLimit": 30,
+          "PathPrefixes": [ "/api/auth" ],
+          "Methods": [ "POST", "PUT", "DELETE" ]
+        }
+      ]
+    }
+  }
+}
+```
+
+Policy names are stable lowercase identities. Paths use segment-aware prefix
+matching; methods are optional standard uppercase HTTP methods, with an empty
+array meaning all methods. At most seven policy partitions can accompany the
+global budget. Legacy and named policies may coexist, but both consume that
+bound. In-process and distributed modes use the same matcher, and `429`
+responses use provider retry metadata when available.
+
+HTTP policy remains application-owned. GMA does not infer sensitivity from an
+endpoint name, partition on unvalidated authorization material, or choose
+application quotas.
+
 ## Providers
 
 `Gma.Framework.RateLimiting.Infrastructure` supplies an in-memory provider for local development, tests, and single-process tools. It:
@@ -87,4 +121,8 @@ Registering two providers fails during composition. Consumers that require multi
 
 ## Verification
 
-Framework unit tests cover contract guards, rollover, atomic rejection, concurrency, provider conflicts, options validation, and storage-key privacy. A product that enables the Redis provider should also exercise its composed policy through a Docker-backed Redis integration test before release.
+Framework unit tests cover contract guards, rollover, atomic rejection,
+concurrency, provider conflicts, options validation, method-aware HTTP policy
+matching, and storage-key privacy. A product that enables the Redis provider
+should also exercise its composed policy through a Docker-backed Redis
+integration test before release.
