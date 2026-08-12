@@ -5,11 +5,14 @@ using Gma.Framework.Cqrs.UnitOfWork;
 using Gma.Framework.Results;
 using Gma.Framework.Naming;
 using Gma.Framework.Observability.Infrastructure;
+using System.Runtime.ExceptionServices;
 
 internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable<IUnitOfWork> unitOfWorks)
     : ICommandPipelineBehavior<TCommand, TResponse>
     where TCommand : ICommand<TResponse>
 {
+    internal const string CleanupFailureDataKey = "Gma.Framework.Cqrs.UnitOfWorkCleanupFailure";
+
     public async Task<Result<TResponse>> HandleAsync(
         TCommand command,
         CommandNext<TResponse> next,
@@ -38,21 +41,21 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
         };
 
         ITransactionalUnitOfWork? transactionalUnitOfWork = unitOfWork as ITransactionalUnitOfWork;
-        if (transactionalUnitOfWork is not null)
-        {
-            await transactionalUnitOfWork.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        }
-
+        bool cleanupAttempted = false;
         try
         {
+            if (transactionalUnitOfWork is not null)
+            {
+                await transactionalUnitOfWork.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             Result<TResponse> result = await next().ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 if (transactionalUnitOfWork is not null)
                 {
-                    await transactionalUnitOfWork
-                        .RollbackTransactionAsync(CancellationToken.None)
-                        .ConfigureAwait(false);
+                    cleanupAttempted = true;
+                    await RollbackAndResetAsync(transactionalUnitOfWork).ConfigureAwait(false);
                 }
 
                 return result;
@@ -66,16 +69,77 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
 
             return result;
         }
-        catch
+        catch (Exception operationException)
         {
-            if (transactionalUnitOfWork is not null)
+            if (transactionalUnitOfWork is not null && !cleanupAttempted)
             {
-                await transactionalUnitOfWork
-                    .RollbackTransactionAsync(CancellationToken.None)
-                    .ConfigureAwait(false);
+                try
+                {
+                    await RollbackAndResetAsync(transactionalUnitOfWork).ConfigureAwait(false);
+                }
+                catch (Exception cleanupException)
+                {
+                    TryRecordCleanupFailure(operationException, cleanupException);
+                }
             }
 
             throw;
+        }
+    }
+
+    private static async Task RollbackAndResetAsync(ITransactionalUnitOfWork unitOfWork)
+    {
+        Exception? rollbackException = null;
+        try
+        {
+            await unitOfWork
+                .RollbackTransactionAsync(CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            rollbackException = exception;
+        }
+
+        Exception? resetException = null;
+        if (unitOfWork is IRollbackResettableUnitOfWork resettableUnitOfWork)
+        {
+            try
+            {
+                await resettableUnitOfWork
+                    .ResetAfterRollbackAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                resetException = exception;
+            }
+        }
+
+        if (rollbackException is not null && resetException is not null)
+        {
+            throw new AggregateException(
+                "The transactional unit of work could not be rolled back or reset.",
+                rollbackException,
+                resetException);
+        }
+
+        Exception? cleanupException = rollbackException ?? resetException;
+        if (cleanupException is not null)
+        {
+            ExceptionDispatchInfo.Capture(cleanupException).Throw();
+        }
+    }
+
+    private static void TryRecordCleanupFailure(Exception operationException, Exception cleanupException)
+    {
+        try
+        {
+            operationException.Data[CleanupFailureDataKey] = cleanupException;
+        }
+        catch (Exception)
+        {
+            // Cleanup diagnostics must never replace the original operation failure.
         }
     }
 

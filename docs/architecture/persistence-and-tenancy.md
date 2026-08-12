@@ -125,6 +125,12 @@ EF Core `DbContext` is the practical unit of work. A module unit of work wraps:
 - EF Core commit;
 - domain event clearing after successful commit.
 
+`EfDomainEventUnitOfWork<TDbContext>` also clears the EF change tracker after a
+transaction rollback. This is required even though the database transaction
+has ended: tracked entities and their pending domain events otherwise remain in
+the scoped context and can be saved or dispatched by a later command that
+reuses that scope.
+
 ## Transaction Coordination
 
 `EfTransactionKeyLock` provides provider-neutral, transaction-scoped shared and

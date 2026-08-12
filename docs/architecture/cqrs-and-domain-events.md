@@ -17,6 +17,8 @@ The repo uses lightweight CQRS primitives from `Gma.Framework.Cqrs` instead of M
 - `IQueryValidator<TQuery>`
 - `Unit`
 - `IUnitOfWork`
+- `ITransactionalUnitOfWork`
+- `IRollbackResettableUnitOfWork`
 
 ## Command Flow
 
@@ -36,6 +38,16 @@ Endpoint
 Commands that write persistent module state implement `ITransactionalCommand<TResponse>`.
 The unit-of-work behavior derives the owning module from the command assembly name and commits exactly one matching `IUnitOfWork`.
 Commands that do not write persistent state may stay as plain `ICommand<TResponse>` and skip the UoW behavior.
+
+Transactional commands roll back when a handler returns a failed result or
+throws. Providers that retain mutable state after rollback implement the
+optional `IRollbackResettableUnitOfWork` contract. The behavior resets that
+state after each rollback it performs, using a non-request cancellation token, so a later
+command in the same dependency-injection scope cannot inherit abandoned
+mutations. EF-backed unit-of-work implementations provide this contract by
+clearing the `DbContext` change tracker. If rollback and reset also fail while
+handling an exception, the original operation exception remains authoritative
+and carries the secondary cleanup failure in its diagnostic data.
 
 This is a small documented convention, not host composition scanning. Architecture tests guard module commands so state-writing commands stay explicit about transactionality.
 

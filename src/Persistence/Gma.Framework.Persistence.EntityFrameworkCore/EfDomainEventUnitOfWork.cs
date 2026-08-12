@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 public abstract class EfDomainEventUnitOfWork<TDbContext>(
     string moduleName,
     TDbContext dbContext,
-    IDomainEventDispatcher domainEventDispatcher) : ITransactionalUnitOfWork
+    IDomainEventDispatcher domainEventDispatcher) : IRollbackResettableUnitOfWork
     where TDbContext : DbContext
 {
     private IDbContextTransaction? ownedTransaction;
@@ -75,5 +75,11 @@ public abstract class EfDomainEventUnitOfWork<TDbContext>(
             this.ownedTransaction = null;
             await transaction.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    public Task ResetAfterRollbackAsync(CancellationToken cancellationToken = default)
+    {
+        dbContext.ChangeTracker.Clear();
+        return Task.CompletedTask;
     }
 }

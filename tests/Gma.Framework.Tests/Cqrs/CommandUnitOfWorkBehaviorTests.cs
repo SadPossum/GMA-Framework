@@ -78,7 +78,7 @@ public sealed class CommandUnitOfWorkBehaviorTests
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(["begin", "handle", "rollback"], order);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
     }
 
     [Fact]
@@ -97,7 +97,61 @@ public sealed class CommandUnitOfWorkBehaviorTests
             },
             CancellationToken.None));
 
-        Assert.Equal(["begin", "handle", "rollback"], order);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Result_failure_attempts_reset_when_rollback_fails()
+    {
+        List<string> order = [];
+        InvalidOperationException rollbackFailure = new("Rollback failed.");
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            rollbackFailure: rollbackFailure);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        InvalidOperationException actual = await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                return Task.FromResult(Result.Failure<Unit>(new Error("Test.Failure", "Failed.")));
+            },
+            CancellationToken.None));
+
+        Assert.Same(rollbackFailure, actual);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Handler_exception_is_preserved_when_rollback_and_reset_fail()
+    {
+        List<string> order = [];
+        InvalidOperationException handlerFailure = new("Handler failed.");
+        InvalidOperationException rollbackFailure = new("Rollback failed.");
+        InvalidOperationException resetFailure = new("Reset failed.");
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            rollbackFailure,
+            resetFailure);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        InvalidOperationException actual = await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                throw handlerFailure;
+            },
+            CancellationToken.None));
+
+        Assert.Same(handlerFailure, actual);
+        AggregateException cleanupFailure = Assert.IsType<AggregateException>(
+            actual.Data[CommandUnitOfWorkBehavior<TransactionalCommand, Unit>.CleanupFailureDataKey]);
+        Assert.Equal([rollbackFailure, resetFailure], cleanupFailure.InnerExceptions);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
     }
 
     [Fact]
@@ -156,8 +210,12 @@ public sealed class CommandUnitOfWorkBehaviorTests
         }
     }
 
-    private sealed class RecordingTransactionalUnitOfWork(string moduleName, List<string> order)
-        : ITransactionalUnitOfWork
+    private sealed class RecordingTransactionalUnitOfWork(
+        string moduleName,
+        List<string> order,
+        Exception? rollbackFailure = null,
+        Exception? resetFailure = null)
+        : IRollbackResettableUnitOfWork
     {
         public string ModuleName { get; } = moduleName;
 
@@ -182,7 +240,17 @@ public sealed class CommandUnitOfWorkBehaviorTests
         public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
         {
             order.Add("rollback");
-            return Task.CompletedTask;
+            return rollbackFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(rollbackFailure);
+        }
+
+        public Task ResetAfterRollbackAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("reset");
+            return resetFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(resetFailure);
         }
     }
 }
