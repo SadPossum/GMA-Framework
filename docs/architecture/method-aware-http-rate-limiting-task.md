@@ -1,6 +1,6 @@
 # Method-Aware HTTP Rate Limiting Task
 
-Status: implementation complete; adopter verification pending
+Status: completed
 Date: 2026-08-12
 
 ## Goal
@@ -67,5 +67,8 @@ the global budget atomically. Startup rejects unsafe names, paths, methods,
 limits, duplicates, and policy sets that exceed the provider's eight-partition
 contract. In-process rejection uses limiter retry metadata when available.
 
-The complete `Gma.Framework.Tests` suite passed 1,133 tests. Adopter-specific
-configuration and deployed capacity evidence remain outside the framework.
+The complete `Gma.Framework.Tests` suite passed 1,133 tests. GMA Skeleton's
+selection matrix generated and security-checked every module combination, then
+built the all-admin fixture with zero warnings or errors. BunkFy's focused
+composition guard passed against the same framework revision. Deployed capacity
+evidence remains application-owned.
