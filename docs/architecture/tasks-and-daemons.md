@@ -54,7 +54,7 @@ internal sealed class RebuildSearchTask : ITaskHandler<RebuildSearchPayload>
 }
 ```
 
-`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, attempt, lease generation, optional scope id, correlation id, and whether the run was reclaimed for cancellation. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch. The lease generation fences a stale execution even when a later process reuses the same worker and node identities.
+`TaskExecutionContext` carries run id, module name, task name, worker group, worker id, node id, current and maximum attempts, lease generation, optional scope id, correlation id, and whether the run was reclaimed for cancellation. `IsFinalAttempt` lets a handler defer durable domain failure until automatic recovery is exhausted without duplicating runtime configuration. Runtime adapters should pass this context into logging scopes, metrics, audit records, and command dispatch. The lease generation fences a stale execution even when a later process reuses the same worker and node identities.
 
 Keep payload handlers and their explicit registration extension in the owning module application project. Modules shared by API, admin, and worker hosts should separate normal application services from executable task handlers:
 
@@ -178,6 +178,8 @@ The hosted worker:
 - marks success only after handler completion;
 - marks `TaskRunCanceledException` as terminal `Canceled`;
 - marks failure with retry scheduling on handler errors or timeouts;
+- marks `TaskRunTerminalFailureException` failed without automatic retry while
+  persisting only its bounded machine-readable failure code;
 - marks cancellation-requested reclaimed leases as canceled without requiring the handler to still be registered;
 - leaves the lease to expire on host shutdown cancellation;
 - processes leases with bounded per-worker-host concurrency;

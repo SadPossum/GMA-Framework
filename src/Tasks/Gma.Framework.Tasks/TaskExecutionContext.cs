@@ -15,7 +15,8 @@ public sealed record TaskExecutionContext
         bool cancellationRequested = false,
         int payloadVersion = 1,
         TimeSpan? leaseExtension = null,
-        int leaseGeneration = 1)
+        int leaseGeneration = 1,
+        int? maxAttempts = null)
     {
         this.RunId = RequireId(runId, nameof(runId));
         this.ModuleName = TaskNames.NormalizeModuleName(moduleName, nameof(moduleName));
@@ -26,6 +27,15 @@ public sealed record TaskExecutionContext
         this.Attempt = attempt > 0
             ? attempt
             : throw new ArgumentOutOfRangeException(nameof(attempt), attempt, "Task attempt must be positive.");
+        this.MaxAttempts = maxAttempts ?? this.Attempt;
+        if (this.MaxAttempts < this.Attempt)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxAttempts),
+                maxAttempts,
+                "Task max attempts must be greater than or equal to the current attempt.");
+        }
+
         this.PayloadVersion = payloadVersion > 0
             ? payloadVersion
             : throw new ArgumentOutOfRangeException(nameof(payloadVersion), payloadVersion, "Task payload version must be positive.");
@@ -60,6 +70,8 @@ public sealed record TaskExecutionContext
     public string WorkerId { get; }
     public string NodeId { get; }
     public int Attempt { get; }
+    public int MaxAttempts { get; }
+    public bool IsFinalAttempt => this.Attempt >= this.MaxAttempts;
     public int PayloadVersion { get; }
     public int LeaseGeneration { get; }
     public string? ScopeId { get; }

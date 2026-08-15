@@ -50,6 +50,11 @@ public sealed class TaskRuntimeInfrastructureTests
             attempt: 1,
             scopeId: "tenant-a");
 
+        Assert.Equal(2, firstLease.MaxAttempts);
+        Assert.False(firstLease.IsFinalAttempt);
+        Assert.Equal(2, context.MaxAttempts);
+        Assert.False(context.IsFinalAttempt);
+
         Assert.Throws<InvalidOperationException>(() => taskRun.MarkStarted(wrongWorkerContext, Now.AddSeconds(1)));
 
         taskRun.MarkStarted(context, Now.AddSeconds(1));
@@ -69,6 +74,10 @@ public sealed class TaskRuntimeInfrastructureTests
             maxRuns: 1,
             leaseDuration: TimeSpan.FromMinutes(1)));
         TaskExecutionContext secondContext = secondLease.CreateExecutionContext();
+
+        Assert.Equal(2, secondLease.MaxAttempts);
+        Assert.True(secondLease.IsFinalAttempt);
+        Assert.True(secondContext.IsFinalAttempt);
 
         taskRun.MarkStarted(secondContext, Now.AddSeconds(11));
         taskRun.MarkSucceeded(secondContext, Now.AddSeconds(12));

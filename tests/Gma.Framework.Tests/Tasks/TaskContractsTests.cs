@@ -52,7 +52,8 @@ public sealed class TaskContractsTests
             attempt: 2,
             scopeId: " tenant-a ",
             correlationId: MessageId,
-            leaseExtension: TimeSpan.FromMinutes(2));
+            leaseExtension: TimeSpan.FromMinutes(2),
+            maxAttempts: 4);
 
         Assert.Equal(RunId, context.RunId);
         Assert.Equal("catalog", context.ModuleName);
@@ -61,6 +62,8 @@ public sealed class TaskContractsTests
         Assert.Equal("worker-01", context.WorkerId);
         Assert.Equal("node-01", context.NodeId);
         Assert.Equal(2, context.Attempt);
+        Assert.Equal(4, context.MaxAttempts);
+        Assert.False(context.IsFinalAttempt);
         Assert.Equal("tenant-a", context.ScopeId);
         Assert.Equal(MessageId, context.CorrelationId);
         Assert.False(context.CancellationRequested);
@@ -95,6 +98,46 @@ public sealed class TaskContractsTests
             "node-01",
             attempt: 1,
             leaseExtension: TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TaskExecutionContext(
+            RunId,
+            "catalog",
+            "rebuild-search",
+            TaskWorkerGroups.Default,
+            "worker-01",
+            "node-01",
+            attempt: 2,
+            maxAttempts: 1));
+    }
+
+    [Fact]
+    public void Task_execution_context_defaults_unknown_max_attempts_to_current_attempt()
+    {
+        TaskExecutionContext context = new(
+            RunId,
+            "catalog",
+            "rebuild-search",
+            TaskWorkerGroups.Default,
+            "worker-01",
+            "node-01",
+            attempt: 3);
+
+        Assert.Equal(3, context.MaxAttempts);
+        Assert.True(context.IsFinalAttempt);
+    }
+
+    [Fact]
+    public void Terminal_task_failure_requires_a_bounded_machine_code()
+    {
+        TaskRunTerminalFailureException exception = new(
+            " Export.Owner-Unavailable ");
+
+        Assert.Equal("export.owner-unavailable", exception.FailureCode);
+        Assert.Equal(exception.FailureCode, exception.Message);
+        Assert.Throws<ArgumentException>(() =>
+            new TaskRunTerminalFailureException("contains personal data@example.test"));
+        Assert.Throws<ArgumentException>(() =>
+            new TaskRunTerminalFailureException(
+                new string('a', TaskRunTerminalFailureException.FailureCodeMaxLength + 1)));
     }
 
     [Fact]
@@ -326,7 +369,8 @@ public sealed class TaskContractsTests
             EnqueuedAtUtc,
             EnqueuedAtUtc.AddMinutes(5),
             "tenant-a",
-            MessageId);
+            MessageId,
+            maxAttempts: 5);
 
         TaskExecutionContext context = lease.CreateExecutionContext();
 
@@ -337,6 +381,10 @@ public sealed class TaskContractsTests
         Assert.Equal("worker-01", context.WorkerId);
         Assert.Equal("node-01", context.NodeId);
         Assert.Equal(2, context.Attempt);
+        Assert.Equal(5, lease.MaxAttempts);
+        Assert.False(lease.IsFinalAttempt);
+        Assert.Equal(5, context.MaxAttempts);
+        Assert.False(context.IsFinalAttempt);
         Assert.Equal("tenant-a", context.ScopeId);
         Assert.Equal(MessageId, context.CorrelationId);
         Assert.False(context.CancellationRequested);

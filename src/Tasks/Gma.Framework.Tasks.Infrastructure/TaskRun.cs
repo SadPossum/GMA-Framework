@@ -329,7 +329,8 @@ public class TaskRun
             this.CorrelationId,
             this.Status == TaskRunStatus.CancellationRequested,
             this.PayloadVersion,
-            this.LeaseGeneration);
+            this.LeaseGeneration,
+            this.MaxAttempts);
     }
 
     private void EnsureLeaseOwner(TaskExecutionContext context)
