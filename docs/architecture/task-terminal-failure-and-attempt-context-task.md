@@ -1,6 +1,6 @@
 # Task Terminal Failure And Attempt Context Task
 
-Status: framework complete; first-adopter verification pending
+Status: complete
 Date: 2026-08-15
 
 ## Goal
@@ -79,7 +79,7 @@ from product task names, payloads, and domain failure policy.
 - focused Tasks contracts, runtime, and worker suite: 124 passed, 0 failed;
 - package solution synchronization check: passed;
 - package build: passed with 0 warnings and 0 errors; and
-- complete non-Docker GMA Framework suite: 1,134 passed, 0 failed.
-
-BunkFy adopter verification remains part of the consuming export slice and is
-not claimed by this framework commit.
+- complete non-Docker GMA Framework suite: 1,134 passed, 0 failed; and
+- first adopter: the BunkFy Data Rights suite passed 523 tests, including
+  terminal owner failures, transient non-final retries, final-attempt failure,
+  and explicit operator recovery.
