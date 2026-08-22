@@ -29,6 +29,34 @@ public sealed class CompositionToolingTests
     }
 
     [Fact]
+    public void Module_scaffolder_forwards_scope_resolvers_to_generated_outbox_writers()
+    {
+        string source = ReadTool("new-module.ps1").ReplaceLineEndings("\n");
+        const string expectedOutboxWriterTemplate = """
+            namespace $projectName.Persistence;
+
+            using Microsoft.Extensions.Options;
+            using Gma.Framework.Messaging;
+            using Gma.Framework.Messaging.Infrastructure;
+            using Gma.Framework.Runtime;
+            using Gma.Framework.Runtime.Time;
+
+            internal sealed class ${Name}OutboxWriter(
+                ${Name}DbContext dbContext,
+                ISystemClock clock,
+                IOptions<ApplicationIdentityOptions> applicationIdentity,
+                IEnumerable<IIntegrationEventScopeResolver> scopeResolvers)
+                : EfOutboxWriter<${Name}DbContext>(dbContext, clock, applicationIdentity, ${Name}Migrations.Schema, scopeResolvers);
+            """;
+
+        Assert.Contains(expectedOutboxWriterTemplate, source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            ": EfOutboxWriter<${Name}DbContext>(dbContext, clock, applicationIdentity, ${Name}Migrations.Schema);",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Composition_tools_are_product_neutral_and_listed_in_the_framework_solution()
     {
         string[] tools =
