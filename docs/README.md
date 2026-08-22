@@ -13,6 +13,7 @@ The skeleton/composition repository links here from [root documentation](https:/
 - [Scoping And Tenancy](architecture/scoping-and-tenancy.md)
 - [Module Composition Features And Profiles Task](architecture/module-composition-features-task.md)
 - [CQRS and Domain Events](architecture/cqrs-and-domain-events.md)
+- [CQRS Cancellation Fencing Task](architecture/cqrs-cancellation-fencing-task.md)
 - [Persistence and Tenancy](architecture/persistence-and-tenancy.md)
 - [Metadata Attribute Pipeline Refactor Task](architecture/metadata-attribute-pipeline-task.md)
 - [Messaging and Outbox](architecture/messaging-and-outbox.md)

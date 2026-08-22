@@ -61,7 +61,11 @@ Check model-to-migration drift before finishing persistence work:
 .\eng\check-migrations.ps1 -NoBuild
 ```
 
-The script discovers every provider migration project under `src/Modules` and `gma/modules`, then runs EF's pending-model-change check against the matching design-time factory. `eng/verify.ps1` includes this check by default after build; pass `-SkipMigrationCheck` only for a deliberately narrow local loop.
+The script discovers every provider migration project under `src/Modules` and
+`gma/modules`, then runs EF's pending-model-change check against the matching
+design-time factory. Composition repositories include this check in
+`eng/verify.ps1`; standalone package repositories run it explicitly when their
+source set contains provider migration projects.
 
 Design-time factories live in provider-specific migration projects, not runtime persistence projects:
 

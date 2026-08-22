@@ -51,6 +51,7 @@
     <File Path="docs/architecture/caching.md" />
     <File Path="docs/architecture/composition-tooling.md" />
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
+    <File Path="docs/architecture/cqrs-cancellation-fencing-task.md" />
     <File Path="docs/architecture/durable-runtime-hardening-task.md" />
     <File Path="docs/architecture/exception-safe-observability-task.md" />
     <File Path="docs/architecture/file-management-boundary-revalidation-task.md" />

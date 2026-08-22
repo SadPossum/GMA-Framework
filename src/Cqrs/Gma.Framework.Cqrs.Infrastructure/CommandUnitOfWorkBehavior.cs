@@ -18,9 +18,13 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
         CommandNext<TResponse> next,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         if (command is not ITransactionalCommand<TResponse>)
         {
-            return await next().ConfigureAwait(false);
+            Result<TResponse> result = await next().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
         }
 
         string moduleName = ModuleNameResolver.FromType(typeof(TCommand));
@@ -47,9 +51,11 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
             if (transactionalUnitOfWork is not null)
             {
                 await transactionalUnitOfWork.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             Result<TResponse> result = await next().ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (!result.IsSuccess)
             {
                 if (transactionalUnitOfWork is not null)
@@ -64,6 +70,7 @@ internal sealed class CommandUnitOfWorkBehavior<TCommand, TResponse>(IEnumerable
             await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             if (transactionalUnitOfWork is not null)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 await transactionalUnitOfWork.CommitTransactionAsync(cancellationToken).ConfigureAwait(false);
             }
 

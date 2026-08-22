@@ -62,6 +62,79 @@ public sealed class CommandUnitOfWorkBehaviorTests
     }
 
     [Fact]
+    public async Task Transactional_unit_of_work_stops_after_cancellation_ignoring_begin()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            afterBegin: cancellation.Cancel);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_stops_before_save_after_inner_cancellation()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new("framework", order);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    cancellation.Cancel();
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_stops_before_commit_after_cancellation_ignoring_save()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            afterSave: cancellation.Cancel);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "handle", "save", "rollback", "reset"], order);
+    }
+
+    [Fact]
     public async Task Transactional_unit_of_work_rolls_back_failed_results_without_saving()
     {
         List<string> order = [];
@@ -214,7 +287,9 @@ public sealed class CommandUnitOfWorkBehaviorTests
         string moduleName,
         List<string> order,
         Exception? rollbackFailure = null,
-        Exception? resetFailure = null)
+        Exception? resetFailure = null,
+        Action? afterBegin = null,
+        Action? afterSave = null)
         : IRollbackResettableUnitOfWork
     {
         public string ModuleName { get; } = moduleName;
@@ -222,12 +297,14 @@ public sealed class CommandUnitOfWorkBehaviorTests
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             order.Add("begin");
+            afterBegin?.Invoke();
             return Task.CompletedTask;
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             order.Add("save");
+            afterSave?.Invoke();
             return Task.CompletedTask;
         }
 

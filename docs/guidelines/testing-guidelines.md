@@ -90,11 +90,19 @@ Docker tests run only `Category=Docker`, set `GMA_REQUIRE_DOCKER_TESTS=true`, an
 .\eng\test-docker.ps1 -NoBuild
 ```
 
-`eng/verify.ps1` intentionally runs the fast test script only after restore, build, and the provider migration drift check. Run `eng/test-docker.ps1` separately when the current slice touches containers, Redis, SQL Server, PostgreSQL, NATS, or other Docker-backed infrastructure.
+Composition repositories expose `eng/verify.ps1`, which runs fast tests only
+after restore, build, and provider migration drift checks. The standalone
+Framework repository follows its checked-in `validate` workflow instead. Run
+`eng/test-docker.ps1` separately when the current slice touches containers,
+Redis, SQL Server, PostgreSQL, NATS, or other Docker-backed infrastructure.
 
 From the framework package root, validate the framework package through its focused solution:
 
 ```powershell
+./eng/sync-solution.ps1 -RepositoryRoot . -Solution Gma.Framework.slnx -Check
+./eng/bootstrap-source-roots.ps1 -Force
+dotnet restore Gma.Framework.slnx
+dotnet build Gma.Framework.slnx --no-restore -m:1
 .\eng\test-fast.ps1 -NoBuild
 ```
 

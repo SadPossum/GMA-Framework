@@ -245,8 +245,10 @@ Avoid deploying code that requires a migration that has not run yet.
 Minimum CI path:
 
 ```powershell
-.\eng\restore.ps1
-.\eng\build.ps1 -NoRestore
+./eng/sync-solution.ps1 -RepositoryRoot . -Solution Gma.Framework.slnx -Check
+./eng/bootstrap-source-roots.ps1 -Force
+dotnet restore Gma.Framework.slnx
+dotnet build Gma.Framework.slnx --no-restore -m:1
 .\eng\test-fast.ps1 -NoBuild
 ```
 
