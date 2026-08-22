@@ -110,6 +110,19 @@ Shared project ownership quick reference:
 - `Gma.Framework.Administration.Cli`: System.CommandLine administration front-door helpers.
 - `Gma.Framework.Administration.Api`: administration HTTP front-door helpers.
 
+## Authentication Assurance Composition
+
+`Gma.Framework.Security.AspNetCore` treats authentication-assurance declarations on outer groups, nested groups, and endpoints as cumulative constraints. A nested route cannot replace or weaken a requirement inherited from an outer route:
+
+- accepted authentication context references are alternatives within one declaration, but layered declarations are intersected using exact, ordinal matching;
+- the effective context preference order comes from the most specific declaration that specifies contexts, or the last context-bearing declaration when the same scope declares more than one, filtered through every other declaration;
+- the shortest declared maximum authentication age wins; and
+- disjoint context declarations reject endpoint construction instead of creating a route that can never satisfy its challenge.
+
+The adapter builds one effective requirement and registers one evaluator per endpoint. When enforcement fails, the [RFC 9470](https://www.rfc-editor.org/rfc/rfc9470.html) challenge carries that effective context list and maximum age, so a client can request all satisfiable remediation in one authentication round trip. ASP.NET Core materializes route endpoints lazily; an invalid disjoint composition is therefore detected when the endpoint data source is first materialized, normally by the first routed readiness probe or request rather than by `WebApplication.StartAsync()` alone.
+
+Context references do not have an implicit strength hierarchy. For example, an outer declaration that accepts only `password` does not automatically accept `mfa`; policies that accept either context must list both explicitly. Authentication issuers and products still own the context vocabulary, claim issuance, clock-skew policy, and the decision about which routes require step-up authentication.
+
 ## Module Projects
 
 Recommended projects:

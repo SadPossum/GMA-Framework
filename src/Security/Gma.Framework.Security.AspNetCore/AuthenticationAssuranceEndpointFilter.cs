@@ -10,11 +10,19 @@ internal sealed class AuthenticationAssuranceEndpointFilter : IEndpointFilter
         EndpointFilterDelegate next)
     {
         Endpoint? endpoint = context.HttpContext.GetEndpoint();
-        IReadOnlyList<AuthenticationAssuranceMetadata>? orderedMetadata =
-            endpoint?.Metadata.GetOrderedMetadata<AuthenticationAssuranceMetadata>();
-        AuthenticationAssuranceRequirement? requirement = orderedMetadata is { Count: > 0 }
-            ? orderedMetadata[^1].Requirement
-            : null;
+        AuthenticationAssuranceRequirement? requirement = endpoint?.Metadata
+            .GetMetadata<EffectiveAuthenticationAssuranceMetadata>()?
+            .Requirement;
+        if (requirement is null)
+        {
+            IReadOnlyList<AuthenticationAssuranceMetadata>? orderedMetadata =
+                endpoint?.Metadata.GetOrderedMetadata<AuthenticationAssuranceMetadata>();
+            requirement = orderedMetadata is { Count: > 0 }
+                ? AuthenticationAssuranceRequirementComposer.Compose(
+                    orderedMetadata.Select(metadata => metadata.Requirement).ToArray())
+                : null;
+        }
+
         if (requirement is null)
         {
             return await next(context).ConfigureAwait(false);
