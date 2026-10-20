@@ -35,7 +35,7 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="MessagePack" Version="2.5.307" />
     <PackageVersion Include="Minio" Version="7.0.0" />
-    <PackageVersion Include="NATS.Net" Version="2.8.2" />
+    <PackageVersion Include="NATS.Net" Version="3.3.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.0" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.0" />
