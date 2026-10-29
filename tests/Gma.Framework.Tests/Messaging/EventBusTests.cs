@@ -1,13 +1,13 @@
 namespace Gma.Framework.Tests;
 
 using System.Reflection;
+using Gma.Framework.Messaging;
+using Gma.Framework.Messaging.Infrastructure;
+using Gma.Framework.Messaging.Nats;
+using Gma.Framework.Runtime;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
-using Gma.Framework.Messaging;
-using Gma.Framework.Messaging.Nats;
-using Gma.Framework.Messaging.Infrastructure;
-using Gma.Framework.Runtime;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -67,6 +67,45 @@ public sealed class EventBusTests
             eventBus.PublishAsync(message, CancellationToken.None));
 
         Assert.Contains("No integration event bus is configured", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Nats_message_id_is_fixed_length_deterministic_and_subject_scoped()
+    {
+        Guid messageId = Guid.Parse("d46d078a-bb29-4c4f-979d-f0da1ca8b40b");
+
+        string canonical = NatsJetStreamEventBus.CreateMessageId(
+            "gma.catalog.item-created.v1",
+            messageId);
+        string normalizedEquivalent = NatsJetStreamEventBus.CreateMessageId(
+            " GMA.CATALOG.ITEM-CREATED.V1 ",
+            messageId);
+        string differentSubject = NatsJetStreamEventBus.CreateMessageId(
+            "gma.catalog.item-updated.v1",
+            messageId);
+        string differentMessage = NatsJetStreamEventBus.CreateMessageId(
+            "gma.catalog.item-created.v1",
+            Guid.Parse("8f8c1025-9444-4c30-960a-6fe5bd2ceabc"));
+
+        Assert.Equal(
+            "0b8c00a025b2c478ee5813f38909f1e3ded7fcad6bbfcca6c1cfb9d289bde2c8",
+            canonical);
+        Assert.Equal(64, canonical.Length);
+        Assert.Matches("^[0-9a-f]{64}$", canonical);
+        Assert.Equal(canonical, normalizedEquivalent);
+        Assert.NotEqual(canonical, differentSubject);
+        Assert.NotEqual(canonical, differentMessage);
+    }
+
+    [Fact]
+    public void Nats_message_id_rejects_invalid_identity_inputs()
+    {
+        Assert.Throws<ArgumentException>(() => NatsJetStreamEventBus.CreateMessageId(
+            "gma.catalog.item-created.v1",
+            Guid.Empty));
+        Assert.ThrowsAny<ArgumentException>(() => NatsJetStreamEventBus.CreateMessageId(
+            "catalog.item-created",
+            Guid.NewGuid()));
     }
 
     private static INatsConnection CreateUnusedNatsConnection() =>

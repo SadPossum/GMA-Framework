@@ -50,7 +50,7 @@ These notes capture architectural and developer-experience findings from the bro
 - Hardened outbox publishing so logger scope/write failures cannot prevent failed publish attempts from being marked failed for retry.
 - Hardened NATS JetStream publishing so post-ack success logging and already-existing stream debug logging cannot turn successful broker operations into false publish failures.
 - Hardened NATS consumer lifecycle/error logging so disabled/no-subscription startup, polling errors, deserialization failures, handler failures, and stream-exists diagnostics cannot change consumer control flow.
-- Added stable NATS JetStream publish de-duplication by using the outbox message id as `MsgId` and treating duplicate broker acks as successful idempotent publishes.
+- Added stable NATS JetStream publish de-duplication with a subject-scoped digest of the normalized subject and outbox message id, and treated duplicate broker acks as successful idempotent publishes.
 - Added `Unknown = 0` to public module contract and domain-state enums, guarded it with an architecture test, and fixed Catalog/Ordering mapping so unknown status no longer becomes active/orderable state.
 - Hardened `eng/new-module.ps1` so `-RegisterInHost` fails loudly when the expected host-registration anchor is missing and prints explicit follow-up steps for `ArchitectureCatalog`, host composition, and enum validation conventions.
 - Replaced Catalog read-model enum casts with explicit switch mapping and added an architecture guard against direct casts to public module enums outside generated migrations.
