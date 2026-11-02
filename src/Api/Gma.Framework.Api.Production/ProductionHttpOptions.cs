@@ -60,6 +60,8 @@ public sealed class RequestTimeoutSettings
 
 public sealed class RateLimitingSettings
 {
+    public const int MaximumAdditionalPolicies = 7;
+
     public bool Enabled { get; set; } = true;
 
     public HttpRateLimitMode Mode { get; set; } = HttpRateLimitMode.InProcess;
@@ -80,6 +82,19 @@ public sealed class RateLimitingSettings
         "/api/auth/external",
         "/api/auth/email-verification"
     ];
+
+    public HttpRateLimitPolicySettings[] Policies { get; set; } = [];
+}
+
+public sealed class HttpRateLimitPolicySettings
+{
+    public string Name { get; set; } = string.Empty;
+
+    public int PermitLimit { get; set; } = 10;
+
+    public string[] PathPrefixes { get; set; } = [];
+
+    public string[] Methods { get; set; } = [];
 }
 
 public enum HttpRateLimitMode

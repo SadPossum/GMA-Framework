@@ -41,7 +41,8 @@ Recommended production configuration:
 - `MessageJournalCleanup:ProcessedInboxRetention` greater than or equal to `MessageJournalCleanup:BrokerReplayHorizon`
 - `MessageJournalCleanup:BatchSize` and `MessageJournalCleanup:MaxBatchesPerStorePerCycle`
 - `NatsJetStream:Enabled`
-- `NatsJetStream:ManagementMode`, finite `MaxAge`, `MaxBytes`, and `MaxMessages`
+- `NatsJetStream:ManagementMode`, finite `MaxAge`, `MaxBytes`, `MaxMessages`,
+  and `MaxMessageSize`, plus the intended `DiscardPolicy`
 - `NatsJetStream:Storage` and a cluster-appropriate `Replicas` value
 - optional `NatsJetStream:StreamName` only when broker naming must differ from `ApplicationIdentity:Namespace`
 - `ConnectionStrings:nats` when JetStream publishing is enabled
@@ -244,8 +245,10 @@ Avoid deploying code that requires a migration that has not run yet.
 Minimum CI path:
 
 ```powershell
-.\eng\restore.ps1
-.\eng\build.ps1 -NoRestore
+./eng/sync-solution.ps1 -RepositoryRoot . -Solution Gma.Framework.slnx -Check
+./eng/bootstrap-source-roots.ps1 -Force
+dotnet restore Gma.Framework.slnx
+dotnet build Gma.Framework.slnx --no-restore -m:1
 .\eng\test-fast.ps1 -NoBuild
 ```
 

@@ -62,6 +62,79 @@ public sealed class CommandUnitOfWorkBehaviorTests
     }
 
     [Fact]
+    public async Task Transactional_unit_of_work_stops_after_cancellation_ignoring_begin()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            afterBegin: cancellation.Cancel);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_stops_before_save_after_inner_cancellation()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new("framework", order);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    cancellation.Cancel();
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Transactional_unit_of_work_stops_before_commit_after_cancellation_ignoring_save()
+    {
+        List<string> order = [];
+        using CancellationTokenSource cancellation = new();
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            afterSave: cancellation.Cancel);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        OperationCanceledException exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => behavior.HandleAsync(
+                new TransactionalCommand(),
+                () =>
+                {
+                    order.Add("handle");
+                    return Task.FromResult(Result.Success(Unit.Value));
+                },
+                cancellation.Token));
+
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(["begin", "handle", "save", "rollback", "reset"], order);
+    }
+
+    [Fact]
     public async Task Transactional_unit_of_work_rolls_back_failed_results_without_saving()
     {
         List<string> order = [];
@@ -78,7 +151,7 @@ public sealed class CommandUnitOfWorkBehaviorTests
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(["begin", "handle", "rollback"], order);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
     }
 
     [Fact]
@@ -97,7 +170,61 @@ public sealed class CommandUnitOfWorkBehaviorTests
             },
             CancellationToken.None));
 
-        Assert.Equal(["begin", "handle", "rollback"], order);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Result_failure_attempts_reset_when_rollback_fails()
+    {
+        List<string> order = [];
+        InvalidOperationException rollbackFailure = new("Rollback failed.");
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            rollbackFailure: rollbackFailure);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        InvalidOperationException actual = await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                return Task.FromResult(Result.Failure<Unit>(new Error("Test.Failure", "Failed.")));
+            },
+            CancellationToken.None));
+
+        Assert.Same(rollbackFailure, actual);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
+    }
+
+    [Fact]
+    public async Task Handler_exception_is_preserved_when_rollback_and_reset_fail()
+    {
+        List<string> order = [];
+        InvalidOperationException handlerFailure = new("Handler failed.");
+        InvalidOperationException rollbackFailure = new("Rollback failed.");
+        InvalidOperationException resetFailure = new("Reset failed.");
+        RecordingTransactionalUnitOfWork unitOfWork = new(
+            "framework",
+            order,
+            rollbackFailure,
+            resetFailure);
+        CommandUnitOfWorkBehavior<TransactionalCommand, Unit> behavior = new([unitOfWork]);
+
+        InvalidOperationException actual = await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TransactionalCommand(),
+            () =>
+            {
+                order.Add("handle");
+                throw handlerFailure;
+            },
+            CancellationToken.None));
+
+        Assert.Same(handlerFailure, actual);
+        AggregateException cleanupFailure = Assert.IsType<AggregateException>(
+            actual.Data[CommandUnitOfWorkBehavior<TransactionalCommand, Unit>.CleanupFailureDataKey]);
+        Assert.Equal([rollbackFailure, resetFailure], cleanupFailure.InnerExceptions);
+        Assert.Equal(["begin", "handle", "rollback", "reset"], order);
     }
 
     [Fact]
@@ -156,20 +283,28 @@ public sealed class CommandUnitOfWorkBehaviorTests
         }
     }
 
-    private sealed class RecordingTransactionalUnitOfWork(string moduleName, List<string> order)
-        : ITransactionalUnitOfWork
+    private sealed class RecordingTransactionalUnitOfWork(
+        string moduleName,
+        List<string> order,
+        Exception? rollbackFailure = null,
+        Exception? resetFailure = null,
+        Action? afterBegin = null,
+        Action? afterSave = null)
+        : IRollbackResettableUnitOfWork
     {
         public string ModuleName { get; } = moduleName;
 
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             order.Add("begin");
+            afterBegin?.Invoke();
             return Task.CompletedTask;
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             order.Add("save");
+            afterSave?.Invoke();
             return Task.CompletedTask;
         }
 
@@ -182,7 +317,17 @@ public sealed class CommandUnitOfWorkBehaviorTests
         public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
         {
             order.Add("rollback");
-            return Task.CompletedTask;
+            return rollbackFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(rollbackFailure);
+        }
+
+        public Task ResetAfterRollbackAsync(CancellationToken cancellationToken = default)
+        {
+            order.Add("reset");
+            return resetFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(resetFailure);
         }
     }
 }

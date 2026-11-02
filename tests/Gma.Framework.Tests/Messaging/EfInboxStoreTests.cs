@@ -73,6 +73,21 @@ public sealed class EfInboxStoreTests
     }
 
     [Fact]
+    public async Task Cleanup_reports_oldest_retained_processed_message()
+    {
+        using TestDbContext dbContext = CreateDbContext();
+        TestInboxStore store = new(dbContext, "ordering");
+        await store.ProcessAsync(
+            CreateMessageRecord(),
+            _ => Task.CompletedTask,
+            CancellationToken.None);
+
+        DateTimeOffset? observed = await store.GetOldestProcessedAtUtcAsync(CancellationToken.None);
+
+        Assert.Equal(Now, observed);
+    }
+
+    [Fact]
     public async Task Process_async_returns_duplicate_without_invoking_handler_for_processed_message()
     {
         using TestDbContext dbContext = CreateDbContext();

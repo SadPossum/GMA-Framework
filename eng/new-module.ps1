@@ -553,6 +553,7 @@ $($persistenceServices -join "`r`n")
 namespace $projectName.Persistence;
 
 using Microsoft.Extensions.Options;
+using Gma.Framework.Messaging;
 using Gma.Framework.Messaging.Infrastructure;
 using Gma.Framework.Runtime;
 using Gma.Framework.Runtime.Time;
@@ -560,8 +561,9 @@ using Gma.Framework.Runtime.Time;
 internal sealed class ${Name}OutboxWriter(
     ${Name}DbContext dbContext,
     ISystemClock clock,
-    IOptions<ApplicationIdentityOptions> applicationIdentity)
-    : EfOutboxWriter<${Name}DbContext>(dbContext, clock, applicationIdentity, ${Name}Migrations.Schema);
+    IOptions<ApplicationIdentityOptions> applicationIdentity,
+    IEnumerable<IIntegrationEventScopeResolver> scopeResolvers)
+    : EfOutboxWriter<${Name}DbContext>(dbContext, clock, applicationIdentity, ${Name}Migrations.Schema, scopeResolvers);
 "@
 
         Write-GmaFile (Join-Path $moduleRoot "$projectName.Persistence\${Name}OutboxStore.cs") @"

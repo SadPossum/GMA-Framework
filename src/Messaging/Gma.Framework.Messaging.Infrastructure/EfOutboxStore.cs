@@ -148,6 +148,14 @@ public abstract class EfOutboxStore<TDbContext>(
             .ConfigureAwait(false);
     }
 
+    public virtual async Task<DateTimeOffset?> GetOldestProcessedAtUtcAsync(
+        CancellationToken cancellationToken) =>
+        await this.DbContext.Set<OutboxMessage>()
+            .AsNoTracking()
+            .Where(message => message.ProcessedAtUtc != null)
+            .MinAsync(message => message.ProcessedAtUtc, cancellationToken)
+            .ConfigureAwait(false);
+
     private static OutboxMessageRecord ToRecord(OutboxMessage message) =>
         new(
             message.Id,

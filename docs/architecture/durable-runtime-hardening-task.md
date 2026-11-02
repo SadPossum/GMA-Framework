@@ -1,6 +1,6 @@
 # Durable Runtime Hardening Task
 
-Status: active implementation plan
+Status: complete; reusable contract and first-adopter integration verified (2026-08-11)
 
 ## Summary
 
@@ -242,3 +242,13 @@ This task is complete only when:
 - documentation and architecture catalogs match source;
 - a consuming application has integrated the release without internal project references;
 - no product-specific vocabulary or policy exists in GMA runtime packages.
+
+## 2026-08-11 Completion Evidence
+
+- Framework implementation `cbe34c1` adds finite JetStream message-size and discard policies, validates managed and externally owned streams, preserves partial cleanup progress, and reports deleted rows, failures, duration, and oldest retained journal age. All 1,128 Framework tests pass.
+- TaskRuntime implementation `b8856c5` reports bounded-cardinality retention lifecycle metrics and queries oldest eligible terminal history without treating active holds or control-linked runs as removable. Its 51 fast tests and all four PostgreSQL/SQL Server relational tests pass.
+- Skeleton carries explicit finite host defaults and architecture guards. Its build, migration-drift checks, and non-Docker test assemblies passed; the one newly exposed test-fixture guard was repaired and rerun successfully. Focused Docker proof passes for managed/external NATS bounds and acknowledgement progress, and for bounded journal cleanup on both providers.
+- BunkFy's complete non-Docker verification passes with a synchronized solution, zero warnings or errors, clean migration drift, 102 architecture tests, 60 integration tests, and all module and extension suites.
+- Different module outbox stores already progress independently when one store fails; ordered processing inside each store remains the default.
+
+The optional subscription-parallelism and partition-key-ordering ideas from Slice 5 are deliberately excluded until an adopter demonstrates a measured need. Deployment sizing, connection pools, worker replicas, concrete retention periods, replay windows, alert thresholds, and legal-hold policy remain adopter or deployment responsibilities. These exclusions preserve the current ordered default and keep product policy out of GMA.

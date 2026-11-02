@@ -17,6 +17,8 @@ The repo uses lightweight CQRS primitives from `Gma.Framework.Cqrs` instead of M
 - `IQueryValidator<TQuery>`
 - `Unit`
 - `IUnitOfWork`
+- `ITransactionalUnitOfWork`
+- `IRollbackResettableUnitOfWork`
 
 ## Command Flow
 
@@ -36,6 +38,36 @@ Endpoint
 Commands that write persistent module state implement `ITransactionalCommand<TResponse>`.
 The unit-of-work behavior derives the owning module from the command assembly name and commits exactly one matching `IUnitOfWork`.
 Commands that do not write persistent state may stay as plain `ICommand<TResponse>` and skip the UoW behavior.
+
+Transactional commands roll back when a handler returns a failed result or
+throws. Providers that retain mutable state after rollback implement the
+optional `IRollbackResettableUnitOfWork` contract. The behavior resets that
+state after each rollback it performs, using a non-request cancellation token, so a later
+command in the same dependency-injection scope cannot inherit abandoned
+mutations. EF-backed unit-of-work implementations provide this contract by
+clearing the `DbContext` change tracker. If rollback and reset also fail while
+handling an exception, the original operation exception remains authoritative
+and carries the secondary cleanup failure in its diagnostic data.
+
+## Cancellation Acceptance
+
+The dispatcher treats caller cancellation as an execution boundary, not only as
+a token that components may choose to observe. It checks cancellation before
+invoking every command/query handler or pipeline behavior and after each
+component returns normally. A cancellation-ignoring component therefore cannot
+have its normally returned result accepted after the caller has canceled.
+
+Transactional commands also check cancellation after transaction begin, after
+the inner pipeline returns, and after save before commit. Cancellation observed
+before a remaining persistence boundary enters the existing rollback and reset
+path. Cleanup uses a non-request token so request cancellation cannot strand the
+unit of work in an abandoned state.
+
+These checks do not forcibly interrupt a component that is still running and
+cannot undo a transaction that has already committed. Handlers and behaviors
+must still cooperate with cancellation, and durable commands need
+product-appropriate idempotency and unknown-outcome recovery. Do not implement
+persistent mutation in a non-transactional command to bypass this boundary.
 
 This is a small documented convention, not host composition scanning. Architecture tests guard module commands so state-writing commands stay explicit about transactionality.
 

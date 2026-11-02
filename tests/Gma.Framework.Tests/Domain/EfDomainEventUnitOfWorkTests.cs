@@ -5,6 +5,9 @@ using Gma.Framework.Application.Events;
 using Gma.Framework.Domain;
 using Gma.Framework.Domain.Models;
 using Gma.Framework.Persistence.EntityFrameworkCore;
+using Gma.Framework.Cqrs;
+using Gma.Framework.Cqrs.Infrastructure;
+using Gma.Framework.Results;
 using Xunit;
 
 [Trait("Category", "Unit")]
@@ -60,6 +63,91 @@ public sealed class EfDomainEventUnitOfWorkTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => unitOfWork.SaveChangesAsync());
         Assert.Single(aggregate.DomainEvents);
         Assert.Single(dispatcher.DispatchedEvents);
+    }
+
+    [Fact]
+    public async Task Failed_result_does_not_leak_tracked_mutations_or_events_to_next_command_in_scope()
+    {
+        await using TestDbContext dbContext = CreateDbContext();
+        RecordingDomainEventDispatcher dispatcher = new();
+        TestUnitOfWork unitOfWork = new("framework", dbContext, dispatcher);
+        CommandUnitOfWorkBehavior<TestTransactionalCommand, Unit> behavior = new([unitOfWork]);
+        TestAggregate abandoned = new(Guid.NewGuid());
+        TestAggregate committed = new(Guid.NewGuid());
+        Guid abandonedEventId = default;
+        Guid committedEventId = default;
+
+        Result<Unit> failed = await behavior.HandleAsync(
+            new TestTransactionalCommand(),
+            async () =>
+            {
+                abandonedEventId = abandoned.Touch();
+                await dbContext.Aggregates.AddAsync(abandoned);
+                return Result.Failure<Unit>(new Error("Test.Failure", "Failed."));
+            },
+            CancellationToken.None);
+
+        Assert.Empty(dbContext.ChangeTracker.Entries());
+
+        Result<Unit> succeeded = await behavior.HandleAsync(
+            new TestTransactionalCommand(),
+            async () =>
+            {
+                committedEventId = committed.Touch();
+                await dbContext.Aggregates.AddAsync(committed);
+                return Result.Success(Unit.Value);
+            },
+            CancellationToken.None);
+
+        Assert.True(failed.IsFailure);
+        Assert.True(succeeded.IsSuccess);
+        Assert.Equal([committed.Id], await dbContext.Aggregates.Select(aggregate => aggregate.Id).ToArrayAsync());
+        TestDomainEvent dispatched = Assert.IsType<TestDomainEvent>(Assert.Single(dispatcher.DispatchedEvents));
+        Assert.Equal(committedEventId, dispatched.EventId);
+        Assert.DoesNotContain(dispatcher.DispatchedEvents, domainEvent =>
+            domainEvent is TestDomainEvent testEvent && testEvent.EventId == abandonedEventId);
+    }
+
+    [Fact]
+    public async Task Handler_exception_does_not_leak_tracked_mutations_or_events_to_next_command_in_scope()
+    {
+        await using TestDbContext dbContext = CreateDbContext();
+        RecordingDomainEventDispatcher dispatcher = new();
+        TestUnitOfWork unitOfWork = new("framework", dbContext, dispatcher);
+        CommandUnitOfWorkBehavior<TestTransactionalCommand, Unit> behavior = new([unitOfWork]);
+        TestAggregate abandoned = new(Guid.NewGuid());
+        TestAggregate committed = new(Guid.NewGuid());
+        Guid abandonedEventId = default;
+        Guid committedEventId = default;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.HandleAsync(
+            new TestTransactionalCommand(),
+            async () =>
+            {
+                abandonedEventId = abandoned.Touch();
+                await dbContext.Aggregates.AddAsync(abandoned);
+                throw new InvalidOperationException("Handler failed.");
+            },
+            CancellationToken.None));
+
+        Assert.Empty(dbContext.ChangeTracker.Entries());
+
+        Result<Unit> succeeded = await behavior.HandleAsync(
+            new TestTransactionalCommand(),
+            async () =>
+            {
+                committedEventId = committed.Touch();
+                await dbContext.Aggregates.AddAsync(committed);
+                return Result.Success(Unit.Value);
+            },
+            CancellationToken.None);
+
+        Assert.True(succeeded.IsSuccess);
+        Assert.Equal([committed.Id], await dbContext.Aggregates.Select(aggregate => aggregate.Id).ToArrayAsync());
+        TestDomainEvent dispatched = Assert.IsType<TestDomainEvent>(Assert.Single(dispatcher.DispatchedEvents));
+        Assert.Equal(committedEventId, dispatched.EventId);
+        Assert.DoesNotContain(dispatcher.DispatchedEvents, domainEvent =>
+            domainEvent is TestDomainEvent testEvent && testEvent.EventId == abandonedEventId);
     }
 
     [Fact]
@@ -139,8 +227,15 @@ public sealed class EfDomainEventUnitOfWorkTests
         {
         }
 
-        public void Touch() => this.RaiseDomainEvent(new TestDomainEvent(Guid.NewGuid(), DateTimeOffset.UtcNow));
+        public Guid Touch()
+        {
+            Guid eventId = Guid.NewGuid();
+            this.RaiseDomainEvent(new TestDomainEvent(eventId, DateTimeOffset.UtcNow));
+            return eventId;
+        }
     }
+
+    private sealed record TestTransactionalCommand : ITransactionalCommand<Unit>;
 
     private sealed record TestDomainEvent(Guid EventId, DateTimeOffset OccurredAtUtc) : IDomainEvent;
 

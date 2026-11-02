@@ -8,4 +8,6 @@ public interface IInboxCleanupStore
         DateTimeOffset processedBeforeUtc,
         int maxMessages,
         CancellationToken cancellationToken);
+
+    Task<DateTimeOffset?> GetOldestProcessedAtUtcAsync(CancellationToken cancellationToken);
 }

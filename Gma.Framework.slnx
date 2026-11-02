@@ -51,6 +51,7 @@
     <File Path="docs/architecture/caching.md" />
     <File Path="docs/architecture/composition-tooling.md" />
     <File Path="docs/architecture/cqrs-and-domain-events.md" />
+    <File Path="docs/architecture/cqrs-cancellation-fencing-task.md" />
     <File Path="docs/architecture/durable-runtime-hardening-task.md" />
     <File Path="docs/architecture/exception-safe-observability-task.md" />
     <File Path="docs/architecture/file-management-boundary-revalidation-task.md" />
@@ -61,6 +62,7 @@
     <File Path="docs/architecture/messaging-consumers.md" />
     <File Path="docs/architecture/metadata-attribute-pipeline-task.md" />
     <File Path="docs/architecture/metadata-attributes-refactor-notes.md" />
+    <File Path="docs/architecture/method-aware-http-rate-limiting-task.md" />
     <File Path="docs/architecture/module-composition-features-task.md" />
     <File Path="docs/architecture/module-descriptor-builder-refactor-notes.md" />
     <File Path="docs/architecture/module-system.md" />
@@ -84,6 +86,7 @@
     <File Path="docs/architecture/standalone-solution-sync-verification-task.md" />
     <File Path="docs/architecture/task-handler-timeout-override-task.md" />
     <File Path="docs/architecture/task-schedule-streaming-task.md" />
+    <File Path="docs/architecture/task-terminal-failure-and-attempt-context-task.md" />
     <File Path="docs/architecture/tasks-and-daemons.md" />
     <File Path="docs/architecture/tenant-model-conventions-implementation-notes.md" />
     <File Path="docs/architecture/tenant-model-conventions-task.md" />

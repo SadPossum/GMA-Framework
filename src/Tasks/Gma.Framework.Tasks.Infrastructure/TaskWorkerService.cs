@@ -293,6 +293,22 @@ internal sealed class TaskWorkerService(
                 exception.GetType().Name);
             this.RecordTerminalMutation(outcome, lease, "canceled", stopwatch.Elapsed);
         }
+        catch (TaskRunTerminalFailureException exception)
+        {
+            TaskRunMutationOutcome outcome = await store.MarkFailedAsync(
+                    context,
+                    exception.FailureCode,
+                    clock.UtcNow,
+                    retryAtUtc: null,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            logger.LogInformation(
+                "Task execution for {Module}.{Task} reported terminal failure {FailureCode}.",
+                lease.ModuleName,
+                lease.TaskName,
+                exception.FailureCode);
+            this.RecordTerminalMutation(outcome, lease, "failure", stopwatch.Elapsed);
+        }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             logger.LogInformation(

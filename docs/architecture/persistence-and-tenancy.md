@@ -61,7 +61,11 @@ Check model-to-migration drift before finishing persistence work:
 .\eng\check-migrations.ps1 -NoBuild
 ```
 
-The script discovers every provider migration project under `src/Modules` and `gma/modules`, then runs EF's pending-model-change check against the matching design-time factory. `eng/verify.ps1` includes this check by default after build; pass `-SkipMigrationCheck` only for a deliberately narrow local loop.
+The script discovers every provider migration project under `src/Modules` and
+`gma/modules`, then runs EF's pending-model-change check against the matching
+design-time factory. Composition repositories include this check in
+`eng/verify.ps1`; standalone package repositories run it explicitly when their
+source set contains provider migration projects.
 
 Design-time factories live in provider-specific migration projects, not runtime persistence projects:
 
@@ -124,6 +128,12 @@ EF Core `DbContext` is the practical unit of work. A module unit of work wraps:
 - outbox writes;
 - EF Core commit;
 - domain event clearing after successful commit.
+
+`EfDomainEventUnitOfWork<TDbContext>` also clears the EF change tracker after a
+transaction rollback. This is required even though the database transaction
+has ended: tracked entities and their pending domain events otherwise remain in
+the scoped context and can be saved or dispatched by a later command that
+reuses that scope.
 
 ## Transaction Coordination
 

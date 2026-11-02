@@ -238,7 +238,17 @@ public static class DependencyInjection
             configured.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             configured.OnRejected = async (context, cancellationToken) =>
             {
-                context.HttpContext.Response.Headers.RetryAfter = options.WindowSeconds.ToString(
+                int retryAfterSeconds = options.WindowSeconds;
+                if (context.Lease.TryGetMetadata(
+                        MetadataName.RetryAfter,
+                        out TimeSpan retryAfter))
+                {
+                    retryAfterSeconds = Math.Max(
+                        1,
+                        (int)Math.Ceiling(retryAfter.TotalSeconds));
+                }
+
+                context.HttpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString(
                     System.Globalization.CultureInfo.InvariantCulture);
                 await Results.Problem(
                         title: "Http.RateLimitExceeded",
@@ -269,7 +279,7 @@ public static class DependencyInjection
             });
             PartitionedRateLimiter<HttpContext> sensitive =
                 PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                    HttpRateLimitPolicy.IsSensitive(context, options)
+                    HttpRateLimitPolicy.MatchesLegacySensitivePolicy(context, options)
                         ? RateLimitPartition.GetFixedWindowLimiter(
                             $"sensitive:{HttpRateLimitPolicy.ClientPartition(context)}",
                             _ => new FixedWindowRateLimiterOptions
@@ -281,11 +291,30 @@ public static class DependencyInjection
                                 Window = TimeSpan.FromSeconds(options.WindowSeconds)
                             })
                         : RateLimitPartition.GetNoLimiter("not-sensitive"));
+            List<PartitionedRateLimiter<HttpContext>> limiters = [general, sensitive];
+            limiters.AddRange(options.Policies.Select(policy =>
+                CreatePolicyLimiter(options, policy)));
 
-            configured.GlobalLimiter =
-                PartitionedRateLimiter.CreateChained(general, sensitive);
+            configured.GlobalLimiter = PartitionedRateLimiter.CreateChained([.. limiters]);
         });
     }
+
+    private static PartitionedRateLimiter<HttpContext> CreatePolicyLimiter(
+        RateLimitingSettings options,
+        HttpRateLimitPolicySettings policy) =>
+        PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            HttpRateLimitPolicy.Matches(context, policy)
+                ? RateLimitPartition.GetFixedWindowLimiter(
+                    $"{policy.Name}:{HttpRateLimitPolicy.ClientPartition(context)}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        AutoReplenishment = true,
+                        PermitLimit = policy.PermitLimit,
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        Window = TimeSpan.FromSeconds(options.WindowSeconds)
+                    })
+                : RateLimitPartition.GetNoLimiter($"not-{policy.Name}"));
 
     private static void ValidateBeforeRegistration(
         ProductionHttpOptions options,

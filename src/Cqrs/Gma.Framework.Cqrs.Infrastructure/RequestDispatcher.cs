@@ -32,25 +32,29 @@ internal sealed class RequestDispatcher(IServiceProvider serviceProvider) : IReq
         CancellationToken cancellationToken)
         where TCommand : ICommand<TResponse>
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         ICommandHandler<TCommand, TResponse> handler = this.GetRequiredCommandHandler<TCommand, TResponse>();
 
         IEnumerable<ICommandPipelineBehavior<TCommand, TResponse>> behaviors =
             serviceProvider.GetServices<ICommandPipelineBehavior<TCommand, TResponse>>();
 
-        CommandNext<TResponse> next = () => EnsureResultAsync(
-            handler.HandleAsync(command, cancellationToken),
+        CommandNext<TResponse> next = () => InvokeComponentAsync(
+            () => handler.HandleAsync(command, cancellationToken),
             typeof(TCommand),
             handler.GetType(),
-            "command handler");
+            "command handler",
+            cancellationToken);
 
         foreach (ICommandPipelineBehavior<TCommand, TResponse> behavior in behaviors.Reverse())
         {
             CommandNext<TResponse> current = next;
-            next = () => EnsureResultAsync(
-                behavior.HandleAsync(command, current, cancellationToken),
+            next = () => InvokeComponentAsync(
+                () => behavior.HandleAsync(command, current, cancellationToken),
                 typeof(TCommand),
                 behavior.GetType(),
-                "command pipeline behavior");
+                "command pipeline behavior",
+                cancellationToken);
         }
 
         return await next().ConfigureAwait(false);
@@ -61,36 +65,44 @@ internal sealed class RequestDispatcher(IServiceProvider serviceProvider) : IReq
         CancellationToken cancellationToken)
         where TQuery : IQuery<TResponse>
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         IQueryHandler<TQuery, TResponse> handler = this.GetRequiredQueryHandler<TQuery, TResponse>();
 
         IEnumerable<IQueryPipelineBehavior<TQuery, TResponse>> behaviors =
             serviceProvider.GetServices<IQueryPipelineBehavior<TQuery, TResponse>>();
 
-        QueryNext<TResponse> next = () => EnsureResultAsync(
-            handler.HandleAsync(query, cancellationToken),
+        QueryNext<TResponse> next = () => InvokeComponentAsync(
+            () => handler.HandleAsync(query, cancellationToken),
             typeof(TQuery),
             handler.GetType(),
-            "query handler");
+            "query handler",
+            cancellationToken);
 
         foreach (IQueryPipelineBehavior<TQuery, TResponse> behavior in behaviors.Reverse())
         {
             QueryNext<TResponse> current = next;
-            next = () => EnsureResultAsync(
-                behavior.HandleAsync(query, current, cancellationToken),
+            next = () => InvokeComponentAsync(
+                () => behavior.HandleAsync(query, current, cancellationToken),
                 typeof(TQuery),
                 behavior.GetType(),
-                "query pipeline behavior");
+                "query pipeline behavior",
+                cancellationToken);
         }
 
         return await next().ConfigureAwait(false);
     }
 
-    private static async Task<Result<TResponse>> EnsureResultAsync<TResponse>(
-        Task<Result<TResponse>>? resultTask,
+    private static async Task<Result<TResponse>> InvokeComponentAsync<TResponse>(
+        Func<Task<Result<TResponse>>> invocation,
         Type requestType,
         Type componentType,
-        string componentKind)
+        string componentKind,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        Task<Result<TResponse>>? resultTask = invocation();
         if (resultTask is null)
         {
             throw new InvalidOperationException(
@@ -98,8 +110,14 @@ internal sealed class RequestDispatcher(IServiceProvider serviceProvider) : IReq
         }
 
         Result<TResponse>? result = await resultTask.ConfigureAwait(false);
-        return result ?? throw new InvalidOperationException(
-            $"The {componentKind} '{componentType.FullName}' returned a null result for request '{requestType.FullName}'.");
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                $"The {componentKind} '{componentType.FullName}' returned a null result for request '{requestType.FullName}'.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return result;
     }
 
     private ICommandHandler<TCommand, TResponse> GetRequiredCommandHandler<TCommand, TResponse>()

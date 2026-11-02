@@ -1,5 +1,6 @@
 namespace Gma.Framework.Messaging.Infrastructure;
 
+using System.Diagnostics;
 using Gma.Framework.Messaging;
 using Gma.Framework.Runtime.Maintenance;
 using Gma.Framework.Runtime.Time;
@@ -56,6 +57,7 @@ internal sealed class MessageJournalCleanupService(
                         store.ModuleName,
                         "outbox",
                         (batchSize, token) => store.DeleteProcessedBeforeAsync(cutoff, batchSize, token),
+                        store.GetOldestProcessedAtUtcAsync,
                         currentOptions,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -71,6 +73,7 @@ internal sealed class MessageJournalCleanupService(
                         store.ModuleName,
                         "inbox",
                         (batchSize, token) => store.DeleteProcessedBeforeAsync(cutoff, batchSize, token),
+                        store.GetOldestProcessedAtUtcAsync,
                         currentOptions,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -82,18 +85,25 @@ internal sealed class MessageJournalCleanupService(
         string moduleName,
         string journal,
         Func<int, CancellationToken, Task<int>> deleteBatch,
+        Func<CancellationToken, Task<DateTimeOffset?>> getOldestProcessed,
         MessageJournalCleanupOptions currentOptions,
         CancellationToken cancellationToken)
     {
         int deletedTotal = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
         try
         {
-            deletedTotal = await BoundedBatchProcessor.ExecuteAsync(
+            await BoundedBatchProcessor.ExecuteAsync(
                     currentOptions.BatchSize,
                     currentOptions.MaxBatchesPerStorePerCycle,
                     deleteBatch,
+                    processed => deletedTotal = checked(deletedTotal + processed),
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            DateTimeOffset? oldestProcessed = await getOldestProcessed(cancellationToken)
+                .ConfigureAwait(false);
+            this.TrySetOldestProcessed(moduleName, journal, oldestProcessed);
 
             if (deletedTotal > 0)
             {
@@ -112,11 +122,18 @@ internal sealed class MessageJournalCleanupService(
         catch (Exception exception)
         {
             this.TryRecordDeleted(moduleName, journal, deletedTotal);
+            this.TryRecordFailure(moduleName, journal);
+            this.TrySetOldestProcessed(moduleName, journal, null);
             logger.LogError(
                 "Failed to clean processed {Journal} messages for module {ModuleName} with {ExceptionType}; other stores will continue.",
                 journal,
                 moduleName,
                 exception.GetType().Name);
+        }
+        finally
+        {
+            stopwatch.Stop();
+            this.TryRecordDuration(moduleName, journal, stopwatch.Elapsed);
         }
     }
 
@@ -157,6 +174,45 @@ internal sealed class MessageJournalCleanupService(
         try
         {
             metrics.RecordDeleted(moduleName, journal, count);
+        }
+        catch (Exception)
+        {
+            // Metrics are observability only; exporter failures must not stop cleanup.
+        }
+    }
+
+    private void TryRecordFailure(string moduleName, string journal)
+    {
+        try
+        {
+            metrics.RecordFailure(moduleName, journal);
+        }
+        catch (Exception)
+        {
+            // Metrics are observability only; exporter failures must not stop cleanup.
+        }
+    }
+
+    private void TryRecordDuration(string moduleName, string journal, TimeSpan duration)
+    {
+        try
+        {
+            metrics.RecordDuration(moduleName, journal, duration);
+        }
+        catch (Exception)
+        {
+            // Metrics are observability only; exporter failures must not stop cleanup.
+        }
+    }
+
+    private void TrySetOldestProcessed(
+        string moduleName,
+        string journal,
+        DateTimeOffset? processedAtUtc)
+    {
+        try
+        {
+            metrics.SetOldestProcessed(moduleName, journal, processedAtUtc);
         }
         catch (Exception)
         {

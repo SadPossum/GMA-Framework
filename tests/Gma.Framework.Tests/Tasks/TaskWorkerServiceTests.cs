@@ -167,6 +167,26 @@ public sealed class TaskWorkerServiceTests
         Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
         Assert.Equal("task-handler-failed:InvalidOperationException", store.LastFailure);
         Assert.DoesNotContain(personalDataCanary, store.LastFailure, StringComparison.Ordinal);
+        Assert.NotNull(store.LastRetryAtUtc);
+        await host.StopAsync();
+    }
+
+    [Fact]
+    public async Task Worker_does_not_retry_terminal_handler_failures()
+    {
+        WorkerTestStore store = new();
+        WorkerGate gate = new()
+        {
+            TerminalFailureCode = "export.owner-result-invalid",
+        };
+        store.Enqueue("alpha", count: 1);
+
+        using IHost host = CreateHost(store, gate, ["alpha"], maxConcurrency: 1, batchSize: 1);
+        await host.StartAsync();
+
+        Assert.True(await store.WaitForFailedAsync(1, TimeSpan.FromSeconds(2)));
+        Assert.Equal("export.owner-result-invalid", store.LastFailure);
+        Assert.Null(store.LastRetryAtUtc);
         await host.StopAsync();
     }
 
@@ -316,10 +336,17 @@ public sealed class TaskWorkerServiceTests
 
         public int WaitCount => Volatile.Read(ref this.waitCount);
         public string? FailureMessage { get; init; }
+        public string? TerminalFailureCode { get; init; }
 
         public Task WaitAsync(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref this.waitCount);
+            if (this.TerminalFailureCode is not null)
+            {
+                return Task.FromException(
+                    new TaskRunTerminalFailureException(this.TerminalFailureCode));
+            }
+
             if (this.FailureMessage is not null)
             {
                 return Task.FromException(new InvalidOperationException(this.FailureMessage));
@@ -357,6 +384,7 @@ public sealed class TaskWorkerServiceTests
         public int SucceededCount => Volatile.Read(ref this.succeededCount);
         public int HeartbeatCount => Volatile.Read(ref this.heartbeatCount);
         public string LastFailure { get; private set; } = string.Empty;
+        public DateTimeOffset? LastRetryAtUtc { get; private set; }
         public int MaximumRunningCount => Volatile.Read(ref this.maximumRunningCount);
 
         public void Enqueue(string workerGroup, int count)
@@ -504,6 +532,7 @@ public sealed class TaskWorkerServiceTests
             CancellationToken cancellationToken)
         {
             this.LastFailure = error;
+            this.LastRetryAtUtc = retryAtUtc;
             Interlocked.Decrement(ref this.runningCount);
             Interlocked.Increment(ref this.failedCount);
             return Task.FromResult(TaskRunMutationOutcome.Applied);
