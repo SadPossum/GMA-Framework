@@ -1,14 +1,15 @@
 namespace Gma.Framework.Messaging.Nats;
 
+using System.Security.Cryptography;
 using System.Text;
+using Gma.Framework.Messaging;
+using Gma.Framework.Runtime;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
-using Gma.Framework.Messaging;
-using Gma.Framework.Runtime;
 
 #pragma warning disable IDE0290 // Explicit constructor selects the shared-manager DI path over the compatibility overload.
 public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
@@ -53,7 +54,7 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
         byte[] payload = Encoding.UTF8.GetBytes(message.Payload);
         NatsJSPubOpts publishOptions = new()
         {
-            MsgId = CreateMessageId(message.Id)
+            MsgId = CreateMessageId(message.Subject, message.Id)
         };
         PubAckResponse ack = await jetStream
             .PublishAsync(message.Subject, payload, opts: publishOptions, cancellationToken: cancellationToken)
@@ -69,8 +70,18 @@ public sealed class NatsJetStreamEventBus : IEventBus, IDisposable
         this.LogPublished(message.Subject);
     }
 
-    private static string CreateMessageId(Guid messageId) =>
-        messageId.ToString("N");
+    internal static string CreateMessageId(string subject, Guid messageId)
+    {
+        if (messageId == Guid.Empty)
+        {
+            throw new ArgumentException("messageId must not be empty.", nameof(messageId));
+        }
+
+        string normalizedSubject = IntegrationEventNaming.NormalizeSubject(subject);
+        byte[] identity = Encoding.UTF8.GetBytes(
+            string.Concat(normalizedSubject, "\0", messageId.ToString("N")));
+        return Convert.ToHexStringLower(SHA256.HashData(identity));
+    }
 
     public void Dispose() => this.ownedStreamManager?.Dispose();
 
