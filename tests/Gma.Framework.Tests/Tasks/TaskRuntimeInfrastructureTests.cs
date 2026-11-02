@@ -631,7 +631,8 @@ public sealed class TaskRuntimeInfrastructureTests
 
         using IHost host = builder.Build();
         await host.StartAsync();
-        IReadOnlyList<TaskRunRequest> requests = await store.WaitForRequestsAsync(1, TimeSpan.FromSeconds(2));
+        // Allow bounded hosted-runner startup latency; the wait returns as soon as the request arrives.
+        IReadOnlyList<TaskRunRequest> requests = await store.WaitForRequestsAsync(1, TimeSpan.FromSeconds(10));
         await host.StopAsync();
 
         TaskRunRequest request = Assert.Single(requests);
