@@ -82,6 +82,34 @@ public sealed class SafeRequestLoggingTests
             StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("valid-name\n")]
+    [InlineData("valid-name\r\n")]
+    [InlineData("valid-name\t")]
+    [InlineData("valid-name\0")]
+    [InlineData("valid-name\nforged-entry")]
+    public async Task Request_logging_rejects_control_characters_in_contributor_dimensions(string dimension)
+    {
+        TestLogEventSink sink = new();
+        using Logger logger = new LoggerConfiguration()
+            .MinimumLevel.Verbose()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        ServiceCollection serviceCollection = new();
+        serviceCollection.AddSingleton<ILogger>(logger);
+        serviceCollection.AddSingleton<IRequestLoggingDiagnosticContextContributor>(
+            new UnsafeDimensionContributor(dimension));
+        await using ServiceProvider services = serviceCollection.BuildServiceProvider();
+        RequestDelegate pipeline = BuildPipeline(services, _ => Task.CompletedTask);
+        DefaultHttpContext context = CreateContext(services, "guest-1", "safe@example.test");
+
+        await pipeline(context);
+
+        LogEvent logEvent = Assert.Single(sink.Events);
+        Assert.False(logEvent.Properties.ContainsKey(ObservabilityLogPropertyNames.Operation));
+        Assert.DoesNotContain(dimension, logEvent.RenderMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
     private static RequestDelegate BuildPipeline(
         IServiceProvider services,
         RequestDelegate terminal)
@@ -129,6 +157,12 @@ public sealed class SafeRequestLoggingTests
             diagnosticContext.Set(ObservabilityLogPropertyNames.Subject, personalDataCanary);
             diagnosticContext.SetException(new InvalidOperationException(personalDataCanary));
         }
+    }
+
+    private sealed class UnsafeDimensionContributor(string dimension) : IRequestLoggingDiagnosticContextContributor
+    {
+        public void Enrich(IDiagnosticContext diagnosticContext, HttpContext httpContext) =>
+            diagnosticContext.Set(ObservabilityLogPropertyNames.Operation, dimension);
     }
 
     private sealed class TestLogEventSink : ILogEventSink
