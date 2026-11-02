@@ -9,7 +9,7 @@ internal sealed class SafeDiagnosticContext : IDiagnosticContext
     private const int MaximumDimensionLength = 64;
 
     private static readonly Regex SafeDimensionPattern = new(
-        "^[A-Za-z0-9._:-]+$",
+        "\\A[A-Za-z0-9._:-]+\\z",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly HashSet<string> AllowedContributorProperties = new(StringComparer.Ordinal)

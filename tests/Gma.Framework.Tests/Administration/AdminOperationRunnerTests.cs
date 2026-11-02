@@ -389,12 +389,45 @@ public sealed class AdminOperationRunnerTests
         Assert.Equal(resourceScope.Value, Assert.Single(audit.Records).ResourceScope);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failure_logs_keep_operation_and_exception_type_without_sensitive_exception_details(bool auditFailure)
+    {
+        const string privateDetail = "synthetic-private-token-491\r\nforged-log-entry";
+        RecordingLoggerProvider logger = new();
+        IAdminAuditSink audit = auditFailure ? new ThrowingAuditSink(privateDetail) : new RecordingAuditSink();
+        await using ServiceProvider services = CreateServices(
+            new RecordingAuthorizationService(),
+            audit,
+            new FixedClock(new DateTimeOffset(2026, 7, 1, 15, 0, 0, TimeSpan.Zero)),
+            loggerProvider: logger);
+        IAdminOperationRunner runner = services.GetRequiredService<IAdminOperationRunner>();
+
+        AdminOperationExecutionResult<int> result = await runner.ExecuteAsync<int>(
+            new AdminOperationContext(
+                AdminActor.System("actor"),
+                AdminOperation.Create("auth.members.create", AdminPermission.Create("auth.members.create")),
+                "tenant-a",
+                RequireTenant: true),
+            _ => auditFailure ? Task.FromResult(Result.Success(42)) : throw new InvalidOperationException(privateDetail),
+            CancellationToken.None);
+
+        Assert.Equal(auditFailure ? AdminOperationExecutionStatus.Succeeded : AdminOperationExecutionStatus.UnexpectedFailure, result.Status);
+        string message = Assert.Single(logger.Messages);
+        Assert.Contains("auth.members.create", message, StringComparison.Ordinal);
+        Assert.Contains("InvalidOperationException", message, StringComparison.Ordinal);
+        Assert.DoesNotContain(privateDetail, message, StringComparison.Ordinal);
+        Assert.Null(Assert.Single(logger.Exceptions));
+    }
+
     private static ServiceProvider CreateServices(
         IAdminAuthorizationService authorization,
         IAdminAuditSink? audit,
         ISystemClock clock,
         bool addThrowingLogger = false,
-        EnabledTenantContext? tenantContext = null)
+        EnabledTenantContext? tenantContext = null,
+        ILoggerProvider? loggerProvider = null)
     {
         FixedIdGenerator idGenerator = new(Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"));
         ServiceCollection services = new();
@@ -405,6 +438,11 @@ public sealed class AdminOperationRunnerTests
             if (addThrowingLogger)
             {
                 builder.AddProvider(new ThrowingLoggerProvider());
+            }
+
+            if (loggerProvider is not null)
+            {
+                builder.AddProvider(loggerProvider);
             }
         });
 
@@ -501,10 +539,42 @@ public sealed class AdminOperationRunnerTests
         }
     }
 
-    private sealed class ThrowingAuditSink : IAdminAuditSink
+    private sealed class ThrowingAuditSink(string message = "Audit unavailable.") : IAdminAuditSink
     {
         public Task RecordAsync(AdminAuditRecord record, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Audit unavailable.");
+            throw new InvalidOperationException(message);
+    }
+
+    private sealed class RecordingLoggerProvider : ILoggerProvider
+    {
+        public List<string> Messages { get; } = [];
+        public List<Exception?> Exceptions { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new RecordingLogger(this);
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingLogger(RecordingLoggerProvider provider) : ILogger
+    {
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull =>
+            NullScope.Instance;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            provider.Messages.Add(formatter(state, exception));
+            provider.Exceptions.Add(exception);
+        }
     }
 
     private sealed class ThrowingLoggerProvider : ILoggerProvider
