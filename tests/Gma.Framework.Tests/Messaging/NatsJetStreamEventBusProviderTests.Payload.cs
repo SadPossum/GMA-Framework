@@ -58,7 +58,8 @@ public sealed partial class NatsJetStreamEventBusProviderTests
             Assert.Equal(payload, redelivered.Data);
             Assert.True(redelivered.Metadata is { NumDelivered: 2 });
             Assert.Equal(first.Metadata?.Sequence.Stream, redelivered.Metadata?.Sequence.Stream);
-            await redelivered.AckAsync(cancellationToken: cancellationToken);
+            // Broker state is observable only after the server confirms this acknowledgment.
+            await redelivered.AckAsync(new AckOpts { DoubleAck = true }, cancellationToken);
             await consumer.RefreshAsync(cancellationToken);
             Assert.Equal(0, consumer.Info.NumAckPending);
             Assert.Equal(0UL, consumer.Info.NumPending);
