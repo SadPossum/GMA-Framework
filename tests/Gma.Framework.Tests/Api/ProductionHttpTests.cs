@@ -5,6 +5,7 @@ using Gma.Framework.Cqrs;
 using Gma.Framework.ModuleComposition;
 using Gma.Framework.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -17,6 +18,49 @@ using Xunit;
 [Trait("Category", "Unit")]
 public sealed class ProductionHttpTests
 {
+    [Theory]
+    [InlineData(true, "https://approved.example.test", true)]
+    [InlineData(true, "https://untrusted.example.test", false)]
+    [InlineData(false, "https://approved.example.test", false)]
+    public async Task Cors_exposes_the_assurance_challenge_only_to_configured_origins(
+        bool enabled,
+        string origin,
+        bool allowed)
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            EnvironmentName = Environments.Development
+        });
+        builder.Configuration["Http:Cors:Enabled"] = enabled.ToString();
+        builder.Configuration["Http:Cors:AllowCredentials"] = "true";
+        builder.Configuration["Http:Cors:AllowedOrigins:0"] = "https://approved.example.test";
+        builder.AddGmaProductionHttp();
+        using ServiceProvider provider = builder.Services.BuildServiceProvider();
+        DefaultHttpContext context = new();
+        context.Request.Headers.Origin = origin;
+        CorsPolicy? policy = await provider.GetRequiredService<ICorsPolicyProvider>()
+            .GetPolicyAsync(context, Gma.Framework.Api.Production.DependencyInjection.CorsPolicyName);
+        Assert.NotNull(policy);
+        ICorsService service = provider.GetRequiredService<ICorsService>();
+        CorsResult result = service.EvaluatePolicy(context, policy);
+        service.ApplyResult(result, context.Response);
+
+        Assert.Equal(allowed, result.IsOriginAllowed);
+        if (allowed)
+        {
+            Assert.Equal(origin, context.Response.Headers.AccessControlAllowOrigin);
+            Assert.Equal("true", context.Response.Headers.AccessControlAllowCredentials);
+            Assert.Equal("WWW-Authenticate", context.Response.Headers.AccessControlExposeHeaders);
+            Assert.DoesNotContain("*", context.Response.Headers.AccessControlExposeHeaders.ToString(), StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.False(context.Response.Headers.ContainsKey("Access-Control-Allow-Origin"));
+            Assert.False(context.Response.Headers.ContainsKey("Access-Control-Allow-Credentials"));
+            Assert.False(context.Response.Headers.ContainsKey("Access-Control-Expose-Headers"));
+        }
+    }
+
     [Fact]
     public void Validation_rejects_unrestricted_production_host_filtering()
     {

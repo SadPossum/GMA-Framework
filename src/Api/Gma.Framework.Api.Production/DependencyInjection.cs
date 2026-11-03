@@ -205,7 +205,8 @@ public static class DependencyInjection
 
                 policy.WithOrigins(options.AllowedOrigins)
                     .AllowAnyHeader()
-                    .AllowAnyMethod();
+                    .AllowAnyMethod()
+                    .WithExposedHeaders("WWW-Authenticate");
 
                 if (options.AllowCredentials)
                 {
