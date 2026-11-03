@@ -145,8 +145,8 @@ foreach ($token in @(
     $expectedBaselineReference,
     'exception-file: .gma/security-exceptions.json',
     'security-events: write',
-    'github/codeql-action/upload-sarif@7188fc363630916deb702c7fdcf4e481b751f97a',
-    'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a',
+    'github/codeql-action/upload-sarif@1fc58d04a4d4374f921bdac573c3811c240f9c26',
+    'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
     'retention-days: 30',
     'if-no-files-found: error')) {
     if ($securityWorkflow.IndexOf(
