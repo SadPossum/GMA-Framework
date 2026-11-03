@@ -14,7 +14,7 @@ using Xunit;
 
 [Trait("Category", "Integration")]
 [Trait("Category", "Docker")]
-public sealed class NatsJetStreamEventBusProviderTests
+public sealed partial class NatsJetStreamEventBusProviderTests
 {
     private const int NatsPort = 4222;
 
@@ -68,8 +68,8 @@ public sealed class NatsJetStreamEventBusProviderTests
         Assert.Equal(3L, await GetStoredMessageCountAsync(connection, streamName));
     }
 
-    private static IContainer CreateNatsContainer() =>
-        new ContainerBuilder("nats:2.10-alpine")
+    private static IContainer CreateNatsContainer(string image = "nats:2.10-alpine") =>
+        new ContainerBuilder(image)
             .WithPortBinding(NatsPort, assignRandomHostPort: true)
             .WithCommand("-js")
             .WithWaitStrategy(Wait.ForUnixContainer().UntilInternalTcpPortIsAvailable(NatsPort))
