@@ -708,13 +708,30 @@ public sealed class TaskRuntimeInfrastructureTests
         builder.AddTaskRunScheduling();
 
         using IHost host = builder.Build();
-        await host.StartAsync();
-        IReadOnlyList<TaskRunRequest> requests =
-            await store.WaitForRequestsAsync(2, TimeSpan.FromSeconds(2));
-        await host.StopAsync();
+        try
+        {
+            await host.StartAsync();
+            await provider.FirstSnapshotStarted.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Empty(store.SnapshotRequests());
 
-        Assert.Equal(2, requests.Count);
-        Assert.True(provider.EnumerationCount >= 3);
+            // Observe the complete present/absent/reappeared sequence. A real
+            // background-service startup is not part of the cursor contract.
+            provider.ReleaseInitialSnapshot();
+            await provider.ThreeSnapshotsCompleted.WaitAsync(TimeSpan.FromSeconds(10));
+            TaskRunRequest[] requests = store.SnapshotRequests();
+
+            Assert.Equal(2, requests.Length);
+            Assert.Equal(2, store.EnqueueAttempts);
+            Assert.True(provider.EnumerationCount >= 3);
+            Assert.All(requests, request => Assert.Equal(
+                "schedule:task-samples:generate-report:reappearing:v1:20260703120000",
+                request.DeduplicationKey));
+        }
+        finally
+        {
+            provider.ReleaseInitialSnapshot();
+            await host.StopAsync();
+        }
     }
 
     [Fact]
@@ -896,6 +913,14 @@ public sealed class TaskRuntimeInfrastructureTests
 
         public Task<bool> WaitForTimeoutScanAttemptsAsync(int expectedCount, TimeSpan timeout) =>
             WaitForCounterAsync(() => Volatile.Read(ref this.timeoutScanAttempts), expectedCount, timeout);
+
+        public TaskRunRequest[] SnapshotRequests()
+        {
+            lock (this.requests)
+            {
+                return this.requests.ToArray();
+            }
+        }
 
         public async Task<IReadOnlyList<TaskRunRequest>> WaitForRequestsAsync(int expectedCount, TimeSpan timeout)
         {
@@ -1142,19 +1167,35 @@ public sealed class TaskRuntimeInfrastructureTests
 
     private sealed class ReappearingScheduleProvider : ITaskScheduleProvider
     {
+        private readonly TaskCompletionSource<bool> firstSnapshotStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> initialSnapshotRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> threeSnapshotsCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int enumerationCount;
 
         public int EnumerationCount => Volatile.Read(ref this.enumerationCount);
+        public Task FirstSnapshotStarted => this.firstSnapshotStarted.Task;
+        public Task ThreeSnapshotsCompleted => this.threeSnapshotsCompleted.Task;
+        public void ReleaseInitialSnapshot() => this.initialSnapshotRelease.TrySetResult(true);
 
         public async IAsyncEnumerable<ScheduledTaskDefinition> GetSchedulesAsync(
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await Task.CompletedTask.ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             int count = Interlocked.Increment(ref this.enumerationCount);
+            if (count == 1)
+            {
+                this.firstSnapshotStarted.TrySetResult(true);
+                await this.initialSnapshotRelease.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             if (count != 2)
             {
                 yield return Schedule("reappearing");
+            }
+
+            if (count >= 3)
+            {
+                this.threeSnapshotsCompleted.TrySetResult(true);
             }
         }
     }
