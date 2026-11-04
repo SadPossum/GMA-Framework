@@ -12,6 +12,14 @@ internal sealed class MinioFileStorage(
     : IFileStorage, IDisposable
 {
     private const string FileNameMetadataKey = "x-amz-meta-file-name";
+    private const string SdkFileNameMetadataKey = "file-name";
+    // Minio 7 ObjectStat removes x-amz-meta- from user keys, and also places
+    // these standard response headers in the same dictionary. Keep transport
+    // headers out of the application's user-metadata collection.
+    private static readonly HashSet<string> responseHeaderMetadataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cache-control", "content-encoding", "content-type", "x-amz-acl", "content-disposition", "x-minio-extract"
+    };
     private readonly SemaphoreSlim bucketLock = new(1, 1);
     private bool bucketChecked;
 
@@ -175,10 +183,10 @@ internal sealed class MinioFileStorage(
         Dictionary<string, string> normalized = new(StringComparer.Ordinal);
         foreach ((string key, string value) in metadata)
         {
-            if (key.StartsWith("x-amz-meta-", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(key, FileNameMetadataKey, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(key, SdkFileNameMetadataKey, StringComparison.OrdinalIgnoreCase) &&
+                !responseHeaderMetadataKeys.Contains(key))
             {
-                normalized[key["x-amz-meta-".Length..].ToLowerInvariant()] = value;
+                normalized[key.ToLowerInvariant()] = value;
             }
         }
 
@@ -192,7 +200,7 @@ internal sealed class MinioFileStorage(
             return null;
         }
 
-        return metadata.TryGetValue(FileNameMetadataKey, out string? fileName)
+        return metadata.TryGetValue(SdkFileNameMetadataKey, out string? fileName)
             ? FileStorageMetadata.NormalizeFileName(fileName)
             : null;
     }
