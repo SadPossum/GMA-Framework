@@ -81,11 +81,27 @@ internal static class SafeRequestLoggingMiddleware
         contextualLogger.Write(
             level,
             RequestCompletedMessage,
-            httpContext.Request.Method,
+            GetRequestMethod(httpContext.Request.Method),
             routeTemplate,
             statusCode,
             elapsedMilliseconds);
     }
+
+    // Middleware can replace the transport-validated method with request data.
+    // Log fixed labels while leaving the actual method and routing untouched.
+    private static string GetRequestMethod(string method) => method switch
+    {
+        "GET" => "GET",
+        "HEAD" => "HEAD",
+        "POST" => "POST",
+        "PUT" => "PUT",
+        "DELETE" => "DELETE",
+        "CONNECT" => "CONNECT",
+        "OPTIONS" => "OPTIONS",
+        "TRACE" => "TRACE",
+        "PATCH" => "PATCH",
+        _ => "OTHER",
+    };
 
     private static void EnrichDiagnosticContext(SafeDiagnosticContext diagnosticContext, HttpContext httpContext)
     {
