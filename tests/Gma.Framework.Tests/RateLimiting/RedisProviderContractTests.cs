@@ -12,6 +12,7 @@ using Gma.Framework.Tenancy;
 using Gma.Framework.Tenancy.Caching;
 using Gma.Framework.Tenancy.Infrastructure;
 using Gma.Framework.Tests.Support;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -71,6 +72,15 @@ public sealed class RedisProviderContractTests
             {
                 ProviderCase current = new(connection, protocol);
                 cases.Add(current);
+                foreach (ServiceProvider root in current.Roots)
+                {
+                    await root.GetRequiredService<IDistributedCache>()
+                        .GetAsync("owned-cache-connection-warmup", cancellationToken);
+                }
+                // HybridCache releases callers before its L2 write completes.
+                // Hold real writes briefly so the persistence barrier below is
+                // exercised without relying on an immediate cross-node hit.
+                await observer.GetDatabase().ExecuteAsync("CLIENT", "PAUSE", 250, "WRITE");
                 await VerifyCacheAsync(current, cancellationToken);
                 await VerifyRateLimitsAsync(current, observer.GetDatabase(), cancellationToken);
                 await VerifyActualProtocolAsync(current, observer);
@@ -97,6 +107,7 @@ public sealed class RedisProviderContractTests
         CacheKey key = CacheKey.Scoped("redis-contract", "shared");
         Assert.Equal(41, await current.Cache[0].GetOrCreateAsync(key, _ => ValueTask.FromResult(41), policy,
             cancellationToken: cancellationToken));
+        await WaitForStoredAsync(current, 0, key, cancellationToken);
         // Independent roots and disabled L1 ensure this exercises the real Redis
         // adapter, rather than returning a process-local cache hit or fallback.
         Assert.Equal(41, await current.Cache[1].GetOrCreateAsync<int>(key,
@@ -104,6 +115,7 @@ public sealed class RedisProviderContractTests
             cancellationToken: cancellationToken));
         Assert.Equal(73, await current.Cache[2].GetOrCreateAsync(key, _ => ValueTask.FromResult(73), policy,
             cancellationToken: cancellationToken));
+        await WaitForStoredAsync(current, 2, key, cancellationToken);
         Assert.Equal(41, await current.Cache[0].GetOrCreateAsync(key, _ => ValueTask.FromResult(999), policy,
             cancellationToken: cancellationToken));
 
@@ -118,11 +130,26 @@ public sealed class RedisProviderContractTests
         CacheEntryPolicy shortPolicy = new(TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(100), localCacheEnabled: false);
         Assert.Equal(1, await current.Cache[0].GetOrCreateAsync(expiring, _ => ValueTask.FromResult(1), shortPolicy,
             cancellationToken: cancellationToken));
+        await WaitForStoredAsync(current, 0, expiring, cancellationToken);
         Assert.Equal(1, await current.Cache[1].GetOrCreateAsync(expiring, _ => ValueTask.FromResult(99), shortPolicy,
             cancellationToken: cancellationToken));
         await Task.Delay(TimeSpan.FromMilliseconds(2200), cancellationToken);
         Assert.Equal(2, await current.Cache[1].GetOrCreateAsync(expiring, _ => ValueTask.FromResult(2), shortPolicy,
             cancellationToken: cancellationToken));
+    }
+
+    private static async Task WaitForStoredAsync(
+        ProviderCase current, int writer, CacheKey key, CancellationToken cancellationToken)
+    {
+        IDistributedCache adapter = current.Roots[writer].GetRequiredService<IDistributedCache>();
+        string physicalKey = current.Scopes[writer].ServiceProvider.GetRequiredService<CacheKeyFormatter>().Format(key);
+        long started = Stopwatch.GetTimestamp();
+        while (await adapter.GetAsync(physicalKey, cancellationToken) is not { Length: > 0 })
+        {
+            Assert.True(Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(5),
+                "The actual Redis adapter did not persist its background cache write.");
+            await Task.Delay(20, cancellationToken);
+        }
     }
 
     private static async Task VerifyRateLimitsAsync(
