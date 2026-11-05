@@ -16,6 +16,54 @@ using Gma.Framework.Observability;
 
 public sealed class SafeRequestLoggingTests
 {
+    [Theory]
+    [InlineData("GET", "GET")]
+    [InlineData("HEAD", "HEAD")]
+    [InlineData("POST", "POST")]
+    [InlineData("PUT", "PUT")]
+    [InlineData("DELETE", "DELETE")]
+    [InlineData("CONNECT", "CONNECT")]
+    [InlineData("OPTIONS", "OPTIONS")]
+    [InlineData("TRACE", "TRACE")]
+    [InlineData("PATCH", "PATCH")]
+    [InlineData("PURGE", "OTHER")]
+    [InlineData("get", "OTHER")]
+    [InlineData("GET\r\nforged-entry", "OTHER")]
+    [InlineData("GET\nforged-entry", "OTHER")]
+    [InlineData("GET\t", "OTHER")]
+    [InlineData("GET\0", "OTHER")]
+    [InlineData("GET\u2028forged-entry", "OTHER")]
+    [InlineData("", "OTHER")]
+    public async Task Request_method_logs_are_bounded_without_changing_the_request(string method, string expected)
+    {
+        TestLogEventSink sink = new();
+        using Logger logger = new LoggerConfiguration().WriteTo.Sink(sink).CreateLogger();
+        ServiceCollection collection = new();
+        collection.AddSingleton<ILogger>(logger);
+        await using ServiceProvider services = collection.BuildServiceProvider();
+        bool called = false;
+        RequestDelegate pipeline = BuildPipeline(services, context =>
+        {
+            called = true;
+            Assert.Equal(method, context.Request.Method);
+            return Task.CompletedTask;
+        });
+        DefaultHttpContext context = CreateContext(services, "guest-1", "safe@example.test");
+        context.Request.Method = method;
+
+        await pipeline(context);
+
+        Assert.True(called);
+        Assert.Equal(method, context.Request.Method);
+        LogEvent entry = Assert.Single(sink.Events);
+        Assert.Equal(expected, ScalarValue(entry, "RequestMethod"));
+        string rendered = entry.RenderMessage(CultureInfo.InvariantCulture);
+        Assert.DoesNotContain("forged-entry", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain('\r', rendered);
+        Assert.DoesNotContain('\n', rendered);
+        Assert.DoesNotContain('\u2028', rendered);
+    }
+
     [Fact]
     public async Task Request_logging_uses_route_templates_and_omits_exception_details()
     {
